@@ -3,8 +3,6 @@ import {
   aws_iam as iam,
   aws_lambda as lambda,
   aws_lambda_nodejs as lambdaNodejs,
-  aws_logs as logs,
-  aws_secretsmanager as secretsManager,
   Duration,
   Stack,
 } from "aws-cdk-lib";
@@ -264,85 +262,19 @@ export class FA2 extends Construct {
       fa2Function.addEnvironment("XRAY_TRACE", "true");
     }
 
-    // Slack Credentials
-    const token = secretsManager.Secret.fromSecretNameV2(
-      this,
-      "SlackAppToken",
-      "SlackAppToken",
-    );
-    const signingSecret = secretsManager.Secret.fromSecretNameV2(
-      this,
-      "SlackSigningSecret",
-      "SlackSigningSecret",
-    );
-
-    const slackHandlerRole = new iam.Role(this, "SlackHandlerRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      managedPolicies: [
-        // To put lambda logs to CloudWatch Logs
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole",
-        ),
-      ],
-    });
-    this.slackHandlerRole = slackHandlerRole;
-
-    const slackHandler = new lambdaNodejs.NodejsFunction(
-      this,
-      "SlackHandler",
-      {
-        runtime: lambda.Runtime.NODEJS_20_X,
-        timeout: Duration.seconds(600),
-        entry: path.join(
-          __dirname,
-          "../../lambda/functions/slack-handler/main.mts",
-        ),
-        environment: {
-          LANG: props.language,
-          FUNCTION_NAME: fa2Function.functionName,
-        },
-        role: slackHandlerRole,
-        bundling: {
-          minify: true,
-          mainFields: ["module", "main"],
-          // To solve warning of esbuild
-          externalModules: ["@aws-sdk/*", "bufferutil", "utf-8-validate"],
-          tsconfig: path.join(__dirname, "../../tsconfig.json"),
-          format: lambdaNodejs.OutputFormat.ESM,
-          esbuildArgs: {
-            "--tree-shaking": "true",
-          },
-          // Ref: https://docs.powertools.aws.dev/lambda/typescript/2.0.2/upgrade/#unable-to-use-esm
-          banner:
-            "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
-        },
-      },
-    );
-    token.grantRead(slackHandler);
-    signingSecret.grantRead(slackHandler);
-    fa2Function.grantInvoke(slackHandler);
-
-    const logGroup = new logs.LogGroup(this, "ApiGatewayLogGroup");
-    const restApi = new apigateway.RestApi(this, "SlackHandlerEndpoint", {
-      deployOptions: {
-        stageName: "v1",
-        accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
-        accessLogFormat: apigateway.AccessLogFormat.clf(),
-        loggingLevel: apigateway.MethodLoggingLevel.INFO,
-      },
-    });
-    this.slackRestApi = restApi;
-    restApi.addRequestValidator("ApiGatewayRequestValidator", {
-      validateRequestBody: true,
-      validateRequestParameters: true,
-    });
-    const slackEvents = restApi.root
-      .addResource("slack")
-      .addResource("events");
-    slackEvents.addMethod(
-      "POST",
-      new apigateway.LambdaIntegration(slackHandler),
-    );
     
+    // ----- For AWS Chatbot Custom Action version -----
+    // Configuration for custom action
+    if(!props.topicArn){
+      throw new Error("Please configure SNS Topic ARN.");
+    }
+    fa2BackendRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["sns:publish"],
+        resources: [props.topicArn],
+      }),
+    );
+    fa2Function.addEnvironment("TOPIC_ARN", props.topicArn);
   }
 }

@@ -20,8 +20,7 @@ export class FA2Stack extends Stack {
   constructor(scope: Construct, id: string, props: FA2StackProps) {
     super(scope, id, props);
 
-    // To deploy FA2 backend with Slack bot backend.
-    const fa2 = new FA2(this, "FA2Slack", {
+    const fa2 = new FA2(this, "FA2Chatbot", {
       modelId: props.modelId,
       language: props.language,
       cwLogLogGroups: props.cwLogLogGroups,
@@ -30,8 +29,9 @@ export class FA2Stack extends Stack {
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
+      topicArn: props.topicArn,
     });
-    
+
     // ----- CDK Nag Suppressions -----
     NagSuppressions.addResourceSuppressions(fa2.backendRole, [
       {
@@ -65,62 +65,5 @@ export class FA2Stack extends Stack {
       );
     }
 
-    if (fa2.slackHandlerRole) {
-      NagSuppressions.addResourceSuppressions(fa2.slackHandlerRole, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason: "CloudWatch Logs need * resources to do these API actions.",
-        },
-      ]);
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackHandlerRole.node.id
-        }/DefaultPolicy/Resource`,
-        [
-          {
-            id: "AwsSolutions-IAM5",
-            reason:
-              "* resource is given by Grant method of CDK for Lambda function automatically.",
-          },
-        ],
-      );
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackRestApi.node.id
-        }/DeploymentStage.v1/Resource`,
-        [
-          {
-            id: "AwsSolutions-APIG3",
-            reason:
-              "This is sample. If you deploy to Production, please add WAF for endpoint protection.",
-          },
-        ],
-      );
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackRestApi.node.id
-        }/Default/slack/events/POST/Resource`,
-        [
-          {
-            id: "AwsSolutions-APIG4",
-            reason:
-              "Request verification is implemented to Bolt framework. ref: * Flag that determines whether Bolt should {@link https://api.slack.com/authentication/verifying-requests-from-slack|verify Slack's signature on incoming requests}..",
-          },
-          {
-            id: "AwsSolutions-COG4",
-            reason:
-              "This API keeps public for Slack services. We couldn't use Cognito user pool authorizer.",
-          },
-        ],
-      );
-    }
   }
 }
