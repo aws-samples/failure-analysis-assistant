@@ -1,0 +1,126 @@
+import { Stack, StackProps } from "aws-cdk-lib";
+import { Construct } from "constructs";
+import { FA2 } from "../constructs/fa2";
+import { Language } from "../../parameter";
+import { NagSuppressions } from "cdk-nag";
+
+interface FA2StackProps extends StackProps {
+  modelId: string;
+  language: Language;
+  cwLogLogGroups: string[];
+  cwLogsInsightQuery: string;
+  xrayTrace: boolean;
+  databaseName?: string;
+  albAccessLogTableName?: string;
+  cloudTrailLogTableName?: string;
+  topicArn?: string;
+}
+
+export class FA2Stack extends Stack {
+  constructor(scope: Construct, id: string, props: FA2StackProps) {
+    super(scope, id, props);
+
+    // To deploy FA2 backend with Slack bot backend.
+    const fa2 = new FA2(this, "FA2Slack", {
+      modelId: props.modelId,
+      language: props.language,
+      cwLogLogGroups: props.cwLogLogGroups,
+      cwLogsInsightQuery: props.cwLogsInsightQuery,
+      xrayTrace: props.xrayTrace,
+      databaseName: props.databaseName,
+      albAccessLogTableName: props.albAccessLogTableName,
+      cloudTrailLogTableName: props.cloudTrailLogTableName,
+    });
+    
+    // ----- CDK Nag Suppressions -----
+    NagSuppressions.addResourceSuppressions(fa2.backendRole, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason:
+          "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+      },
+      {
+        id: "AwsSolutions-IAM5",
+        reason:
+          "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
+      },
+    ]);
+
+    if (
+      props.databaseName &&
+      (props.albAccessLogTableName || props.cloudTrailLogTableName)
+    ) {
+      NagSuppressions.addResourceSuppressionsByPath(
+        Stack.of(this),
+        `/${Stack.of(this).stackName}/${fa2.node.id}/${
+          fa2.backendRole.node.id
+        }/DefaultPolicy/Resource`,
+        [
+          {
+            id: "AwsSolutions-IAM5",
+            reason:
+              "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
+          },
+        ],
+      );
+    }
+
+    if (fa2.slackHandlerRole) {
+      NagSuppressions.addResourceSuppressions(fa2.slackHandlerRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason: "CloudWatch Logs need * resources to do these API actions.",
+        },
+      ]);
+      NagSuppressions.addResourceSuppressionsByPath(
+        Stack.of(this),
+        `/${Stack.of(this).stackName}/${fa2.node.id}/${
+          fa2.slackHandlerRole.node.id
+        }/DefaultPolicy/Resource`,
+        [
+          {
+            id: "AwsSolutions-IAM5",
+            reason:
+              "* resource is given by Grant method of CDK for Lambda function automatically.",
+          },
+        ],
+      );
+      NagSuppressions.addResourceSuppressionsByPath(
+        Stack.of(this),
+        `/${Stack.of(this).stackName}/${fa2.node.id}/${
+          fa2.slackRestApi.node.id
+        }/DeploymentStage.v1/Resource`,
+        [
+          {
+            id: "AwsSolutions-APIG3",
+            reason:
+              "This is sample. If you deploy to Production, please add WAF for endpoint protection.",
+          },
+        ],
+      );
+      NagSuppressions.addResourceSuppressionsByPath(
+        Stack.of(this),
+        `/${Stack.of(this).stackName}/${fa2.node.id}/${
+          fa2.slackRestApi.node.id
+        }/Default/slack/events/POST/Resource`,
+        [
+          {
+            id: "AwsSolutions-APIG4",
+            reason:
+              "Request verification is implemented to Bolt framework. ref: * Flag that determines whether Bolt should {@link https://api.slack.com/authentication/verifying-requests-from-slack|verify Slack's signature on incoming requests}..",
+          },
+          {
+            id: "AwsSolutions-COG4",
+            reason:
+              "This API keeps public for Slack services. We couldn't use Cognito user pool authorizer.",
+          },
+        ],
+      );
+    }
+  }
+}
