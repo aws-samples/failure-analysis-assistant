@@ -17,7 +17,7 @@ new FA2Stack(app, "Dev-FA2", {
     Environment: devParameter.envName,
   },
   description:
-    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z).",
+    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:chatbot-customaction).",
   modelId: devParameter.modelId,
   language: devParameter.language,
   cwLogLogGroups: devParameter.cwLogsLogGroups,
