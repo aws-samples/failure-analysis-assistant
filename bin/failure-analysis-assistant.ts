@@ -26,5 +26,4 @@ new FA2Stack(app, "Dev-FA2", {
   databaseName: devParameter.databaseName,
   albAccessLogTableName: devParameter.albAccessLogTableName,
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
-  topicArn: devParameter.topicArn,
 });
