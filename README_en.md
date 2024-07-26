@@ -61,6 +61,8 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 - Confirm that an alarm notification will be sent to Slack from the AWS Chatbot set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
 - You must have the permission to register the Slack App to the Slack workspace you want to use.
+- Turn on execution logging and access logging.
+  - If you didn't turn on, please turn on this setting as follow: [Create an IAM role to log to CloudWatch] and [Add the IAM role in the API Gateway console] in [How do I turn on CloudWatch Logs for troubleshooting my API Gateway REST API or WebSocket API?](https://repost.aws/knowledge-center/api-gateway-cloudwatch-logs)
 
 ## How to Deploy
 
