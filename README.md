@@ -61,6 +61,8 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
+- Amazon API Gateway のコンソールで、CloudWatch ログ記録を有効にしていること
+  - 未設定の場合は、[こちらの記事](https://repost.aws/ja/knowledge-center/api-gateway-cloudwatch-logs)の[解決策]にある、[CloudWatch へのログ記録用の IAM ロールを作成する]と[API ゲートウェイコンソールに IAM ロールを追加する]を実施してください
 
 ## How to Deploy
 
