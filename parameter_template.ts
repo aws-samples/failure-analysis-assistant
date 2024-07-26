@@ -13,7 +13,6 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
-  topicArn?: string; // SNS Topic Arn that is connected to AWS Chatbot
 }
 
 // Parameters for Dev Account
@@ -35,6 +34,4 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
-  topicArn:
-    "arn:aws:sns:us-east-1:123456789012:MonitoringAlarmTopicXXXXXXXX-xxxxxxxxxxxx",
 };

@@ -13,7 +13,6 @@ interface FA2StackProps extends StackProps {
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
-  topicArn?: string;
 }
 
 export class FA2Stack extends Stack {
