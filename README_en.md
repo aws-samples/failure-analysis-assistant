@@ -73,7 +73,9 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 3. The app you created will be shown in [Slack api](https://api.slack.com/apps). Choose it you created.
 4. Click [Basic Information] on the left menu, check [Signing Secret], execute the following command, and register with AWS Secrets Manager
    1. `$ aws secretsmanager create-secret --name slackSigningSecret --secret-string XXXXXXXXXXXXXXXXXXXX --profile {your_profile} `
-5. Click [OAuth & Permissions] on the left menu, check [Bot User OAuth Token], execute the following command, and register with AWS Secrets Manager
+5. Click [OAuth & Permissions] on the left menu, please add permissons `channels:read` and `chat:write` in [Scopes] section.
+6. Click [Install to Workspace] in [OAuth Tokens for Your Workspace] of top of same page to install your Slack App to your workspace.
+7. After installing, your browser will be redirected to [OAuth & Permissions] page. You check [Bot User OAuth Token], execute the following command, and register with AWS Secrets Manager
    1. `$ aws secretsmanager create-secret --name slackAppToken --secret-string xxxx-111111111111111-11111111111111111-xxxxxxxxxxxxxxxxxxxxxxxxx-profile {your_profile} `
 
 ### Setting parameters
@@ -136,9 +138,8 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
    1. If the API resource name hasn't changed, it will be /slack/events, as shown in the example
 3. Next, click [Event Subscriptions] on the left menu, set [Enable Events] to turn on, then set [Reqeust URL] in the same way as [Interactivity]
 4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels`
-5. Additionally, add `channels:read` and `chat:write` in [Scopes] on the same screen (`channels:history` was automatically added when step 3 was performed, so we don't care here)
-6. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel
-   1. If you haven't subscribed to the target channel yet, join it yourself.
+5. Click [Save Changes]
+6. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
 
 ### Testing
 

@@ -73,7 +73,9 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 3. [Slack api](https://api.slack.com/apps)に自分が作成したアプリが表示されるので、それを選択します
 4. 左メニューの[Basic Information]をクリックし、[Signing Secret]を確認し、次のコマンドを実行し、Secrets Manager に登録します
    1. `$ aws secretsmanager create-secret --name SlackSigningSecret --secret-string XXXXXXXXXXXXXXXXXXXXXXXX --profile {your_profile}`
-5. 左メニューの[OAuth & Permissions]をクリックし、[Bot User OAuth Token]を確認し、次のコマンドを実行し、Secrets Manager に登録します
+5. 左メニューの[OAuth & Permissions]をクリックし、[Scopes]で、`channels:read`, `chat:write`を追加します
+6. ページ上部の、[OAuth Tokens for Your Workspace]の[Install to Workspace]をクリックし、Slack Appをワークスペースにインストールします
+7. リダイレクトされて戻ってきたページに[Bot User OAuth Token]が表示されるので、次のコマンドを実行し、Secrets Manager に登録します
    1. `$ aws secretsmanager create-secret --name SlackAppToken --secret-string xxxx-1111111111111-1111111111111-XXXXXXXXXXXXXXXXXXXXXXXX --profile {your_profile}`
 
 ### パラメータ設定
@@ -132,11 +134,10 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 1. CDK デプロイ後に、Amazon API Gateway のエンドポイント URL を確認します
 2. [Slack api](https://api.slack.com/apps)を開き、表示された画面の左メニューにある、[Interactivity & Shortcuts]を選択し、[Interactivity]を ON にしたあと、[Request URL]に 1 で確認した Amazon API Gateway のエンドポイントを入力し（例: https://{API Gateway のエンドポイント}/v1/slack/events）、[Save Changes]をクリックします
    1. API のリソース名は変更していなければ、例の通り、/slack/events となります
-3. 次に、左メニューの[Event Subscriptions]をクリックし、[Enable Events]を ON にしたあと、[Interactivity]と同様に、[Reqeust URL]を設定し、[Save Changes]をクリックします
+3. 次に、左メニューの[Event Subscriptions]をクリックし、[Enable Events]を ON にしたあと、[Interactivity]と同様に、[Reqeust URL]を設定します
 4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels`を追加します
-5. 左メニューの[OAuth & Permissions]をクリックし、[Scopes]で、`channels:read`, `chat:write`を追加します（`channels:history`は自動的に追加されているため、ここでは気にしません）
-6. ここまでできたら、画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
-   1. もし対象のチャンネルにまだ未加入であれば、自分で入れてください
+5. [Save Changes]をクリックします
+6. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
 
 ### テスト
 
