@@ -1,40 +1,28 @@
+import { Handler } from "aws-lambda";
+import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
+import pLimit from "p-limit";
 import {
   queryToXray,
   queryToAthena,
   queryToCWLogs,
   invokeModel,
+  getCWMetrics
 } from "../../lib/aws-modules.js";
-import { Handler } from "aws-lambda";
-import { Logger } from "@aws-lambda-powertools/logger";
-import { injectLambdaContext } from "@aws-lambda-powertools/logger/middleware";
-import axios from "axios";
-import middy from "@middy/core";
-import pLimit from "p-limit";
 import {
-  createPromptJa,
-  createPromptEn,
-  getStringValueFromQueryResult,
+  createFailureAnalysisPrompt,
+  getStringValueFromQueryResult
 } from "../../lib/prompts.js";
-import {
-  createHowToGetLogsJa,
-  createHowToGetLogsEn,
-  sendMessageToClient,
-  createAnswerBlockJa,
-  createAnswerBlockEn,
-  createAnswerMessageJa,
-  createAnswerMessageEn,
-  createErrorMessageBlockJa,
-  createErrorMessageBlockEn,
-} from "../../lib/messages.js";
+import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
+import logger from "../../lib/logger.js"; 
 
-const logger = new Logger({ serviceName: "FA2" });
 
-export const lambdaHandler: Handler = async (event: {
+export const handler: Handler = async (event: {
   errorDescription: string;
   startDate: string;
   endDate: string;
-  responseUrl?: string;
+  channelId?: string;
+  threadTs?: string;
   alarmName?: string;
   alarmTimestamp?: string;
 }) => {
@@ -44,9 +32,8 @@ export const lambdaHandler: Handler = async (event: {
     errorDescription,
     startDate,
     endDate,
-    responseUrl,
-    alarmName,
-    alarmTimestamp,
+    channelId,
+    threadTs,
   } = event;
 
   // Environment variables
@@ -65,18 +52,21 @@ export const lambdaHandler: Handler = async (event: {
   const region = process.env.AWS_REGION;
   const athenaDatabaseName = process.env.ATHENA_DATABASE_NAME;
   const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
-  const topicArn = process.env.TOPIC_ARN;
+
+  const token = await getSecret("SlackAppToken");
+  const messageClient = new MessageClient(token!.toString(), lang);
 
   // Check required variables.
-  if (!modelId || !lang || !cwLogsQuery || !logGroups || !region) {
+  if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
     logger.error(`Not found any environment variables. Please check them.`);
-    if (responseUrl) {
-      await axios.post(responseUrl, {
-        text:
-          lang && lang === "ja"
-            ? "エラーが発生しました: 環境変数が設定されていない、または渡されていない可能性があります。"
-            : "Error: Not found any environment variables.",
-      });
+    if (channelId && threadTs) {
+      messageClient.sendMessage(
+        lang && lang === "ja"
+          ? "エラーが発生しました: 環境変数が設定されていない、または渡されていない可能性があります。"
+          : "Error: Not found any environment variables.",
+        channelId, 
+        threadTs
+      );
     }
     return;
   }
@@ -85,16 +75,8 @@ export const lambdaHandler: Handler = async (event: {
   const limit = pLimit(5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const input: Promise<any>[] = [
-    limit(() =>
-      queryToCWLogs(
-        startDate,
-        endDate,
-        logGroups,
-        cwLogsQuery,
-        "ApplicationLogs",
-        logger,
-      ),
-    ),
+    limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
+    limit(() => getCWMetrics(startDate, endDate, errorDescription, "CWMetrics"))
   ];
 
   if (
@@ -115,10 +97,9 @@ export const lambdaHandler: Handler = async (event: {
           },
           albQueryParams,
           athenaQueryOutputLocation,
-          "AlbAccessLogs",
-          logger,
+          "AlbAccessLogs"
         ),
-      ),
+      )
     );
   }
 
@@ -140,16 +121,15 @@ export const lambdaHandler: Handler = async (event: {
           },
           trailQueryParams,
           athenaQueryOutputLocation,
-          "CloudTrailLogs",
-          logger,
+          "CloudTrailLogs"
         ),
-      ),
+      )
     );
   }
 
   if (xrayTrace) {
     input.push(
-      limit(() => queryToXray(startDate, endDate, "XrayTraces", logger)),
+      limit(() => queryToXray(startDate, endDate, "XrayTraces"))
     );
   }
 
@@ -158,39 +138,27 @@ export const lambdaHandler: Handler = async (event: {
 
     // Prompt
     const prompt =
-      lang === "ja"
-        ? createPromptJa({
-            errorDescription,
-            applicationLogs: getStringValueFromQueryResult(
-              results,
-              "ApplicationLogs",
-            ),
-            albAccessLogs: getStringValueFromQueryResult(
-              results,
-              "AlbAccessLogs",
-            ),
-            cloudTrailLogs: getStringValueFromQueryResult(
-              results,
-              "CloudTrailLogs",
-            ),
-            xrayTraces: getStringValueFromQueryResult(results, "XrayTraces"),
-          })
-        : createPromptEn({
-            errorDescription,
-            applicationLogs: getStringValueFromQueryResult(
-              results,
-              "ApplicationLogs",
-            ),
-            albAccessLogs: getStringValueFromQueryResult(
-              results,
-              "AlbAccessLogs",
-            ),
-            cloudTrailLogs: getStringValueFromQueryResult(
-              results,
-              "CloudTrailLogs",
-            ),
-            xrayTraces: getStringValueFromQueryResult(results, "XrayTraces"),
-          });
+      createFailureAnalysisPrompt(
+        lang,
+        errorDescription,
+        getStringValueFromQueryResult(
+          results,
+          "ApplicationLogs",
+        ),
+        getStringValueFromQueryResult(
+          results,
+          "CWMetrics",
+        ),
+        getStringValueFromQueryResult(
+          results,
+          "AlbAccessLogs",
+        ),
+        getStringValueFromQueryResult(
+          results,
+          "CloudTrailLogs",
+        ),
+        getStringValueFromQueryResult(results, "XrayTraces")
+      );
 
     logger.info(`Bedrock prompt: ${prompt}`);
 
@@ -198,86 +166,42 @@ export const lambdaHandler: Handler = async (event: {
     const llmPayload = {
       anthropic_version: "bedrock-2023-05-31",
       max_tokens: 2000,
-      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }]
     };
 
-    const answer = await invokeModel(llmPayload, modelId, logger);
+    const answer = await invokeModel(llmPayload, modelId);
+
+    logger.info(`Bedrock answer: ${answer}`);
 
     // Create explanation to get logs by operators.
     const howToGetLogs =
-      lang === "ja"
-        ? createHowToGetLogsJa(
-            startDate,
-            endDate,
-            logGroups,
-            cwLogsQuery,
-            xrayTrace,
-            getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-            getStringValueFromQueryResult(results, "CloudTrailLogsQueryString"),
-          )
-        : createHowToGetLogsEn(
-            startDate,
-            endDate,
-            logGroups,
-            cwLogsQuery,
-            xrayTrace,
-            getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-            getStringValueFromQueryResult(results, "CloudTrailLogsQueryString"),
-          );
-    logger.info(`Bedrock answer: ${answer}`);
+      messageClient.createHowToGetLogs(
+        startDate,
+        endDate,
+        logGroups,
+        cwLogsQuery,
+        xrayTrace,
+        getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
+        getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
+      );
 
-    if (responseUrl) {
       // Send answer that combined the explanation to Slack directly.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createAnswerBlockJa(answer, howToGetLogs)
-          : createAnswerBlockEn(answer, howToGetLogs),
-        responseUrl, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
+      await messageClient.sendMessage(
+        messageClient.createAnswerBlock(answer, howToGetLogs),
+        channelId,
+        threadTs
       );
-    } else if (alarmName && alarmTimestamp && topicArn) {
-      // This case is sending answer via SNS topic and AWS Chatbot.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createAnswerMessageJa(
-              alarmName,
-              alarmTimestamp,
-              answer,
-              howToGetLogs,
-            )
-          : createAnswerMessageEn(
-              alarmName,
-              alarmTimestamp,
-              answer,
-              howToGetLogs,
-            ),
-        topicArn!, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
-      );
-    }
+    
   } catch (error) {
     logger.error(`${JSON.stringify(error)}`);
-    if (responseUrl) {
-      // Send answer that combined the explanation to Slack directly.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createErrorMessageBlockJa()
-          : createErrorMessageBlockEn(),
-        responseUrl, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
-      );
-    } else if (alarmName && alarmTimestamp && topicArn) {
-      // This case is sending answer via SNS topic and AWS Chatbot.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createErrorMessageBlockJa()
-          : createErrorMessageBlockEn(),
-        topicArn!, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
+    // Send answer that combined the explanation to Slack directly.
+    if(channelId && threadTs){
+      await messageClient.sendMessage( 
+        messageClient.createErrorMessageBlock(),
+        channelId, 
+        threadTs
       );
     }
   }
   return;
 };
-
-export const handler = middy(lambdaHandler).use(injectLambdaContext(logger));

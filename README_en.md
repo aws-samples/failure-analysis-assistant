@@ -140,6 +140,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels`
 5. Click [Save Changes]
 6. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
+7. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
 
 ### Testing
 

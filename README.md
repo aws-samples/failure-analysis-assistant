@@ -57,7 +57,8 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 - 分析したいログが含まれている、CloudWatch Logs のロググループがあること
   - 加えて、AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
-- Amazon Bedrock でモデルアクセスから、Claude v3 Sonnet のアクセス許可をしていること
+- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet のアクセス許可をしていること
+  - メトリクスの取得を行う際に、ToolUse を利用します
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
@@ -138,6 +139,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels`を追加します
 5. [Save Changes]をクリックします
 6. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
+7. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、「アプリを追加する」をクリックします。FA2（またはご自身が登録したアプリ名）を探し、「追加」ボタンをクリックします。表示される指示に従ってアプリをインストールします。
 
 ### テスト
 

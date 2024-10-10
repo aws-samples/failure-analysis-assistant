@@ -76,6 +76,14 @@ export class FA2 extends Construct {
                 ),
               ],
             }),
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions:[
+                "cloudwatch:GetMetricData",
+                "cloudwatch:ListMetrics",
+              ],
+              resources: ["*"]
+            })
           ],
         }),
         // Use LLM in Bedrock
@@ -319,6 +327,7 @@ export class FA2 extends Construct {
       },
     );
     token.grantRead(slackHandler);
+    token.grantRead(fa2Function);
     signingSecret.grantRead(slackHandler);
     fa2Function.grantInvoke(slackHandler);
 
