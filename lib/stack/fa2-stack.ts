@@ -7,6 +7,8 @@ import { NagSuppressions } from "cdk-nag";
 interface FA2StackProps extends StackProps {
   modelId: string;
   language: Language;
+  slackAppTokenKey: string;
+  slackSigningSecretKey: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
@@ -23,6 +25,8 @@ export class FA2Stack extends Stack {
     const fa2 = new FA2(this, "FA2Slack", {
       modelId: props.modelId,
       language: props.language,
+      slackAppTokenKey: props.slackAppTokenKey,
+      slackSigningSecretKey: props.slackSigningSecretKey,
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,

@@ -16,6 +16,8 @@ import { Language } from "../../parameter";
 interface FA2Props {
   modelId: string;
   language: Language;
+  slackAppTokenKey: string;
+  slackSigningSecretKey: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
@@ -110,6 +112,7 @@ export class FA2 extends Construct {
       environment: {
         MODEL_ID: props.modelId,
         LANG: props.language,
+        SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
         CW_LOGS_LOGGROUPS: JSON.stringify({
           loggroups: props.cwLogLogGroups,
         }),
@@ -276,12 +279,12 @@ export class FA2 extends Construct {
     const token = secretsManager.Secret.fromSecretNameV2(
       this,
       "SlackAppToken",
-      "SlackAppToken",
+      props.slackAppTokenKey,
     );
     const signingSecret = secretsManager.Secret.fromSecretNameV2(
       this,
       "SlackSigningSecret",
-      "SlackSigningSecret",
+      props.slackSigningSecretKey
     );
 
     const slackHandlerRole = new iam.Role(this, "SlackHandlerRole", {
@@ -307,6 +310,8 @@ export class FA2 extends Construct {
         ),
         environment: {
           LANG: props.language,
+          SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
+          SLACK_SIGNING_SECRET_KEY: props.slackSigningSecretKey,
           FUNCTION_NAME: fa2Function.functionName,
         },
         role: slackHandlerRole,

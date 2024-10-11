@@ -108,13 +108,12 @@ async function listMetrics(){
 }
 
 // The method of calling ToolUse 
-export async function getCWMetrics(
+export async function generateMetricDataQuery(
   startDate: string,
   endDate: string,
-  errorDescription: string,
-  outputKey: string
+  errorDescription: string
 ){
-  logger.info(`ToolUse for CloudWatch Metrics Input: ${startDate}, ${endDate}, ${outputKey}`);
+  logger.info(`ToolUse for CloudWatch Metrics Input: ${startDate}, ${endDate}, ${errorDescription}`);
 
   const client = new BedrockRuntimeClient();
 
@@ -180,10 +179,10 @@ export async function getCWMetrics(
 
   logger.info(`MetricDataQuery: ${metricDataQuery}`);
 
-  return await queryToCWMetrics(startDate, endDate, JSON.parse(metricDataQuery), outputKey);
+  return JSON.parse(metricDataQuery) as MetricDataQuery[];
 }
 
-async function queryToCWMetrics(
+export async function queryToCWMetrics(
   startDate: string,
   endDate: string,
   query: MetricDataQuery[],

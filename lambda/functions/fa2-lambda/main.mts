@@ -1,12 +1,15 @@
 import { Handler } from "aws-lambda";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import pLimit from "p-limit";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import {
   queryToXray,
   queryToAthena,
   queryToCWLogs,
+  queryToCWMetrics,
   invokeModel,
-  getCWMetrics
+  generateMetricDataQuery
 } from "../../lib/aws-modules.js";
 import {
   createFailureAnalysisPrompt,
@@ -41,6 +44,7 @@ export const handler: Handler = async (event: {
   const lang: Language = process.env.LANG
     ? (process.env.LANG as Language)
     : "en";
+  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
   const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
   const logGroups = (
     JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
@@ -53,7 +57,7 @@ export const handler: Handler = async (event: {
   const athenaDatabaseName = process.env.ATHENA_DATABASE_NAME;
   const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
 
-  const token = await getSecret("SlackAppToken");
+  const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
 
   // Check required variables.
@@ -71,12 +75,15 @@ export const handler: Handler = async (event: {
     return;
   }
 
+  // Generate a query for getMetricData API
+  const metricDataQuery = await generateMetricDataQuery(startDate, endDate, errorDescription);
+
   // Send query to each AWS APIs in parallel.
   const limit = pLimit(5);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const input: Promise<any>[] = [
     limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
-    limit(() => getCWMetrics(startDate, endDate, errorDescription, "CWMetrics"))
+    limit(() => queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics"))
   ];
 
   if (
@@ -173,24 +180,25 @@ export const handler: Handler = async (event: {
 
     logger.info(`Bedrock answer: ${answer}`);
 
-    // Create explanation to get logs by operators.
+    // Create explanation how to get logs by operators.
     const howToGetLogs =
       messageClient.createHowToGetLogs(
         startDate,
         endDate,
         logGroups,
         cwLogsQuery,
+        JSON.stringify(metricDataQuery),
         xrayTrace,
         getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
         getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
       );
 
-      // Send answer that combined the explanation to Slack directly.
-      await messageClient.sendMessage(
-        messageClient.createAnswerBlock(answer, howToGetLogs),
-        channelId,
-        threadTs
-      );
+    // Send answer that combined the explanation to Slack directly.
+    await messageClient.sendMessage(
+      messageClient.createAnswerBlock(answer, howToGetLogs),
+      channelId,
+      threadTs
+    );
     
   } catch (error) {
     logger.error(`${JSON.stringify(error)}`);
@@ -201,6 +209,21 @@ export const handler: Handler = async (event: {
         channelId, 
         threadTs
       );
+      await messageClient.sendMessage( 
+        messageClient.createMessageBlock(
+          lang === "ja" 
+            ? "リトライしたい場合は、以下のフォームからもう一度同じ内容のリクエストを送ってください。" 
+            : "If you want to retry it, you send same request again from below form."
+        ),
+        channelId, 
+        threadTs
+      );
+      const now = toZonedTime(new Date(), "Asia/Tokyo");
+      await messageClient.sendMessage(
+        messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
+        channelId,
+        threadTs
+      )
     }
   }
   return;

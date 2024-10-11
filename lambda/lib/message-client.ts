@@ -34,6 +34,7 @@ export class MessageClient {
     endDate: string,
     logGroups: string[],
     cwLogsQuery: string,
+    cwMetricQuery: string,
     xrayTraces: boolean,
     albQuery?: string,
     trailQuery?: string,
@@ -43,25 +44,34 @@ export class MessageClient {
     if(this.language === "ja"){
       howToGetLogs = `参考にしたログは、それぞれ以下の手順とクエリで取得可能です。\n
     *CloudWatch Logs:*\nCloudWatch Logs Insightのコンソールにて、対象ロググループを指定し、時間範囲を \`${startDate}\` から \`${endDate}\` と設定した上で、クエリを実行してください。\n
-    *対象ロググループ:*\n
+    *対象ロググループ:*
     \`\`\`${logGroups.join(", ")}\`\`\`
-    *クエリ:*\n
+    \n
+    *クエリ:*
     \`\`\`${cwLogsQuery}\`\`\`
     `;
 
       howToGetLogs += albQuery
         ? `*ALB:*\nAthenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。\n
-    *クエリ:*\n
+    *クエリ:*
     \`\`\`${albQuery} \`\`\`
     `
         : "";
 
       howToGetLogs += trailQuery
         ? `*CloudTrail:*\nAthenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。
-    *クエリ:*\n
+    *クエリ:*
     \`\`\`${trailQuery}\`\`\`
     `
         : "";
+
+      howToGetLogs += `*CloudWatchのメトリクス:*\n次のクエリをローカル環境にJSON形式で保存し、CLIでコマンドを実行してください。
+    *クエリ:*
+    \`\`\`${cwMetricQuery}\`\`\`
+    \n  
+    *コマンド:*
+    \`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
+      `
 
       howToGetLogs += xrayTraces
         ? `*X-rayのトレース情報:*\nX-rayのコンソールで、時間範囲を \`${startDate}\` から \`${endDate}\` に指定してください。`
@@ -88,6 +98,14 @@ export class MessageClient {
     \`\`\`${trailQuery}\`\`\`
     `
         : "";
+
+      howToGetLogs += `*CloudWatch Metrics:*\nYou should save below query as JSON file to your local environment and run the command.
+    *Query:*
+    \`\`\`${JSON.stringify(cwMetricQuery)}\`\`\`
+    \n  
+    *Command:*
+    \`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
+      `
 
       howToGetLogs += xrayTraces
         ? `*X-ray Traces:*\n X-ray's management console, please set data range like from \`${startDate}\` to \`${endDate}\` .`

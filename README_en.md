@@ -91,8 +91,9 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  clientType: "SLACKAPP",
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  slackAppTokenKey: "SlackAppToken",
+  slackSigningSecretKey: "SlackSigningSecretKey",
   cwLogsLogGroups: [
     "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
   ],
@@ -112,14 +113,21 @@ export const devParameter: AppParameter = {
 | `env.region`             | `"us-east-1"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
 | `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
 | `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
-| `clientType`             | `"SLACKAPP"`                                                              | Client type you required. Choose `SLACKAPP` is in case of Slack App version.                                                                                                                |
 | `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Put the model ID of Amazon Bedrock you want to use. Please check access grants of chosen model.                                                                                             |
+| `slackAppTokenKey`                | `"SlackAppToken"`                               | The key name is to get `SlackAppToken` from AWS SecretsManager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                                                                            |
+| `slackSingingSecretKey`                | `"SlackSigingSecret"`                               | The key name is to get `SlackSigningSecret` from AWS SecretsManager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                                                                            |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
 | `databaseName`           | `"athenadatacatalog"`                                                     | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                  |
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
 | `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
+
+#### Modify prompts
+
+There are some prompts for each inference in `lambda/lib/prompts.ts`.
+It gets the description of the architecture of a target workload by calling the `getArchitectureDescription()` function.
+Please modify the architecture description written in this function according to your environment where FA2 is deployed.
 
 ### Deployment
 

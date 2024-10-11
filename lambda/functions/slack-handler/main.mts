@@ -15,6 +15,8 @@ import logger from "../../lib/logger.js";
 // Environment variables
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
 const funcName = process.env.FUNCTION_NAME!;
+const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
+const slackSigningSecretKey = process.env.SLACK_SIGNING_SECRET_KEY!;
 
 // Utility method
 const convertJSTToUTC = (date: string, time: string): string => {
@@ -24,8 +26,8 @@ const convertJSTToUTC = (date: string, time: string): string => {
 };
 
 // Slack Credentials
-const token = await getSecret("SlackAppToken");
-const signingSecret = await getSecret("SlackSigningSecret");
+const token = await getSecret(slackAppTokenKey);
+const signingSecret = await getSecret(slackSigningSecretKey);
 
 if (
   !token ||
@@ -56,11 +58,7 @@ app.message("", async ({ event, body, payload, say }) => {
   // This ID is for AWS Chatbot app.
   // FA2 will return the form, when AWS Chatbot sent a message.
   // Please modify the condition by your environment.
-  if (
-    "root" in event &&
-    "app_id" in event.root &&
-    event.root.app_id === "A6L22LZNH"
-  ) {
+  if ("app_id" in event && event.app_id === "A6L22LZNH") {
     const now = toZonedTime(new Date(), "Asia/Tokyo");
     const res = await say({
       blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
