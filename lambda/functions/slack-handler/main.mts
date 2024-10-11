@@ -3,27 +3,20 @@ import {
   APIGatewayProxyEvent,
   Context,
 } from "aws-lambda";
-import { App, AwsLambdaReceiver, BlockAction } from "@slack/bolt";
-import { Logger } from "@aws-lambda-powertools/logger";
+import { App, AwsLambdaReceiver, BlockAction, SayArguments } from "@slack/bolt";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import { format } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import {
-  createFormBlockJa,
-  createFormBlockEn,
-  createErrorMessageBlockJa,
-  createErrorMessageBlockEn,
-  createMessageBlock,
-} from "../../lib/messages.js";
+import { MessageClient } from "../../lib/message-client.js";
 import { invokeAsyncLambdaFunc } from "../../lib/aws-modules.js";
 import { Language } from "../../../parameter.js";
+import logger from "../../lib/logger.js";
 
 // Environment variables
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
 const funcName = process.env.FUNCTION_NAME!;
-
-// Logging configuration
-const logger = new Logger({ serviceName: "FA2" });
+const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
+const slackSigningSecretKey = process.env.SLACK_SIGNING_SECRET_KEY!;
 
 // Utility method
 const convertJSTToUTC = (date: string, time: string): string => {
@@ -33,8 +26,8 @@ const convertJSTToUTC = (date: string, time: string): string => {
 };
 
 // Slack Credentials
-const token = await getSecret("SlackAppToken");
-const signingSecret = await getSecret("SlackSigningSecret");
+const token = await getSecret(slackAppTokenKey);
+const signingSecret = await getSecret(slackSigningSecretKey);
 
 if (
   !token ||
@@ -46,13 +39,15 @@ if (
 }
 
 const awsLambdaReceiver = new AwsLambdaReceiver({
-  signingSecret,
+  signingSecret
 });
 
 const app = new App({
   token,
-  receiver: awsLambdaReceiver,
+  receiver: awsLambdaReceiver
 });
+
+const messageClient = new MessageClient(token, "ja")
 
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
@@ -63,19 +58,13 @@ app.message("", async ({ event, body, payload, say }) => {
   // This ID is for AWS Chatbot app.
   // FA2 will return the form, when AWS Chatbot sent a message.
   // Please modify the condition by your environment.
-  if (
-    "root" in event &&
-    "app_id" in event.root &&
-    event.root.app_id === "A6L22LZNH"
-  ) {
+  if ("app_id" in event && event.app_id === "A6L22LZNH") {
     const now = toZonedTime(new Date(), "Asia/Tokyo");
-    await say({
-      blocks:
-        lang === "ja"
-          ? createFormBlockJa(format(now, "yyyy-MM-dd"), format(now, "HH:mm"))
-          : createFormBlockEn(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
-      reply_broadcast: true,
-    });
+    const res = await say({
+      blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
+      reply_broadcast: true
+    } as SayArguments);
+    logger.info(`response: ${JSON.stringify(res)}`);
   }
 });
 
@@ -107,10 +96,10 @@ app.action("submit_button", async ({ body, ack, respond }) => {
         errorDescription,
         startDate: convertJSTToUTC(startDate, startTime),
         endDate: convertJSTToUTC(endDate, endTime),
-        responseUrl: payload.response_url,
+        channelId: payload.channel?.id,
+        threadTs: payload.message?.ts
       }),
-      funcName,
-      logger,
+      funcName
     );
 
     if (res.StatusCode! > 400) {
@@ -119,7 +108,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
 
     // Send the message to notify the completion of receiving request.
     await respond({
-      blocks: createMessageBlock(
+      blocks: messageClient.createMessageBlock(
         lang === "ja"
           ? "リクエストを受け付けました。分析完了までお待ちください。"
           : "Reveived your request. Please wait...",
@@ -130,10 +119,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
     // Send result to Slack
     logger.error(JSON.stringify(err));
     await respond({
-      blocks:
-        lang === "ja"
-          ? createErrorMessageBlockJa()
-          : createErrorMessageBlockEn(),
+      blocks: messageClient.createErrorMessageBlock(),
       replace_original: true,
     });
   }

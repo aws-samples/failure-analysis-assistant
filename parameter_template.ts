@@ -7,6 +7,8 @@ export interface AppParameter {
   language: Language;
   envName: string;
   modelId: string;
+  slackAppTokenKey: string;
+  slackSigningSecretKey: string;
   cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
   databaseName?: string;
@@ -24,6 +26,8 @@ export const devParameter: AppParameter = {
   language: "ja",
   envName: "Development",
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  slackAppTokenKey: "SlackAppToken",
+  slackSigningSecretKey: "SlackSigningSecret",
   cwLogsLogGroups: [
     "EcsAppApiLogGroupXXXXXXXX-xxxxxxxxxxxx",
     "/aws/ecs/containerinsights/EcsAppClusterXXXXXXXX-xxxxxxxxxxxx/performance",

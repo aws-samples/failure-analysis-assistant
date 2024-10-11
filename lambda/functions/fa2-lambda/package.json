@@ -13,10 +13,8 @@
     "@types/tough-cookie": "^4.0.2"
   },
   "dependencies": {
-    "@aws-lambda-powertools/logger": "^2.1.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.574.0",
-    "@middy/core": "^5.4.3",
-    "axios": "^1.6.8",
+    "@aws-lambda-powertools/parameters": "^2.3.0",
+    "@slack/web-api": "^7.3.4",
     "lodash": "^4.17.21",
     "p-limit": "^5.0.0"
   },

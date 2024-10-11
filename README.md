@@ -57,7 +57,8 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 - 分析したいログが含まれている、CloudWatch Logs のロググループがあること
   - 加えて、AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
-- Amazon Bedrock でモデルアクセスから、Claude v3 Sonnet のアクセス許可をしていること
+- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet のアクセス許可をしていること
+  - メトリクスの取得を行う際に、ToolUse を利用します
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
@@ -92,6 +93,8 @@ export const devParameter: AppParameter = {
   language: "ja",
   envName: "Development",
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  slackAppTokenKey: "SlackAppToken",
+  slackSigningSecretKey: "SlackSigningSecretKey",
   cwLogsLogGroups: [
     "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
   ],
@@ -112,12 +115,20 @@ export const devParameter: AppParameter = {
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                              |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                          |
 | `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
+| `slackAppTokenKey`       | `"SlackAppToken"`                                                         | AWS Secrets Manager から SlackAppToken を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
+| `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | AWS Secrets Manager から SlackSigningSecret を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                                   |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | CloudWatch Logs Insight で利用したいクエリを指定します。コンテキストウィンドウとの兼ね合いから、デフォルトでは、100 件に制限しています（実際のプロンプトに応じて、調整ください） |
 | `databaseName`           | `"athenadatacatalog"`                                                     | Amazon Athena のデータベース名。Athena を使ってログ検索を行いたい場合は必須です                                                                                                  |
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します                  |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します             |
 | `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
+
+#### プロンプトの変更
+
+`lambda/lib/prompts.ts` にそれぞれの推論で利用するプロンプトが記載されています。
+それぞれのプロンプトでは、`getArchitectureDescription()` を使って、対象となるワークロードのアーキテクチャの説明文を取得しています。
+ご自身が FA2 をデプロイする環境に合わせ、このアーキテクチャの説明文を変更してください。
 
 ### CDK デプロイ
 
@@ -138,6 +149,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels`を追加します
 5. [Save Changes]をクリックします
 6. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
+7. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、「アプリを追加する」をクリックします。FA2（またはご自身が登録したアプリ名）を探し、「追加」ボタンをクリックします。表示される指示に従ってアプリをインストールします。
 
 ### テスト
 
