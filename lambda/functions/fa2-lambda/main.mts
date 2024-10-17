@@ -95,7 +95,7 @@ export const handler: Handler = async (event: {
     ) {
       // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
       // It's just sample query. Please you optimize to your situation.
-      const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code > 400`;
+      const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code >= 400`;
       const albQueryParams = [startDate, endDate];
       input.push(
         limit(() =>
