@@ -577,5 +577,5 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
       throw new Error("Channel ID and ThreadTS are required.");
     }
   }
-    
+  
 }
