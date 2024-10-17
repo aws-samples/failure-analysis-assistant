@@ -521,8 +521,8 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     }
   }
 
-  // Send snipet that is markdown docuemnt
-  public async sendMarkdownSnipet(
+  // Send snippet that is markdown docuemnt
+  public async sendMarkdownSnippet(
     filename: string,
     markdownText: string,
     channelId: string,

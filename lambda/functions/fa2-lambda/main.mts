@@ -185,8 +185,8 @@ export const handler: Handler = async (event: {
         threadTs
       );
     }else{
-      // Send the snipet of answer instead of message due to limitation of message size.
-      await messageClient.sendMarkdownSnipet("answer.md", answer, channelId, threadTs)
+      // Send the snippet of answer instead of message due to limitation of message size.
+      await messageClient.sendMarkdownSnippet("answer.md", answer, channelId, threadTs)
     }
 
     logger.info(`Bedrock answer: ${answer}`);
@@ -206,7 +206,7 @@ export const handler: Handler = async (event: {
     logger.info(`HowToGetLogs: ${howToGetLogs}`);
 
     // Send the explanation to Slack directly.
-    await messageClient.sendMarkdownSnipet(
+    await messageClient.sendMarkdownSnippet(
       "HowToGet.md",
       howToGetLogs,
       channelId,
