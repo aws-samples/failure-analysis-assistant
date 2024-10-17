@@ -57,7 +57,9 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
   - Amazon Athena and AWS X-Ray are optional
   - If you want to invlude AWS CloudTrail or Application Load Balancer (ALB) access logs, an Amazon Athena database must be created
   - If AWS X-Ray trace information is also used, an AWS X-Ray trace for the relevant system must have been obtained
-- Claude v3 Sonnet access has been granted from model access on Amazon Bedrock
+- Claude 3 Sonnet and Claude 3.5 Sonnet access has been granted from model access on Amazon Bedrock
+  - It uses ToolUse to select metrics to get metric data.
+  - Claude 3.5 Sonnet is used for generation of the image written by Mermaid syntax.
 - Confirm that an alarm notification will be sent to Slack from the AWS Chatbot set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
 - You must have the permission to register the Slack App to the Slack workspace you want to use.
@@ -73,7 +75,7 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 3. The app you created will be shown in [Slack api](https://api.slack.com/apps). Choose it you created.
 4. Click [Basic Information] on the left menu, check [Signing Secret], execute the following command, and register with AWS Secrets Manager
    1. `$ aws secretsmanager create-secret --name slackSigningSecret --secret-string XXXXXXXXXXXXXXXXXXXX --profile {your_profile} `
-5. Click [OAuth & Permissions] on the left menu, please add permissons `channels:read` and `chat:write` in [Scopes] section.
+5. Click [OAuth & Permissions] on the left menu, please add permissons `channels:read`, `chat:write` and `files:write` in [Scopes] section.
 6. Click [Install to Workspace] in [OAuth Tokens for Your Workspace] of top of same page to install your Slack App to your workspace.
 7. After installing, your browser will be redirected to [OAuth & Permissions] page. You check [Bot User OAuth Token], execute the following command, and register with AWS Secrets Manager
    1. `$ aws secretsmanager create-secret --name slackAppToken --secret-string xxxx-111111111111111-11111111111111111-xxxxxxxxxxxxxxxxxxxxxxxxx-profile {your_profile} `
@@ -94,6 +96,7 @@ export const devParameter: AppParameter = {
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecretKey",
+  architectureDescription: "The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."
   cwLogsLogGroups: [
     "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
   ],
@@ -116,6 +119,7 @@ export const devParameter: AppParameter = {
 | `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Put the model ID of Amazon Bedrock you want to use. Please check access grants of chosen model.                                                                                             |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | The key name is to get `SlackAppToken` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                               |
 | `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                          |
+| `architectureDescription`  | `"The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
 | `databaseName`           | `"athenadatacatalog"`                                                     | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                  |
@@ -125,15 +129,20 @@ export const devParameter: AppParameter = {
 
 #### Modify prompts
 
-There are some prompts for each inference in `lambda/lib/prompts.ts`.
-It gets the description of the architecture of a target workload by calling the `getArchitectureDescription()` function.
-Please modify the architecture description written in this function according to your environment where FA2 is deployed.
+Prompts used for each inference are described in `lambda/lib/prompts.ts`.
+Each prompt uses `architectureDescription` in `parameter.ts` to obtain a description of the target workload's architecture.
+Please change the description of this architecture according to the environment in which you are deploying FA2.
+
+Also, if post-deployment testing does not produce the expected results, tune the prompts described in the `createFailureAnalysisPrompt` function.
 
 ### Deployment
 
-Follow below instruction,
+First, a Lambda function layer is required for the function of illustrating the hypothesis of the cause of failure.
+So, first run the command to install the modules required for Layer.
+Next, execute the normal CDK deployment command.
 
 ```
+$ npm run build:layer // This must be done for the function of illustrating hypotheses about the architecture of the system you are responsible for.
 $ npm install
 $ npx cdk bootstrap --profile {your_profile}
 $ npx cdk deploy --all --profile {your_profile} --require-approval never

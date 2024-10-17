@@ -42,7 +42,6 @@ import {
   InvokeCommandInputType,
   InvokeCommand
 } from "@aws-sdk/client-lambda";
-import { createSelectMetricsPrompt } from './prompts.js';
 import logger from './logger.js';
 import {split} from 'lodash';
 
@@ -111,16 +110,16 @@ async function listMetrics(){
 export async function generateMetricDataQuery(
   startDate: string,
   endDate: string,
-  errorDescription: string
+  prompt: string
 ){
-  logger.info(`ToolUse for CloudWatch Metrics Input: ${startDate}, ${endDate}, ${errorDescription}`);
+  logger.info(`ToolUse for CloudWatch Metrics Input: ${startDate}, ${endDate}, ${prompt}`);
 
   const client = new BedrockRuntimeClient();
 
   const messages:Message[] = [
       {
         "role": "user",
-        "content": [{"text": createSelectMetricsPrompt(errorDescription)}]
+        "content": [{"text": prompt}]
       }
     ];
   const converseCommandInput :ConverseCommandInput = {
@@ -254,7 +253,7 @@ export async function queryToCWLogs(
     resQueryResults = await client.send(getQueryResultsCommand);
   }
 
-  logger.info(`QueryToCWLogs Output: ${resQueryResults.results}`);
+  logger.info(`QueryToCWLogs Output: ${JSON.stringify(resQueryResults.results)}`);
 
   return { key: outputKey, value: resQueryResults.results };
 }
@@ -277,7 +276,7 @@ export async function queryToAthena(
   outputKey: string
 ) {
   logger.info(`QueryToAthena Input: ${query}, ${queryExecutionContext.Database}`);
-  
+
   const athenaClient = new AthenaClient();
 
   let results = [] as Row[];
@@ -427,7 +426,7 @@ export async function publish(
       }),
     );
     logger.info(`Publish Output: ${res.MessageId}, ${res.SequenceNumber}, ${JSON.stringify(res.$metadata)}`);
-    
+
   } catch (error) {
     logger.error(`${JSON.stringify(error)}`);
   }

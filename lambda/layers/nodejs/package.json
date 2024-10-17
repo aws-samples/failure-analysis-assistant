@@ -1,0 +1,7 @@
+{
+  "name": "converter-layer",
+  "version": "1.0.0",
+  "dependencies": {
+    "@sparticuz/chromium": "^129.0.0"
+  }
+}

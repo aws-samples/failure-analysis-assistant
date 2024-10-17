@@ -9,6 +9,7 @@ export interface AppParameter {
   modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
+  architectureDescription: string;
   cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
   databaseName?: string;
@@ -28,6 +29,7 @@ export const devParameter: AppParameter = {
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecret",
+  architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
   cwLogsLogGroups: [
     "EcsAppApiLogGroupXXXXXXXX-xxxxxxxxxxxx",
     "/aws/ecs/containerinsights/EcsAppClusterXXXXXXXX-xxxxxxxxxxxx/performance",

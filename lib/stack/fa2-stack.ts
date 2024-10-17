@@ -5,10 +5,11 @@ import { Language } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 
 interface FA2StackProps extends StackProps {
-  modelId: string;
   language: Language;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
+  architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
@@ -23,10 +24,11 @@ export class FA2Stack extends Stack {
 
     // To deploy FA2 backend with Slack bot backend.
     const fa2 = new FA2(this, "FA2Slack", {
-      modelId: props.modelId,
       language: props.language,
+      modelId: props.modelId,
       slackAppTokenKey: props.slackAppTokenKey,
       slackSigningSecretKey: props.slackSigningSecretKey,
+      architectureDescription: props.architectureDescription,
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,

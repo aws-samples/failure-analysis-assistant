@@ -57,8 +57,9 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 - 分析したいログが含まれている、CloudWatch Logs のロググループがあること
   - 加えて、AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
-- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet のアクセス許可をしていること
+- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet, Claude 3.5 Sonnet のアクセス許可をしていること
   - メトリクスの取得を行う際に、ToolUse を利用します
+  - Claude 3.5 Sonnet は、Mermaid記法で画像による障害原因の仮説を図示するために利用します
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
@@ -74,7 +75,7 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 3. [Slack api](https://api.slack.com/apps)に自分が作成したアプリが表示されるので、それを選択します
 4. 左メニューの[Basic Information]をクリックし、[Signing Secret]を確認し、次のコマンドを実行し、Secrets Manager に登録します
    1. `$ aws secretsmanager create-secret --name SlackSigningSecret --secret-string XXXXXXXXXXXXXXXXXXXXXXXX --profile {your_profile}`
-5. 左メニューの[OAuth & Permissions]をクリックし、[Scopes]で、`channels:read`, `chat:write`を追加します
+5. 左メニューの[OAuth & Permissions]をクリックし、[Scopes]で、`channels:read`, `chat:write`, `files:write`を追加します
 6. ページ上部の、[OAuth Tokens for Your Workspace]の[Install to Workspace]をクリックし、Slack Appをワークスペースにインストールします
 7. リダイレクトされて戻ってきたページに[Bot User OAuth Token]が表示されるので、次のコマンドを実行し、Secrets Manager に登録します
    1. `$ aws secretsmanager create-secret --name SlackAppToken --secret-string xxxx-1111111111111-1111111111111-XXXXXXXXXXXXXXXXXXXXXXXX --profile {your_profile}`
@@ -95,6 +96,7 @@ export const devParameter: AppParameter = {
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecretKey",
+  architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
   cwLogsLogGroups: [
     "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
   ],
@@ -117,6 +119,7 @@ export const devParameter: AppParameter = {
 | `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | AWS Secrets Manager から SlackAppToken を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
 | `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | AWS Secrets Manager から SlackSigningSecret を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
+| `architectureDescription`  | `"あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                                   |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | CloudWatch Logs Insight で利用したいクエリを指定します。コンテキストウィンドウとの兼ね合いから、デフォルトでは、100 件に制限しています（実際のプロンプトに応じて、調整ください） |
 | `databaseName`           | `"athenadatacatalog"`                                                     | Amazon Athena のデータベース名。Athena を使ってログ検索を行いたい場合は必須です                                                                                                  |
@@ -127,18 +130,27 @@ export const devParameter: AppParameter = {
 #### プロンプトの変更
 
 `lambda/lib/prompts.ts` にそれぞれの推論で利用するプロンプトが記載されています。
-それぞれのプロンプトでは、`getArchitectureDescription()` を使って、対象となるワークロードのアーキテクチャの説明文を取得しています。
+それぞれのプロンプトでは、`parameter.ts` にある、`architectureDescription` を使って、対象となるワークロードのアーキテクチャの説明文を取得しています。
 ご自身が FA2 をデプロイする環境に合わせ、このアーキテクチャの説明文を変更してください。
+
+また、デプロイ後のテストで、期待した結果が得られない場合は、`createFailureAnalysisPrompt` 関数に記載されているプロンプトをチューニングしてください。
 
 ### CDK デプロイ
 
-通常の CDK のデプロイと同じようにデプロイします
+まず、障害原因の仮説を図示する機能でLambda関数のLayerが必要となります。
+そこで、最初にLayerに必要なモジュールをインストールするコマンドを実行してください。
+続いて、通常のCDKのデプロイのコマンドを実施します。
 
 ```
+$ npm run build:layer // 障害原因の仮説を図示する機能を利用するために実施します
 $ npm install
 $ npx cdk bootstrap --profile {your_profile}
 $ npx cdk deploy --all --profile {your_profile} --require-approval never
 ```
+
+> [!NOTE]
+> `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` の、`// Additional process.`の記載から始まる箇所が、障害原因の仮説の図を生成する処理になります。
+> 図の生成が不要の場合、この部分はコメントアウトまたは削除してください。
 
 #### Slack App の設定
 
