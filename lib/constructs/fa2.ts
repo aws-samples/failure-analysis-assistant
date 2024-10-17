@@ -14,10 +14,11 @@ import { Bucket } from "./bucket";
 import { Language } from "../../parameter";
 
 interface FA2Props {
-  modelId: string;
   language: Language;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
+  architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
@@ -98,6 +99,7 @@ export class FA2 extends Construct {
                 `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
                   props.modelId
                 }`,
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`
               ],
             }),
           ],
@@ -105,26 +107,39 @@ export class FA2 extends Construct {
       },
     });
     this.backendRole = fa2BackendRole;
+    // Layer includes fonts and nodejs directroies.
+    // Font file is necessary to show Japanese characters in the diagram.
+    const converterLayer = new lambda.LayerVersion(this, "ConverterLayer", {
+        code: lambda.Code.fromAsset(
+        path.join(`${__dirname}/../..`, "lambda/layers"),
+      ),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+      description: "A layer of headless chromium and font",
+    });
     const fa2Function = new lambdaNodejs.NodejsFunction(this, "FA2Backend", {
       runtime: lambda.Runtime.NODEJS_20_X,
+      memorySize: 2048,
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
         MODEL_ID: props.modelId,
         LANG: props.language,
         SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
+        ARCHITECTURE_DESCRIPTION: props.architectureDescription,
         CW_LOGS_LOGGROUPS: JSON.stringify({
           loggroups: props.cwLogLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
       },
+      layers: [converterLayer],
       bundling: {
         minify: true,
-        externalModules: ["@aws-sdk/*"],
+        externalModules: ["@aws-sdk/*", "@sparticuz/chromium"],
         tsconfig: path.join(__dirname, "../../tsconfig.json"),
         format: lambdaNodejs.OutputFormat.ESM,
         banner:
-          "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
+          // __dirname and __filename is necessary to use @sparticuz/chromium in *.mts file
+          "import { createRequire } from 'module';import { fileURLToPath } from 'node:url';import { dirname } from 'path';const require = createRequire(import.meta.url);const __filename = fileURLToPath(import.meta.url);const __dirname = dirname(__filename);",
       },
       role: fa2BackendRole,
     });

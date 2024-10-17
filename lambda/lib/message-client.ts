@@ -1,7 +1,9 @@
 import { format, parse } from "date-fns";
 import { KnownBlock } from "@slack/types";
 import { WebClient } from "@slack/web-api";
+import { random } from "lodash";
 import logger from "./logger.js";
+import { Language } from "../../parameter.js";
 
 function convertDateFormat(dateString: string): string {
   // Parse dateString from specific format
@@ -19,10 +21,10 @@ function convertDateFormat(dateString: string): string {
 
 export class MessageClient {
   slackClient: WebClient;
-  language: "ja"|"en"; 
+  language: Language; 
   constructor(
     token: string,
-    language: "ja"| "en" = "en",
+    language: Language = "en",
   ){
     this.slackClient = new WebClient(token);
     this.language = language;
@@ -42,73 +44,138 @@ export class MessageClient {
     let howToGetLogs: string;
 
     if(this.language === "ja"){
-      howToGetLogs = `参考にしたログは、それぞれ以下の手順とクエリで取得可能です。\n
-    *CloudWatch Logs:*\nCloudWatch Logs Insightのコンソールにて、対象ロググループを指定し、時間範囲を \`${startDate}\` から \`${endDate}\` と設定した上で、クエリを実行してください。\n
-    *対象ロググループ:*
-    \`\`\`${logGroups.join(", ")}\`\`\`
-    \n
-    *クエリ:*
-    \`\`\`${cwLogsQuery}\`\`\`
-    `;
+      howToGetLogs = 
+`
+# ログやメトリクス、トレースの取得手順
 
-      howToGetLogs += albQuery
-        ? `*ALB:*\nAthenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。\n
-    *クエリ:*
-    \`\`\`${albQuery} \`\`\`
+参考にしたログは、それぞれ以下の手順とクエリで取得可能です。\n
+
+## CloudWatch Logs
+
+CloudWatch Logs Insightのコンソールにて、対象ロググループを指定し、時間範囲を \`${startDate}\` から \`${endDate}\` と設定した上で、クエリを実行してください。\n
+
+### 対象ロググループ
+
+\`\`\`${logGroups.join(", ")}\`\`\`
+
+### クエリ
+
+\`\`\`${cwLogsQuery}\`\`\`
+
+`;
+
+  howToGetLogs += albQuery
+    ? 
+`## ALB
+
+Athenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。\n
+
+### クエリ
+
+\`\`\`${albQuery} \`\`\`
+
+`
+    : "";
+
+  howToGetLogs += trailQuery
+    ? 
+`## CloudTrail
+
+Athenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。
+
+### クエリ
+
+\`\`\`${trailQuery}\`\`\`
+
     `
         : "";
 
-      howToGetLogs += trailQuery
-        ? `*CloudTrail:*\nAthenaのコンソールで、 \`${process.env.ATHENA_DATABASE_NAME}\` のデータベースに対し、クエリを実行してください。
-    *クエリ:*
-    \`\`\`${trailQuery}\`\`\`
-    `
-        : "";
+      howToGetLogs += `
+## CloudWatchのメトリクス
 
-      howToGetLogs += `*CloudWatchのメトリクス:*\n次のクエリをローカル環境にJSON形式で保存し、CLIでコマンドを実行してください。
-    *クエリ:*
-    \`\`\`${cwMetricQuery}\`\`\`
-    \n  
-    *コマンド:*
-    \`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
-      `
+次のクエリをローカル環境にJSON形式で保存し、CLIでコマンドを実行してください。
+
+### クエリ
+
+\`\`\`${cwMetricQuery}\`\`\`
+
+### コマンド
+
+\`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
+
+`
 
       howToGetLogs += xrayTraces
-        ? `*X-rayのトレース情報:*\nX-rayのコンソールで、時間範囲を \`${startDate}\` から \`${endDate}\` に指定してください。`
+        ? `
+## X-rayのトレース情報
+
+X-rayのコンソールで、時間範囲を \`${startDate}\` から \`${endDate}\` に指定してください。`
         : "";
     }else{
-      howToGetLogs = `You can get the logs that LLM refered followed ways:\n
-    *CloudWatch Logs:*\n CloudWatch Logs Insight Console, you choose target log groups and set time range like from \`${startDate}\` to \`${endDate}\`. Finally, you run query as below:\n
-    *Target log groups:*\n
-    \`\`\`${logGroups.join(", ")}\`\`\`
-    *Query:*\n
-    \`\`\`${cwLogsQuery}\`\`\`
-    `;
+      howToGetLogs = `
+# How to Get..
+
+You can get the logs that LLM refered followed ways.
+
+## CloudWatch Logs
+
+CloudWatch Logs Insight Console, you choose target log groups and set time range like from \`${startDate}\` to \`${endDate}\`. Finally, you run query as below:\n
+
+### Target log groups
+
+\`\`\`${logGroups.join(", ")}\`\`\`
+
+### Query
+
+\`\`\`${cwLogsQuery}\`\`\`
+`;
 
       howToGetLogs += albQuery
-        ? `*ALB:*\n In Athena's management console, You run the query to \`${process.env.ATHENA_DATABASE_NAME}\` database.\n
-    *Query:*\n
-    \`\`\`${albQuery} \`\`\`
-    `
+        ? `
+## ALB
+
+In Athena's management console, You run the query to \`${process.env.ATHENA_DATABASE_NAME}\` database.\n
+
+### Query
+
+\`\`\`${albQuery} \`\`\`
+
+`
         : "";
 
       howToGetLogs += trailQuery
-        ? `*CloudTrail:*\n In Athena's management console, You run the query to \`${process.env.ATHENA_DATABASE_NAME}\` database.\n
-    *Query:*\n
-    \`\`\`${trailQuery}\`\`\`
-    `
+        ? `
+## CloudTrail
+
+In Athena's management console, You run the query to \`${process.env.ATHENA_DATABASE_NAME}\` database.\n
+
+### Query
+
+\`\`\`${trailQuery}\`\`\`
+
+`
         : "";
 
-      howToGetLogs += `*CloudWatch Metrics:*\nYou should save below query as JSON file to your local environment and run the command.
-    *Query:*
-    \`\`\`${JSON.stringify(cwMetricQuery)}\`\`\`
-    \n  
-    *Command:*
-    \`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
-      `
+      howToGetLogs += `
+## CloudWatch Metrics
+
+You should save below query as JSON file to your local environment and run the command.
+
+### Query
+
+\`\`\`${JSON.stringify(cwMetricQuery)}\`\`\`
+  
+### Command
+
+\`\`\`aws cloudwatch get-metric-data --metric-data-queries file://{path-to-file/name-you-saved.json} --start-time ${startDate} --end-time ${endDate} --profile {your-profile-name} \`\`\`
+
+`
 
       howToGetLogs += xrayTraces
-        ? `*X-ray Traces:*\n X-ray's management console, please set data range like from \`${startDate}\` to \`${endDate}\` .`
+        ? `
+## X-ray Traces
+
+X-ray's management console, please set data range like from \`${startDate}\` to \`${endDate}\` .`
         : "";
 
       }
@@ -363,53 +430,6 @@ export class MessageClient {
     }
   }
 
-  public createAnswerBlock(
-    answer: string,
-    howToGetLogs: string,
-  ): KnownBlock[] {
-    if(this.language === "ja"){
-      return [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*FA2によるエラー原因の仮説:*\n  ${answer}`,
-          },
-        },
-        {
-          type: "divider",
-        },
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*ログの取得方法:*\n ${howToGetLogs}`,
-          },
-        },
-      ];
-    }else{
-      return [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*Error root cause hypothesis:*\n  ${answer}`,
-          },
-        },
-        {
-          type: "divider",
-        },
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*How to get logs that LLM referred:*\n ${howToGetLogs}`,
-          },
-        },
-      ];
-    }
-  }
-
   public createMessageBlock(message: string): KnownBlock[] {
     return [
       {
@@ -478,13 +498,13 @@ export class MessageClient {
   public async sendMessage(
     message: KnownBlock[] | string,
     channelId: string,
-    threadTs: string,
+    threadTs: string
   ){
     if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
       try {
         await this.slackClient.chat.postMessage({
           channel: channelId,
-          text: "",
+          text: "FA2からのメッセージ",
           blocks: message as KnownBlock[],
           thread_ts: threadTs,
         });
@@ -501,4 +521,61 @@ export class MessageClient {
     }
   }
 
+  // Send snipet that is markdown docuemnt
+  public async sendMarkdownSnipet(
+    filename: string,
+    markdownText: string,
+    channelId: string,
+    threadTs: string
+  ){
+    if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
+      try {
+        await this.slackClient.filesUploadV2({
+          channel_id: channelId!,
+          thread_ts: threadTs!,
+          filename,
+          content: markdownText,
+          snippet_type: 'markdown'
+        });
+      } catch (error) {
+        logger.error(JSON.stringify(error));
+        await this.slackClient.chat.postMessage({
+          channel: channelId,
+          text: "Error. Please contact your system admin.",
+          thread_ts: threadTs,
+        });
+      }
+    } else {
+      throw new Error("Channel ID and ThreadTS are required.");
+    }
+  }
+
+  public async sendPngImage(
+    png: Uint8Array<ArrayBufferLike> | undefined,
+    channelId: string,
+    threadTs: string
+  ){
+    if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
+      try {
+        const uploadedFile = await this.slackClient.filesUploadV2({
+          channel_id: channelId!,
+          thread_ts: threadTs!,
+          file: Buffer.from(png!),
+          filename: `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`,
+          initial_comment: this.language === "ja" ? "障害原因を図示しました。" : "It shows the root cause on the diagram."
+        })
+        logger.info(`Uploaded file: ${JSON.stringify(uploadedFile.files.at(0)!.files!.at(0)!)}`)
+      } catch (error) {
+        logger.error(JSON.stringify(error));
+        await this.slackClient.chat.postMessage({
+          channel: channelId,
+          text: "Error. Please contact your system admin.",
+          thread_ts: threadTs,
+        });
+      }
+    } else {
+      throw new Error("Channel ID and ThreadTS are required.");
+    }
+  }
+    
 }

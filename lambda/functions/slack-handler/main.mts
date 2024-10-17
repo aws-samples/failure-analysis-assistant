@@ -62,6 +62,7 @@ app.message("", async ({ event, body, payload, say }) => {
     const now = toZonedTime(new Date(), "Asia/Tokyo");
     const res = await say({
       blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
+      thread_ts: event.ts,
       reply_broadcast: true
     } as SayArguments);
     logger.info(`response: ${JSON.stringify(res)}`);

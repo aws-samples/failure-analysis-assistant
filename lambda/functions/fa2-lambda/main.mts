@@ -1,5 +1,6 @@
 import { Handler } from "aws-lambda";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
+import { split } from "lodash";
 import pLimit from "p-limit";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -11,14 +12,11 @@ import {
   invokeModel,
   generateMetricDataQuery
 } from "../../lib/aws-modules.js";
-import {
-  createFailureAnalysisPrompt,
-  getStringValueFromQueryResult
-} from "../../lib/prompts.js";
+import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
-
+import { convertMermaidToImage } from "../../lib/puppeteer-mermaid.js";
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -45,6 +43,7 @@ export const handler: Handler = async (event: {
     ? (process.env.LANG as Language)
     : "en";
   const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
+  const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
   const logGroups = (
     JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
@@ -59,6 +58,7 @@ export const handler: Handler = async (event: {
 
   const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
+  const prompt = new Prompt(lang, architectureDescription, errorDescription);
 
   // Check required variables.
   if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
@@ -75,108 +75,119 @@ export const handler: Handler = async (event: {
     return;
   }
 
-  // Generate a query for getMetricData API
-  const metricDataQuery = await generateMetricDataQuery(startDate, endDate, errorDescription);
-
-  // Send query to each AWS APIs in parallel.
-  const limit = pLimit(5);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const input: Promise<any>[] = [
-    limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
-    limit(() => queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics"))
-  ];
-
-  if (
-    athenaDatabaseName &&
-    athenaQueryOutputLocation &&
-    albAccessLogTableName
-  ) {
-    // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
-    // It's just sample query. Please you optimize to your situation.
-    const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code > 400`;
-    const albQueryParams = [startDate, endDate];
-    input.push(
-      limit(() =>
-        queryToAthena(
-          albQuery,
-          {
-            Database: athenaDatabaseName,
-          },
-          albQueryParams,
-          athenaQueryOutputLocation,
-          "AlbAccessLogs"
-        ),
-      )
-    );
-  }
-
-  if (
-    athenaDatabaseName &&
-    athenaQueryOutputLocation &&
-    cloudTrailLogTableName
-  ) {
-    // The columns used are limited. In this case, we thought that all columns are not required for failure analysis.
-    // It's just sample query. Please you optimize to your situation.
-    const trailQuery = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage FROM ${cloudTrailLogTableName} WHERE eventtime BETWEEN ? AND ? AND awsregion = ? AND sourceipaddress LIKE ?`;
-    const trailQueryParams = [startDate, endDate, region, "%.amazonaws.com"];
-    input.push(
-      limit(() =>
-        queryToAthena(
-          trailQuery,
-          {
-            Database: athenaDatabaseName,
-          },
-          trailQueryParams,
-          athenaQueryOutputLocation,
-          "CloudTrailLogs"
-        ),
-      )
-    );
-  }
-
-  if (xrayTrace) {
-    input.push(
-      limit(() => queryToXray(startDate, endDate, "XrayTraces"))
-    );
-  }
-
   try {
+    // Generate a query for getMetricData API
+    const metricSelectionPrompt = prompt.createSelectMetricsPrompt()
+    const metricDataQuery = await generateMetricDataQuery(startDate, endDate, metricSelectionPrompt);
+
+    // Send query to each AWS APIs in parallel.
+    const limit = pLimit(5);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: Promise<any>[] = [
+      limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
+      limit(() => queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics"))
+    ];
+  
+    if (
+      athenaDatabaseName &&
+      athenaQueryOutputLocation &&
+      albAccessLogTableName
+    ) {
+      // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
+      // It's just sample query. Please you optimize to your situation.
+      const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code > 400`;
+      const albQueryParams = [startDate, endDate];
+      input.push(
+        limit(() =>
+          queryToAthena(
+            albQuery,
+            {
+              Database: athenaDatabaseName,
+            },
+            albQueryParams,
+            athenaQueryOutputLocation,
+            "AlbAccessLogs"
+          ),
+        )
+      );
+    }
+
+    if (
+      athenaDatabaseName &&
+      athenaQueryOutputLocation &&
+      cloudTrailLogTableName
+    ) {
+      // The columns used are limited. In this case, we thought that all columns are not required for failure analysis.
+      // It's just sample query. Please you optimize to your situation.
+      const trailQuery = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage FROM ${cloudTrailLogTableName} WHERE eventtime BETWEEN ? AND ? AND awsregion = ? AND sourceipaddress LIKE ?`;
+      const trailQueryParams = [startDate, endDate, region, "%.amazonaws.com"];
+      input.push(
+        limit(() =>
+          queryToAthena(
+            trailQuery,
+            {
+              Database: athenaDatabaseName,
+            },
+            trailQueryParams,
+            athenaQueryOutputLocation,
+            "CloudTrailLogs"
+          ),
+        )
+      );
+    }
+
+    if (xrayTrace) {
+      input.push(
+        limit(() => queryToXray(startDate, endDate, "XrayTraces"))
+      );
+    }
+
     const results = await Promise.all(input);
 
     // Prompt
-    const prompt =
-      createFailureAnalysisPrompt(
-        lang,
-        errorDescription,
-        getStringValueFromQueryResult(
+    const failureAnalysisPrompt =
+      prompt.createFailureAnalysisPrompt(
+        Prompt.getStringValueFromQueryResult(
           results,
           "ApplicationLogs",
         ),
-        getStringValueFromQueryResult(
+        Prompt.getStringValueFromQueryResult(
           results,
           "CWMetrics",
         ),
-        getStringValueFromQueryResult(
+        Prompt.getStringValueFromQueryResult(
           results,
           "AlbAccessLogs",
         ),
-        getStringValueFromQueryResult(
+        Prompt.getStringValueFromQueryResult(
           results,
           "CloudTrailLogs",
         ),
-        getStringValueFromQueryResult(results, "XrayTraces")
+        Prompt.getStringValueFromQueryResult(results, "XrayTraces")
       );
 
-    logger.info(`Bedrock prompt: ${prompt}`);
+    logger.info(`Bedrock prompt: ${failureAnalysisPrompt}`);
 
     // If you want to tune parameters for LLM.
     const llmPayload = {
       anthropic_version: "bedrock-2023-05-31",
       max_tokens: 2000,
-      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }]
+      messages: [{ role: "user", content: [{ type: "text", text: failureAnalysisPrompt }] }]
     };
 
     const answer = await invokeModel(llmPayload, modelId);
+    // We assume that threshold is 3,500. And it's not accurate. Please modify this value when you met error. 
+    if(answer.length < 3500){
+      // Send the answer to Slack directly.
+      await messageClient.sendMessage(
+        messageClient.createMessageBlock(answer),
+        channelId,
+        threadTs
+      );
+    }else{
+      // Send the snipet of answer instead of message due to limitation of message size.
+      await messageClient.sendMarkdownSnipet("answer.md", answer, channelId, threadTs)
+    }
 
     logger.info(`Bedrock answer: ${answer}`);
 
@@ -189,22 +200,53 @@ export const handler: Handler = async (event: {
         cwLogsQuery,
         JSON.stringify(metricDataQuery),
         xrayTrace,
-        getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-        getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
+        Prompt.getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
+        Prompt.getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
       );
+    logger.info(`HowToGetLogs: ${howToGetLogs}`);
 
-    // Send answer that combined the explanation to Slack directly.
-    await messageClient.sendMessage(
-      messageClient.createAnswerBlock(answer, howToGetLogs),
+    // Send the explanation to Slack directly.
+    await messageClient.sendMarkdownSnipet(
+      "HowToGet.md",
+      howToGetLogs,
       channelId,
       threadTs
     );
-    
+
+    /* ****** */
+    // Additional process. It shows the root cause on the image.
+    // If you don't need it, please comment out below.
+    const createImagePayload = {
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 100000,
+      messages: [
+        {
+          role: "user", 
+          content: [
+            { type: "text", text: prompt.createImageGenerationPrompt(answer) }
+          ] 
+        }
+      ],
+    }
+    const outputImageResponse = await invokeModel({...createImagePayload,}, 'anthropic.claude-3-5-sonnet-20240620-v1:0')
+    const mermaidSyntax = split(split(outputImageResponse, '<OutputMermaidSyntax>')[1], '</OutputMermaidSyntax>')[0];
+    logger.info(`Mermaid syntax: ${mermaidSyntax}`)
+
+    const png = await convertMermaidToImage(mermaidSyntax)
+
+    if(!png) {
+      throw new Error("Failed to create Mermaid image")
+    }
+
+    await messageClient.sendPngImage(png, channelId, threadTs);
+    // end of output image task
+    /* ****** */
+
   } catch (error) {
     logger.error(`${JSON.stringify(error)}`);
-    // Send answer that combined the explanation to Slack directly.
+    // Send the form to retry when error was occured.
     if(channelId && threadTs){
-      await messageClient.sendMessage( 
+      await messageClient.sendMessage(
         messageClient.createErrorMessageBlock(),
         channelId, 
         threadTs

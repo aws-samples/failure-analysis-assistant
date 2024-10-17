@@ -22,6 +22,7 @@ new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   language: devParameter.language,
   slackAppTokenKey: devParameter.slackAppTokenKey,
   slackSigningSecretKey: devParameter.slackSigningSecretKey,
+  architectureDescription: devParameter.architectureDescription,
   cwLogLogGroups: devParameter.cwLogsLogGroups,
   cwLogsInsightQuery: devParameter.cwLogsInsightQuery,
   xrayTrace: devParameter.xrayTrace,
