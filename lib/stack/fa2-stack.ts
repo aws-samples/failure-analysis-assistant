@@ -51,6 +51,19 @@ export class FA2Stack extends Stack {
       },
     ]);
 
+    NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
+      {
+        id: "AwsSolutions-IAM4",
+        reason:
+          "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+      },
+      {
+        id: "AwsSolutions-IAM5",
+        reason:
+          "CloudWatch need * resources to do these API actions.",
+      },
+    ]);
+
     if (
       props.databaseName &&
       (props.albAccessLogTableName || props.cloudTrailLogTableName)

@@ -4,16 +4,16 @@ import { Language } from "../../parameter.js";
 export class Prompt {
   language: Language;
   architectureDescription: string;
-  errorDescription: string;
+  query: string;
 
   constructor(
     language: Language = "en",
     architectureDescription: string,
-    errorDescription: string
+    query: string
   ){
     this.language = language;
     this.architectureDescription = architectureDescription;
-    this.errorDescription = errorDescription;
+    this.query = query;
   }
 
   public createFailureAnalysisPrompt(
@@ -27,7 +27,7 @@ export class Prompt {
     if(this.language === "ja"){
       prompt = `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。必ず日本語で回答してください。
         あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
-        現在、運用管理者から ${this.errorDescription} という事象が発生したとの連絡がありました。
+        現在、運用管理者から ${this.query} という事象が発生したとの連絡がありました。
         あなたは、<logs>タグに与えられたログと<metrics>タグに与えられたメトリクス、<trace>タグに与えられたトレースを確認し、発生した事象の根本原因を推測してください。
         根本原因を記述する際に、参考にしたログやメトリクスの内容についても記載し、運用管理者が実際のログやメトリクスを確認しやすくしてください。
         <logs>
@@ -57,7 +57,7 @@ export class Prompt {
     }else{
       prompt = `You are an agent that monitors and operates workloads running on AWS.
         The architecture of your workload is ${this.architectureDescription}.
-        Currently, the operations manager has informed us that an event called ${this.errorDescription.replace(
+        Currently, the operations manager has informed us that an event called ${this.query.replace(
           /\+/g,
           " ",
         )} has occurred.
@@ -91,16 +91,48 @@ export class Prompt {
     return prompt;
   };
 
+  public createMetricsInsightPrompt(metrics: string){
+    return this.language === "ja" ?
+    `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。
+    ${this.architectureDescription}
+    運用管理者から${this.query}という依頼が来ています。
+    <metrics>タグに与えられたメトリクスをもとに、ユーザからの依頼に対応してください。
+    また、対応するために根拠としたメトリクスについては、メトリクス名を列挙して後から管理者がそのメトリクスを参照しやすくしてください。
+    必ず日本語で答えてください。
+
+    <metrics>
+    ${metrics}
+    </metrics>
+
+    対応結果：
+    `:
+    `You are an agent that monitors and operates workloads running on AWS.
+    The architecture of your workload is ${this.architectureDescription}.
+    Currently, the operations manager asked us about ${this.query}.
+    You should check the <metrics> tags, Based on metrics sandwiched between tags, and answer an asked question.
+    Also, you should show the list of metric names when you checked them to answer the question.
+    You have to answer it in English.
+
+    <metrics>
+    ${metrics}
+    </metrics>
+
+    Answer:
+    `;
+  }
+
   // To create the prompt for metrics selection
-  public createSelectMetricsPrompt(){
+  public createSelectMetricsForFailureAnalysisPrompt(metrics: string){
     return `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。
     ${this.architectureDescription}
-    運用管理者から${this.errorDescription}という状況が報告されています。
+    運用管理者から${this.query}という状況が報告されています。
     次の手順でGetMetricData APIに送るためのMetricDataQueryを<MetricDataQuerySpecification>タグのようなJSON形式で作成してください。
-    1. ツールを利用して、現在定義されているCloudWatchのメトリクスを取得する
+    <steps>
+    1. <Metrics></Metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
     2. 運用管理者から報告された状況が、なぜ発生しているか、根本原因を探るために必要なメトリクスを全て選ぶ
     3. 一つ以上の選んだメトリクスから、GetMetricData APIに送るためのMetricDataQueryをJSON形式で作成する
     4. 作成したクエリは、<MetricDataQuery></MetricDataQuery>というタグで囲んで出力し、それ以外の回答はしない
+    </steps>
 
     MetricDataQueryの例:
     [
@@ -109,12 +141,12 @@ export class Prompt {
         "Label": "適したラベルを自由に記述する",
         "MetricStat": {
             "Metric": {
-                "Namespace": "listMetricsで取得したNamespaceから設定する",
-                "MetricName": "listMetricsで取得したMetricNameから設定する",
+                "Namespace": "<Metrics>タグで与えられたあるメトリクスのNamespaceから設定する。すべて半角英数字であること。",
+                "MetricName": "<Metrics>タグで与えられたあるメトリクスのMetricNameから設定する。すべて半角英数字であること。",
                 "Dimensions": [ 
                     {
-                        "Name": "listMetricsで取得したDimensionsから設定する",
-                        "Value": "listMetricsで取得したDimensionsから設定する"
+                        "Name": "<Metrics>タグで与えられたあるメトリクスのDimensionsから設定する。すべて半角英数字であること。",
+                        "Value": "<Metrics>タグで与えられたあるメトリクスのDimensionsから設定する。すべて半角英数字であること。"
                     },
                 ]
             },
@@ -124,6 +156,54 @@ export class Prompt {
       },
       // 複数のメトリクスが必要な場合は、上記のようなオブジェクトが追加される
     ]
+
+    <Metrics>
+    ${metrics}
+    </Metrics>
+
+    <MetricDataQuery>
+    ` 
+  }
+
+  // To create the prompt for metrics selection
+  public createSelectMetricsForInsightPrompt(metrics: string, days: number){
+    return `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。
+    ${this.architectureDescription}
+    運用管理者から${this.query}という依頼が来ています。
+    次の手順でGetMetricData APIに送るためのMetricDataQueryを<MetricDataQuerySpecification>タグのようなJSON形式で作成してください。
+    <Steps>
+    1. <Metrics></Metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
+    2. 運用管理者からの依頼に答えるために必要なメトリクスを全て選ぶ
+    3. 一つ以上の選んだメトリクスから、GetMetricData APIに送るためのMetricDataQueryをJSON形式で作成する
+    4. 作成したクエリは、<MetricDataQuery></MetricDataQuery>というタグで囲んで出力し、それ以外の回答はしない
+    </Steps>
+
+    MetricDataQueryの例:
+    [
+      {
+        "Id": "cwm1といった、小文字から始まる英数字を組み合わせたクエリ内で一意のIDを付与する",
+        "Label": "適したラベルを自由に記述する",
+        "MetricStat": {
+          "Metric": {
+            "Namespace": "<Metrics>タグで与えられたあるメトリクスのNamespaceから設定する。すべて半角英数字であること。",
+            "MetricName": "<Metrics>タグで与えられたあるメトリクスのMetricNameから設定する。すべて半角英数字であること。",
+            "Dimensions": [ 
+              {
+                "Name": "<Metrics>タグで与えられたあるメトリクスのDimensionsから設定する。すべて半角英数字であること。",
+                "Value": "<Metrics>タグで与えられたあるメトリクスのDimensionsから設定する。すべて半角英数字であること。"
+              },
+            ]
+          },
+          "Period": ${3600 + Math.floor(days / 5) * 3600}, // 変更しない
+          "Stat": "Average" // 変更しない
+        }
+      },
+      // 複数のメトリクスが必要な場合は、上記のようなオブジェクトが追加される
+    ]
+
+    <Metrics>
+    ${metrics}
+    </Metrics>
 
     <MetricDataQuery>
     ` 
@@ -135,7 +215,7 @@ export class Prompt {
   ) {
     return `AWS上で稼働するワークロードを監視・運用するエージェントです。
     あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
-    現在、このワークロードで、${this.errorDescription} という障害が観測されています。
+    現在、このワークロードで、${this.query} という障害が観測されています。
     あなたには、<RootCauseHypothesis></RootCauseHypothesis>というタグで、発生した障害の根本原因の仮説が与えられます。
     アーキテクチャのどこに障害が発生したのか、その原因の仮説とともに、<OutputMermaidSyntax></OutputMermaidSyntax>タグの間にMermaid記法で、簡易的なアーキテクチャ図を出力してください。
 

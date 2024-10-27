@@ -3,9 +3,9 @@ import {
   APIGatewayProxyEvent,
   Context,
 } from "aws-lambda";
-import { App, AwsLambdaReceiver, BlockAction, SayArguments } from "@slack/bolt";
+import { App, AwsLambdaReceiver, BlockAction, RespondArguments, SayArguments } from "@slack/bolt";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
-import { format } from "date-fns";
+import { format, sub } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
 import { MessageClient } from "../../lib/message-client.js";
 import { invokeAsyncLambdaFunc } from "../../lib/aws-modules.js";
@@ -15,6 +15,7 @@ import logger from "../../lib/logger.js";
 // Environment variables
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
 const funcName = process.env.FUNCTION_NAME!;
+const metricsInsightFunction = process.env.METRICS_INSIGHT_NAME!;
 const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const slackSigningSecretKey = process.env.SLACK_SIGNING_SECRET_KEY!;
 
@@ -47,7 +48,25 @@ const app = new App({
   receiver: awsLambdaReceiver
 });
 
-const messageClient = new MessageClient(token, "ja")
+const messageClient = new MessageClient(token, lang); 
+
+app.event("app_home_opened", async ({event, client}) => {
+ 
+  try{
+    // views.publish を呼び出す
+    await client.views.publish({ 
+      user_id: event.user, 
+      view: {
+        type: 'home',
+        callback_id: 'home_view',
+        blocks: messageClient.createHomeTabBlock()
+      }
+    });
+  }catch(e){
+    logger.error(JSON.stringify(e));
+  }
+});
+
 
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
@@ -62,7 +81,6 @@ app.message("", async ({ event, body, payload, say }) => {
     const now = toZonedTime(new Date(), "Asia/Tokyo");
     const res = await say({
       blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
-      thread_ts: event.ts,
       reply_broadcast: true
     } as SayArguments);
     logger.info(`response: ${JSON.stringify(res)}`);
@@ -103,7 +121,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
       funcName
     );
 
-    if (res.StatusCode! > 400) {
+    if (res.StatusCode! >= 400) {
       throw new Error("Failed to invoke lambda function");
     }
 
@@ -111,19 +129,83 @@ app.action("submit_button", async ({ body, ack, respond }) => {
     await respond({
       blocks: messageClient.createMessageBlock(
         lang === "ja"
-          ? "リクエストを受け付けました。分析完了までお待ちください。"
-          : "Reveived your request. Please wait...",
+          ? `リクエストを受け付けました。分析完了までお待ちください。\nリクエスト内容: \`\`\`${JSON.stringify({errorDescription, startDate, startTime, endDate, endTime})}\`\`\` `
+          : `Reveived your request. Please wait... \nInput parameters: \`\`\`${JSON.stringify({errorDescription, startDate, startTime, endDate, endTime})}\`\`\` `,
       ),
       replace_original: true,
-    });
-  } catch (err) {
+    } as RespondArguments);
+  } catch (error) {
     // Send result to Slack
-    logger.error(JSON.stringify(err));
+    logger.error(JSON.stringify(error));
     await respond({
       blocks: messageClient.createErrorMessageBlock(),
       replace_original: true,
+    } as RespondArguments);
+  }
+  return;
+});
+
+app.command('/insight', async ({ client, body, ack }) => {
+  // Ack the request of insight command
+  await ack();
+
+  try {
+    const result = await client.views.open({
+      trigger_id: body.trigger_id,
+      view: messageClient.createInsightCommandFormView()
+    });
+    logger.info(JSON.stringify(result));
+  } catch (error) {
+    logger.error(JSON.stringify(error));
+  }
+});
+
+app.view('view_insight', async ({ ack, view, client, body }) => {
+  // Ack the request of view_insight
+  await ack();
+  
+  // Get the form data
+  const query = view['state']['values']['input_query']['query']['value'];
+  const duration = view['state']['values']['input_duration']['duration']['selected_option']!['value'];
+
+  // Convert from duration to datetime
+  const now = new Date();
+  const nowItnTime = fromZonedTime(now, "Asia/Tokyo");
+  const pastItnTime = fromZonedTime(sub(now,{days: Number(duration)}), "Asia/Tokyo");
+  try{
+    // Invoke backend lambda
+    const res = await invokeAsyncLambdaFunc(
+      JSON.stringify({
+        query: query,
+        startDate: pastItnTime.toISOString(),
+        endDate: nowItnTime.toISOString(),
+        channelId: body.user.id 
+      }),
+      metricsInsightFunction
+    );
+
+    if (res.StatusCode! > 400) {
+      throw new Error("Failed to invoke lambda function");
+    }
+
+    // Send the message to notify the completion of receiving request.
+    await client.chat.postMessage({
+      blocks: messageClient.createMessageBlock(
+        lang === "ja"
+          ? `質問：${query}を、${duration}日分のメトリクスで確認します。FA2の回答をお待ちください。`
+          : `FA2 received your question: ${query} with the metric data of ${duration} days. Please wait for its answer..`,
+      ),
+      channel: body.user.id
+    });
+  } catch (error) {
+    // Send result to Slack
+    logger.error(JSON.stringify(error));
+    await client.chat.postMessage({
+      blocks: messageClient.createErrorMessageBlock(),
+      channel: body.user.id
     });
   }
+
   return;
 });
 
