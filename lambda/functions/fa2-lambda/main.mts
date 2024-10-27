@@ -9,8 +9,9 @@ import {
   queryToAthena,
   queryToCWLogs,
   queryToCWMetrics,
-  invokeModel,
-  generateMetricDataQuery
+  generateMetricDataQuery,
+  converse,
+  listMetrics,
 } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
@@ -24,8 +25,6 @@ export const handler: Handler = async (event: {
   endDate: string;
   channelId?: string;
   threadTs?: string;
-  alarmName?: string;
-  alarmTimestamp?: string;
 }) => {
   // Event parameters
   logger.info(`Event: ${JSON.stringify(event)}`);
@@ -77,8 +76,9 @@ export const handler: Handler = async (event: {
 
   try {
     // Generate a query for getMetricData API
-    const metricSelectionPrompt = prompt.createSelectMetricsPrompt()
-    const metricDataQuery = await generateMetricDataQuery(startDate, endDate, metricSelectionPrompt);
+    const metrics = await listMetrics();
+    const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(JSON.stringify(metrics));
+    const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
 
     // Send query to each AWS APIs in parallel.
     const limit = pLimit(5);
@@ -168,14 +168,10 @@ export const handler: Handler = async (event: {
 
     logger.info(`Bedrock prompt: ${failureAnalysisPrompt}`);
 
-    // If you want to tune parameters for LLM.
-    const llmPayload = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: [{ type: "text", text: failureAnalysisPrompt }] }]
-    };
+    const answer = await converse(failureAnalysisPrompt);
 
-    const answer = await invokeModel(llmPayload, modelId);
+    if(!answer) throw new Error("No response from LLM");
+
     // We assume that threshold is 3,500. And it's not accurate. Please modify this value when you met error. 
     if(answer.length < 3500){
       // Send the answer to Slack directly.
@@ -216,19 +212,10 @@ export const handler: Handler = async (event: {
     /* ****** */
     // Additional process. It shows the root cause on the image.
     // If you don't need it, please comment out below.
-    const createImagePayload = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 100000,
-      messages: [
-        {
-          role: "user", 
-          content: [
-            { type: "text", text: prompt.createImageGenerationPrompt(answer) }
-          ] 
-        }
-      ],
-    }
-    const outputImageResponse = await invokeModel({...createImagePayload,}, 'anthropic.claude-3-5-sonnet-20240620-v1:0')
+    const outputImageResponse = await converse(
+      prompt.createImageGenerationPrompt(answer), 
+      'anthropic.claude-3-5-sonnet-20240620-v1:0', 
+    )
     const mermaidSyntax = split(split(outputImageResponse, '<OutputMermaidSyntax>')[1], '</OutputMermaidSyntax>')[0];
     logger.info(`Mermaid syntax: ${mermaidSyntax}`)
 

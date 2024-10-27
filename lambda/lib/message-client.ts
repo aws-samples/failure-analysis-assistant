@@ -1,5 +1,5 @@
 import { format, parse } from "date-fns";
-import { KnownBlock } from "@slack/types";
+import { KnownBlock, View } from "@slack/types";
 import { WebClient } from "@slack/web-api";
 import { random } from "lodash";
 import logger from "./logger.js";
@@ -429,6 +429,336 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
       ];
     }
   }
+  
+  public createInsightCommandFormView(): View {
+    return this.language === "ja" ? 
+    {
+      "title": {
+        "type": "plain_text",
+        "text": "insightコマンドの実行"
+      },
+      "submit": {
+        "type": "plain_text",
+        "text": "Submit"
+      },
+      "type": "modal",
+      "callback_id": "view_insight",
+      "blocks": [
+        {
+          "type": "input",
+          "block_id": "input_query",
+          "label": {
+            "type": "plain_text",
+            "text": "メトリクスからどのようなことを知りたいですか?"
+          },
+          "element": {
+            "type": "plain_text_input",
+            "action_id": "query",
+            "multiline": true,
+            "placeholder": {
+              "type": "plain_text",
+              "text": "例：ECSのリソースは十分ですか？チューニングの必要があるか教えてください"
+            }
+          },
+        },
+        {
+          "type": "input",
+          "block_id": "input_duration",
+          "element": {
+            "type": "static_select",
+            "placeholder": {
+              "type": "plain_text",
+              "text": "期間を日単位で選択してください",
+              "emoji": true
+            },
+            "options": [
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "1日",
+                  "emoji": true
+                },
+                "value": "1"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "2日",
+                  "emoji": true
+                },
+                "value": "2"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "3日",
+                  "emoji": true
+                },
+                "value": "3"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "4日",
+                  "emoji": true
+                },
+                "value": "4"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "5日",
+                  "emoji": true
+                },
+                "value": "5"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "6日",
+                  "emoji": true
+                },
+                "value": "6"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "7日",
+                  "emoji": true
+                },
+                "value": "7"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "8日",
+                  "emoji": true
+                },
+                "value": "8"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "9日",
+                  "emoji": true
+                },
+                "value": "9"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "10日",
+                  "emoji": true
+                },
+                "value": "10"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "11日",
+                  "emoji": true
+                },
+                "value": "11"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "12日",
+                  "emoji": true
+                },
+                "value": "12"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "13日",
+                  "emoji": true
+                },
+                "value": "13"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "14日",
+                  "emoji": true
+                },
+                "value": "14"
+              }
+            ],
+            "action_id": "duration"
+          },
+          "label": {
+            "type": "plain_text",
+            "text": "メトリクスを取得する期間",
+                    "emoji": true
+          }
+        }
+      ]
+    } :
+    {
+      "title": {
+        "type": "plain_text",
+        "text": "Invoke insight command"
+      },
+      "submit": {
+        "type": "plain_text",
+        "text": "Submit"
+      },
+      "type": "modal",
+      "callback_id": "view_insight",
+      "blocks": [
+        {
+          "type": "input",
+          "block_id": "input_query",
+          "label": {
+            "type": "plain_text",
+            "text": "What do you want to know based on metrics?"
+          },
+          "element": {
+            "type": "plain_text_input",
+            "action_id": "query",
+            "multiline": true,
+            "placeholder": {
+              "type": "plain_text",
+              "text": "Ex. Are ECS resources enough? Please let me know if the tuning is required for this workload."
+            }
+          }
+        },
+        {
+          "type": "input",
+          "block_id": "input_duration",
+          "element": {
+            "type": "static_select",
+            "placeholder": {
+              "type": "plain_text",
+              "text": "Please select days to get metric data",
+              "emoji": true
+            },
+            "options": [
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "1 Day",
+                  "emoji": true
+                },
+                "value": "1"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "2 Days",
+                  "emoji": true
+                },
+                "value": "2"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "3 Days",
+                  "emoji": true
+                },
+                "value": "3"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "4 Days",
+                  "emoji": true
+                },
+                "value": "4"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "5 Days",
+                  "emoji": true
+                },
+                "value": "5"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "6 Days",
+                  "emoji": true
+                },
+                "value": "6"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "7 Days",
+                  "emoji": true
+                },
+                "value": "7"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "8 Days",
+                  "emoji": true
+                },
+                "value": "8"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "9 Days",
+                  "emoji": true
+                },
+                "value": "9"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "10 Days",
+                  "emoji": true
+                },
+                "value": "10"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "11 Days",
+                  "emoji": true
+                },
+                "value": "11"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "12 Days",
+                  "emoji": true
+                },
+                "value": "12"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "13 Days",
+                  "emoji": true
+                },
+                "value": "13"
+              },
+              {
+                "text": {
+                  "type": "plain_text",
+                  "text": "14 Days",
+                  "emoji": true
+                },
+                "value": "14"
+              }
+            ],
+            "action_id": "duration"
+          },
+          "label": {
+            "type": "plain_text",
+            "text": "Duration of getting metric data",
+                    "emoji": true
+          }
+        }
+      ]
+    }
+  };
 
   public createMessageBlock(message: string): KnownBlock[] {
     return [
@@ -498,26 +828,30 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
   public async sendMessage(
     message: KnownBlock[] | string,
     channelId: string,
-    threadTs: string
+    threadTs?: string
   ){
-    if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
-      try {
+    try {
+      if (threadTs) {
         await this.slackClient.chat.postMessage({
           channel: channelId,
           text: "FA2からのメッセージ",
           blocks: message as KnownBlock[],
           thread_ts: threadTs,
         });
-      } catch (error) {
-        logger.error(JSON.stringify(error));
+      } else {
         await this.slackClient.chat.postMessage({
           channel: channelId,
-          text: "Error. Please contact your system admin.",
-          thread_ts: threadTs,
+          text: "FA2からのメッセージ",
+          blocks: message as KnownBlock[]
         });
       }
-    } else {
-      throw new Error("Channel ID and ThreadTS are required.");
+    } catch (error) {
+      logger.error(JSON.stringify(error));
+      await this.slackClient.chat.postMessage({
+        channel: channelId,
+        text: "Error. Please contact your system admin.",
+        thread_ts: threadTs,
+      });
     }
   }
 
@@ -526,27 +860,32 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     filename: string,
     markdownText: string,
     channelId: string,
-    threadTs: string
+    threadTs?: string
   ){
-    if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
-      try {
+    try {
+      if (threadTs) {
         await this.slackClient.filesUploadV2({
-          channel_id: channelId!,
+          channel_id: channelId,
           thread_ts: threadTs!,
           filename,
           content: markdownText,
           snippet_type: 'markdown'
         });
-      } catch (error) {
-        logger.error(JSON.stringify(error));
-        await this.slackClient.chat.postMessage({
-          channel: channelId,
-          text: "Error. Please contact your system admin.",
-          thread_ts: threadTs,
+      } else {
+        await this.slackClient.filesUploadV2({
+          channel_id: channelId!,
+          filename,
+          content: markdownText,
+          snippet_type: 'markdown'
         });
       }
-    } else {
-      throw new Error("Channel ID and ThreadTS are required.");
+    } catch (error) {
+      logger.error(JSON.stringify(error));
+      await this.slackClient.chat.postMessage({
+        channel: channelId,
+        text: "Error. Please contact your system admin.",
+        thread_ts: threadTs,
+      });
     }
   }
 
@@ -577,5 +916,90 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
       throw new Error("Channel ID and ThreadTS are required.");
     }
   }
-    
+  
+  public createHomeTabBlock(){
+    return this.language === "ja" ? [
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "FA2をご利用いただきありがとうございます。"
+        }
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "FA2では次のコマンドが利用できます。"
+        }
+      },
+      {
+        "type": "header",
+        "text": {
+          "type": "plain_text",
+          "text": "メトリクス分析支援",
+          "emoji": true
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "plain_text",
+          "text": "ユーザの質問に合わせ、必要なメトリクスデータを指定された日数分取得し、そのデータを元に回答するコマンド。（利用シーン：パフォーマンス分析や傾向分析の支援）",
+          "emoji": true
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "`/insight` とメッセージを送信すると、モーダルが起動しますので、質問とメトリクスの取得期間を入力してください。"
+        }
+      }
+    ]:[
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "Welcome to FA2!"
+        }
+      },
+      {
+        "type": "divider"
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "You can use follow commands."
+        }
+      },
+      {
+        "type": "header",
+        "text": {
+          "type": "plain_text",
+          "text": "Metrics Analysis Assist",
+          "emoji": true
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "plain_text",
+          "text": "This command that matches the user's question, obtains necessary metric data for a specified number of days, and responds based on that data. (Use case: Support for performance analysis and trend analysis)",
+          "emoji": true
+        }
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "When you send a message with `/insight`, the modal will be launched, so please enter your question and the time period for retrieving metrics."
+        }
+      }
+    ];
+  }
 }

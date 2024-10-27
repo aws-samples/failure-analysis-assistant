@@ -30,6 +30,7 @@ interface FA2Props {
 
 export class FA2 extends Construct {
   backendRole: iam.Role;
+  metricsInsightRole: iam.Role;
   slackHandlerRole: iam.Role;
   slackRestApi: apigateway.RestApi;
   constructor(scope: Construct, id: string, props: FA2Props) {
@@ -290,6 +291,74 @@ export class FA2 extends Construct {
       fa2Function.addEnvironment("XRAY_TRACE", "true");
     }
 
+    // Metrics Insight
+    const metricsInsightRole = new iam.Role(this, "MetricsInsightRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        // To put lambda logs to CloudWatch Logs
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole",
+        ),
+      ],
+      inlinePolicies: {
+        // To run query in CloudWatch Logs Insight
+        cwlogs: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["cloudwatch:GenerateQuery"],
+              resources: ["*"],
+            }),
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions:[
+                "cloudwatch:GetMetricData",
+                "cloudwatch:ListMetrics",
+              ],
+              resources: ["*"]
+            })
+          ],
+        }),
+        // Use LLM in Bedrock
+        bedrock: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["bedrock:InvokeModel"],
+              resources: [
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
+                  props.modelId
+                }`
+              ],
+            }),
+          ],
+        }),
+      },
+    });
+    this.metricsInsightRole = metricsInsightRole;
+
+    const metricsInsightFunction = new lambdaNodejs.NodejsFunction(this, "MetricsInsight", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      memorySize: 512,
+      timeout: Duration.seconds(600),
+      entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),
+      environment: {
+        MODEL_ID: props.modelId,
+        LANG: props.language,
+        SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
+        ARCHITECTURE_DESCRIPTION: props.architectureDescription
+      },
+      bundling: {
+        minify: true,
+        externalModules: ["@aws-sdk/*"],
+        tsconfig: path.join(__dirname, "../../tsconfig.json"),
+        format: lambdaNodejs.OutputFormat.ESM,
+        banner:
+          "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
+      },
+      role: metricsInsightRole,
+    });
+
     // Slack Credentials
     const token = secretsManager.Secret.fromSecretNameV2(
       this,
@@ -328,6 +397,7 @@ export class FA2 extends Construct {
           SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
           SLACK_SIGNING_SECRET_KEY: props.slackSigningSecretKey,
           FUNCTION_NAME: fa2Function.functionName,
+          METRICS_INSIGHT_NAME: metricsInsightFunction.functionName
         },
         role: slackHandlerRole,
         bundling: {
@@ -348,8 +418,10 @@ export class FA2 extends Construct {
     );
     token.grantRead(slackHandler);
     token.grantRead(fa2Function);
+    token.grantRead(metricsInsightFunction);
     signingSecret.grantRead(slackHandler);
     fa2Function.grantInvoke(slackHandler);
+    metricsInsightFunction.grantInvoke(slackHandler);
 
     const logGroup = new logs.LogGroup(this, "ApiGatewayLogGroup");
     const restApi = new apigateway.RestApi(this, "SlackHandlerEndpoint", {
