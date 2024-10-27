@@ -19,7 +19,6 @@
     "@aws-sdk/client-cloudwatch": "^3.632.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.523.0",
     "@aws-sdk/client-lambda": "^3.637.0",
-    "@aws-sdk/client-sns": "^3.600.0",
     "@aws-sdk/client-xray": "^3.600.0",
     "@aws-sdk/types": "^3.418.0",
     "@sparticuz/chromium": "^129.0.0",

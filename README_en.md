@@ -3,9 +3,18 @@
 [日本語で読む](./README.md)
 
 This is a sample implementation that responds to alarms sent to Slack by AWS Chatbot and helps analyze the root cause of the failure.
-Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
-
 This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
+This sample code provide two features as below,
+
+**Failure analysis assist**
+
+Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
+For an example of how the function works, see [Failure Analysis Assist](#failure-analysis-assist).
+
+**Metrics analysis support**
+
+In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
+For an image of the operation of the function, see [Metric Analysis Assist](#metrics-analysis-assist).
 
 ## Branches
 
@@ -47,7 +56,7 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
    1. The parameters you set determine what to search for. A log group of Amazon CloudWatch Logs is required; database of Amazon Athena, and the parameter of AWS X-Ray are optional
    2. By increasing the number of search targets, there is a possibility that more accurate answers can be obtained
 5. The collected information is added as context to the prompt template included in FA2 and sent to Amazon Bedrock to summarize information related to the event and extract information necessary for event cause analysis
-6. In order to return answers obtained from LLM, submit answers to `response_url`.
+6. Send the answers obtained from LLM to Slack.
 
 ## Requirements
 
@@ -58,7 +67,6 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
   - If you want to invlude AWS CloudTrail or Application Load Balancer (ALB) access logs, an Amazon Athena database must be created
   - If AWS X-Ray trace information is also used, an AWS X-Ray trace for the relevant system must have been obtained
 - Claude 3 Sonnet and Claude 3.5 Sonnet access has been granted from model access on Amazon Bedrock
-  - It uses ToolUse to select metrics to get metric data.
   - Claude 3.5 Sonnet is used for generation of the image written by Mermaid syntax.
 - Confirm that an alarm notification will be sent to Slack from the AWS Chatbot set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
@@ -148,18 +156,35 @@ $ npx cdk bootstrap --profile {your_profile}
 $ npx cdk deploy --all --profile {your_profile} --require-approval never
 ```
 
+> [!NOTE]
+> The part that begins with the description of `// Additional process` in `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` that is the process of generating a hypothetical diagram of the cause of the fault.
+> If you don't need to generate a diagram, comment out or delete this part.
+
 #### Configuration of Slack App
 
 1. After deploying the CDK, check the Amazon API Gateway endpoint URL
 2. Access to [Slack api](https://api.slack.com/apps), select [Interactivity & Shortcuts] on the left menu of the displayed screen, set [Interactivity] to turn on, and enter the endpoint of Amazon API Gateway in [Request URL](example: https://{API Gateway endpoint}/v1/slack/events)
    1. If the API resource name hasn't changed, it will be /slack/events, as shown in the example
 3. Next, click [Event Subscriptions] on the left menu, set [Enable Events] to turn on, then set [Reqeust URL] in the same way as [Interactivity]
-4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels`
+4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels` and `app_home_opened`.
 5. Click [Save Changes]
-6. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
-7. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
+6. Click [Slash Commands] on the left menu, then click [Create New Command]
+   1. Enter the values as shown in the table below, and then click Save when you have entered them all
+
+      | item name         | value                         |
+      | ----------------- | ----------------------------- |
+      | Command           | /insight                      |
+      | Request URL       | same URL                      |
+      | Short Description | Get insight for your workload |
+
+7. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
+   1. Or open [OAuth & Permissions], and click [Reinstall to {your workspace name}] to re-install your app.
+8. And click [App Home] on the left menu, turn on [Home Tab] in [Show Tabs]. Next, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
+9. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
 
 ### Testing
+
+#### Failure Analysis Assist
 
 Some kind of error occurred on the target system from which the log was output.
 (This time, we used AWS FIS and caused a connection failure from the Amazon ECS container to Amazon DynamoDB.)
@@ -185,6 +210,21 @@ Clicked the button, requests are accepted.
 Wait a few minutes, and the answers will appear in Slack.
 
 ![fa2-answer](./docs/images/en/fa2-slackapp-answer.png)
+
+#### Metrics Analysis Assist
+
+If you type `/insight` in the Slack chat form and send, a modal will be displayed.
+In the modal form, enter [the question you want answered based on the metrics] and [the period you want to obtain the metrics].
+In about 1-2 minutes, you'll get an answer.
+The metric `Period` is calculated by `3600 + floor(number of days acquired / 5) * 3600`.
+If you want to change the expression, see `createSelectMetricsForInsightPrompt()` in `lambda/lib/prompts.ts`.
+
+The following example asks questions about ECS performance.
+
+![insight-form](./docs/images/en/fa2-insight-form.png)
+
+![query-about-ecs-performance](./docs/images/en/fa2-query-about-ecs-performance.png)
+
 
 ## Delete deployed resources
 

@@ -3,10 +3,19 @@
 [View this page in English](./README_en.md)
 
 AWS Chatbot が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
-あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
-
 AWS Summit Japan 2024 のブースで公開したデモのサンプルコードとなります。
 [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
+本サンプルで試せることは以下の通りです。
+
+**障害分析支援**
+
+あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
+機能の動作イメージは、[障害分析支援](#障害分析支援) を参照ください。
+
+**メトリクス分析支援**
+
+ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
+機能の動作イメージは、[メトリクス分析支援](#メトリクス分析支援) を参照ください。
 
 ## Branches
 
@@ -48,7 +57,7 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
    1. 以降で設定するパラメータによって、検索対象が決まります。CloudWatch Logs のロググループが必須で、Amazon Athena や AWS X-Ray はオプションとなります
    2. 検索対象を増やすことで、より精度の高い回答を得られる可能性があります
 5. FA2 に含まれるプロンプトテンプレートに、収集した情報をコンテキストとして加え、プロンプトを作ります。作成したプロンプトを Amazon Bedrock に送り、イベントに関連した情報の要約やイベントの原因分析に必要な情報抽出を行います
-6. LLM から得られた回答を返すため、Slack から提供された`response_url`を利用し、Slack に送ります
+6. LLM から得られた回答を Slack に送ります
 
 ## 前提条件
 
@@ -58,7 +67,6 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
   - 加えて、AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
 - Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet, Claude 3.5 Sonnet のアクセス許可をしていること
-  - メトリクスの取得を行う際に、ToolUse を利用します
   - Claude 3.5 Sonnet は、Mermaid記法で画像による障害原因の仮説を図示するために利用します
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
@@ -158,12 +166,25 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 2. [Slack api](https://api.slack.com/apps)を開き、表示された画面の左メニューにある、[Interactivity & Shortcuts]を選択し、[Interactivity]を ON にしたあと、[Request URL]に 1 で確認した Amazon API Gateway のエンドポイントを入力し（例: https://{API Gateway のエンドポイント}/v1/slack/events）、[Save Changes]をクリックします
    1. API のリソース名は変更していなければ、例の通り、/slack/events となります
 3. 次に、左メニューの[Event Subscriptions]をクリックし、[Enable Events]を ON にしたあと、[Interactivity]と同様に、[Reqeust URL]を設定します
-4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels`を追加します
+4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels` と `app_home_opened` を追加します
 5. [Save Changes]をクリックします
-6. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
-7. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、「アプリを追加する」をクリックします。FA2（またはご自身が登録したアプリ名）を探し、「追加」ボタンをクリックします。表示される指示に従ってアプリをインストールします。
+6. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
+   1. 以下の表のように値を入力し、すべて入力したら、[Save]をクリックします
+
+      | 項目名             | 値                            |
+      | ----------------- | ----------------------------- |
+      | Command           | /insight                      |
+      | Request URL       | Request URL と同じ URL         |
+      | Short Description | Get insight for your workload |
+
+7. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
+   1. または、[OAuth & Permissions]を開き、[Reinstall to {あなたのワークスペース名}]をクリックし、再インストールします
+8. そして、左メニューの [App Home] をクリックし、[Show Tabs] にある [Home Tab] を ON にします。次に [Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます。
+9. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、[アプリを追加する]をクリックします。FA2（またはご自身が登録したアプリ名）を探し、[追加]ボタンをクリックします。表示される指示に従ってアプリをインストールします
 
 ### テスト
+
+#### 障害分析支援
 
 ログ出力元の対象システムでなんらかエラーを起こしてください
 （今回は AWS FIS を利用し、Amazon ECS のコンテナから Amazon DynamoDB への接続障害を起こしました。）
@@ -189,6 +210,19 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 少し待つと、回答が Slack に表示されます。
 
 ![fa2-answer](./docs/images/ja/fa2-slackapp-answer.png)
+
+#### メトリクス分析支援
+
+Slack のチャット欄に、`/insight` と入力、送信すると、モーダルが表示されます。
+モーダルのフォームに、[メトリクスを元に回答してほしい質問]と[メトリクスを取得したい期間]を入力してください。
+1-2分ほどで、回答が得られます。
+メトリクスの `Period` は、`3600 + floor(取得日数 / 5) * 3600` で計算しています。式を変更したい場合は、`lambda/lib/prompts.ts` の `createSelectMetricsForInsightPrompt()` を参照ください。
+
+次の例では、ECSのパフォーマンスに対して、質問を送っています。
+
+![insight-form](./docs/images/ja/fa2-insight-form.png)
+
+![query-about-ecs-performance](./docs/images/ja/fa2-query-about-ecs-performance.png)
 
 ## リソースの削除
 
