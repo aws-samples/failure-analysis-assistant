@@ -3,17 +3,18 @@
 [日本語で読む](./README.md)
 
 This is a sample implementation that responds to alarms sent to Slack by AWS Chatbot and helps analyze the root cause of the failure.
+This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
 This sample code provide two features as below,
 
 **Failure analysis assist**
+
 Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
 For an example of how the function works, see [Failure Analysis Assist](#failure-analysis-assist).
 
 **Metrics analysis support**
+
 In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
 For an image of the operation of the function, see [Metric Analysis Assist](#metrics-analysis-assist).
-
-This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
 
 ## Branches
 
@@ -177,7 +178,9 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
       | Short Description | Get insight for your workload |
 
 7. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
-8. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
+   1. Or open [OAuth & Permissions], and click [Reinstall to {your workspace name}] to re-install your app.
+8. And click [App Home] on the left menu, turn on [Home Tab] in [Show Tabs]. Next, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
+9. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
 
 ### Testing
 
