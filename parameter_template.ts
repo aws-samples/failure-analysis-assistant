@@ -1,7 +1,7 @@
 import { Environment } from "aws-cdk-lib";
 
 export type Language = "ja" | "en";
-export type Commands = {insight: boolean};
+export type SlackCommands = {insight: boolean};
 
 export interface AppParameter {
   env?: Environment;
@@ -17,7 +17,7 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
-  slackCommands: Commands;
+  slackCommands: SlackCommands;
 }
 
 // Parameters for Dev Account
