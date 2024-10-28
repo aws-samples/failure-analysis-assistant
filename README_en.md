@@ -14,7 +14,8 @@ For an example of how the function works, see [Failure Analysis Assist](#failure
 **Metrics analysis support**
 
 In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
-For an image of the operation of the function, see [Metric Analysis Assist](#metrics-analysis-assist).
+For example of the operation of the function, see [[Optional]Metric Analysis Assist](#optionalmetrics-analysis-assist).
+And this feature is optional. If you want to use it, please see [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Metrics Insight Assist](#optionalconfiguration-of-slack-app-for-metrics-insight-assist)
 
 ## Branches
 
@@ -113,6 +114,9 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
+  slackCommands: {
+    insight: true,
+  }
 };
 ```
 
@@ -134,6 +138,7 @@ export const devParameter: AppParameter = {
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
 | `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
+| `slackCommands`              | `{"insight": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` command                                                                                                     |
 
 #### Modify prompts
 
@@ -166,9 +171,14 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 2. Access to [Slack api](https://api.slack.com/apps), select [Interactivity & Shortcuts] on the left menu of the displayed screen, set [Interactivity] to turn on, and enter the endpoint of Amazon API Gateway in [Request URL](example: https://{API Gateway endpoint}/v1/slack/events)
    1. If the API resource name hasn't changed, it will be /slack/events, as shown in the example
 3. Next, click [Event Subscriptions] on the left menu, set [Enable Events] to turn on, then set [Reqeust URL] in the same way as [Interactivity]
-4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels` and `app_home_opened`.
-5. Click [Save Changes]
-6. Click [Slash Commands] on the left menu, then click [Create New Command]
+4. Open [Subscribe to bot events] on the same screen, click [Add Bot User Event] and add `message.channels`, click [Save Changes]
+5. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
+   1. Or open [OAuth & Permissions], and click [Reinstall to {your workspace name}] to re-install your app.
+6. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
+
+#### [Optional]Configuration of Slack App for Metrics Insight Assist
+
+1. Click [Slash Commands] on the left menu, then click [Create New Command]
    1. Enter the values as shown in the table below, and then click Save when you have entered them all
 
       | item name         | value                         |
@@ -177,10 +187,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
       | Request URL       | same URL                      |
       | Short Description | Get insight for your workload |
 
-7. Once you've made it this far, a pop-up prompting you to reinstall will appear at the top of the screen, click on it and reinstall the Slack App on the target channel. Because you modified the permission of Slack App token in step 4.
-   1. Or open [OAuth & Permissions], and click [Reinstall to {your workspace name}] to re-install your app.
-8. And click [App Home] on the left menu, turn on [Home Tab] in [Show Tabs]. Next, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
-9. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
+2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
 
 ### Testing
 
@@ -211,7 +218,7 @@ Wait a few minutes, and the answers will appear in Slack.
 
 ![fa2-answer](./docs/images/en/fa2-slackapp-answer.png)
 
-#### Metrics Analysis Assist
+#### [Optional]Metrics Analysis Assist
 
 If you type `/insight` in the Slack chat form and send, a modal will be displayed.
 In the modal form, enter [the question you want answered based on the metrics] and [the period you want to obtain the metrics].
