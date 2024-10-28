@@ -50,24 +50,6 @@ const app = new App({
 
 const messageClient = new MessageClient(token, lang); 
 
-app.event("app_home_opened", async ({event, client}) => {
- 
-  try{
-    // views.publish を呼び出す
-    await client.views.publish({ 
-      user_id: event.user, 
-      view: {
-        type: 'home',
-        callback_id: 'home_view',
-        blocks: messageClient.createHomeTabBlock()
-      }
-    });
-  }catch(e){
-    logger.error(JSON.stringify(e));
-  }
-});
-
-
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
   logger.info(`Event= ${JSON.stringify(event)}`);
@@ -205,7 +187,6 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
       channel: body.user.id
     });
   }
-
   return;
 });
 

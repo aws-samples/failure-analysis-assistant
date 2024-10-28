@@ -1,7 +1,7 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language } from "../../parameter";
+import { Language, SlackCommands } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 
 interface FA2StackProps extends StackProps {
@@ -13,6 +13,7 @@ interface FA2StackProps extends StackProps {
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
+  slackCommands: SlackCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
@@ -32,6 +33,7 @@ export class FA2Stack extends Stack {
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,
+      slackCommands: props.slackCommands,
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
@@ -51,18 +53,20 @@ export class FA2Stack extends Stack {
       },
     ]);
 
-    NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
-      {
-        id: "AwsSolutions-IAM4",
-        reason:
-          "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
-      },
-      {
-        id: "AwsSolutions-IAM5",
-        reason:
-          "CloudWatch need * resources to do these API actions.",
-      },
-    ]);
+    if(props.slackCommands.insight){
+      NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
 
     if (
       props.databaseName &&

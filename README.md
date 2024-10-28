@@ -15,7 +15,8 @@ AWS Summit Japan 2024 のブースで公開したデモのサンプルコード�
 **メトリクス分析支援**
 
 ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
-機能の動作イメージは、[メトリクス分析支援](#メトリクス分析支援) を参照ください。
+機能の動作イメージは、[[オプション]メトリクス分析支援](#オプションメトリクス分析支援) を参照ください。
+**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]メトリクス分析支援機能のための Slack App の設定](#オプションメトリクス分析支援機能のための-slack-app-の設定)をご確認ください。
 
 ## Branches
 
@@ -113,6 +114,9 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
+  slackCommands: {
+    insight: true,
+  }
 };
 ```
 
@@ -134,6 +138,7 @@ export const devParameter: AppParameter = {
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します                  |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します             |
 | `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
+| `slackCommands`              | `{"insight": true}`                                                                    | `insight` コマンドに関連するリソースのデプロイを有効にします                                                                                                       |
 
 #### プロンプトの変更
 
@@ -166,9 +171,14 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 2. [Slack api](https://api.slack.com/apps)を開き、表示された画面の左メニューにある、[Interactivity & Shortcuts]を選択し、[Interactivity]を ON にしたあと、[Request URL]に 1 で確認した Amazon API Gateway のエンドポイントを入力し（例: https://{API Gateway のエンドポイント}/v1/slack/events）、[Save Changes]をクリックします
    1. API のリソース名は変更していなければ、例の通り、/slack/events となります
 3. 次に、左メニューの[Event Subscriptions]をクリックし、[Enable Events]を ON にしたあと、[Interactivity]と同様に、[Reqeust URL]を設定します
-4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels` と `app_home_opened` を追加します
-5. [Save Changes]をクリックします
-6. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
+4. 同じ画面の[Subscribe to bot events]を開き、[Add Bot User Event]をクリックし、`message.channels` を追加し、[Save Changes]をクリックします
+5. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
+   1. または、[OAuth & Permissions]を開き、[Reinstall to {あなたのワークスペース名}]をクリックし、再インストールします
+6. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、[アプリを追加する]をクリックします。FA2（またはご自身が登録したアプリ名）を探し、[追加]ボタンをクリックします。表示される指示に従ってアプリをインストールします
+
+#### [オプション]メトリクス分析支援機能のための Slack App の設定
+
+1. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
    1. 以下の表のように値を入力し、すべて入力したら、[Save]をクリックします
 
       | 項目名             | 値                            |
@@ -177,10 +187,8 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
       | Request URL       | Request URL と同じ URL         |
       | Short Description | Get insight for your workload |
 
-7. 手順4で行ったトークンのスコープ変更に伴い、Slack App の再インストールが必要になります。画面の上の方に再インストールを促すポップアップが出るので、それをクリックして、対象のチャンネルへ Slack App を再インストールします
-   1. または、[OAuth & Permissions]を開き、[Reinstall to {あなたのワークスペース名}]をクリックし、再インストールします
-8. そして、左メニューの [App Home] をクリックし、[Show Tabs] にある [Home Tab] を ON にします。次に [Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます。
-9. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、[アプリを追加する]をクリックします。FA2（またはご自身が登録したアプリ名）を探し、[追加]ボタンをクリックします。表示される指示に従ってアプリをインストールします
+2. 左メニューの [App Home] をクリックし、[Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます。
+   1. これで、Slack App の DM 欄でメトリクス分析支援の実行・結果受領がしやすくなります
 
 ### テスト
 
@@ -211,7 +219,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
 ![fa2-answer](./docs/images/ja/fa2-slackapp-answer.png)
 
-#### メトリクス分析支援
+#### [オプション]メトリクス分析支援
 
 Slack のチャット欄に、`/insight` と入力、送信すると、モーダルが表示されます。
 モーダルのフォームに、[メトリクスを元に回答してほしい質問]と[メトリクスを取得したい期間]を入力してください。
