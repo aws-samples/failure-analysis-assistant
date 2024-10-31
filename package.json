@@ -37,8 +37,12 @@
     "source-map-support": "^0.5.21"
   },
   "lint-staged": {
-    "*.(ts|mts)": ["npx eslint --fix"],
-    "*.(json|md)": ["npx prettier --write"]
+    "*.(ts|mts)": [
+      "npx eslint --fix"
+    ],
+    "*.(json|md)": [
+      "npx prettier --write"
+    ]
   },
   "license": "MIT-0"
 }

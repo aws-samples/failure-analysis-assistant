@@ -15,7 +15,13 @@ For an example of how the function works, see [Failure Analysis Assist](#failure
 
 In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
 For example of the operation of the function, see [[Optional]Metric Analysis Assist](#optionalmetrics-analysis-assist).
-And this feature is optional. If you want to use it, please see [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Metrics Insight Assist](#optionalconfiguration-of-slack-app-for-metrics-insight-assist)
+**This feature is optional.** If you want to use it, please see [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Metrics Insight Assist](#optionalconfiguration-of-slack-app-for-metrics-insight-assist).
+
+**Findings Report**
+
+We've added the feature to create a report explaining Security Hub and GuardDuty Findings by LLM.
+For example of the function in action, see [[OPTIONAL]Findings Report](#optionalfindings-report).
+**This feature is optional**, so if you want to enable it, check [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Findings Report](#optionalconfiguration-of-slack-app-for-findings-report).
 
 ## Branches
 
@@ -114,9 +120,11 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
-  slackCommands: {
+  slashCommands: {
     insight: true,
-  }
+    findingsReport: true,
+  },
+  detectorId: "xxxxxxxxxxxxxxx"
 };
 ```
 
@@ -138,7 +146,8 @@ export const devParameter: AppParameter = {
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
 | `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
-| `slackCommands`              | `{"insight": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` command                                                                                                     |
+| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
+| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
 
 #### Modify prompts
 
@@ -188,6 +197,24 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
       | Short Description | Get insight for your workload |
 
 2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
+3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
+
+#### [Optional]Configuration of Slack App for Findings Report
+
+1. Click [Slash Commands] on the left menu, then click [Create New Command]
+   1. Enter the values as shown in the table below, and then click Save when you have entered them all
+
+      | item name            | value                            |
+      | ----------------- | ----------------------------- |
+      | Command           | /findings-report                      |
+      | Request URL       | same URL         |
+      | Short Description | Create report about findings of Security Hub and GuardDuty |
+
+> NOTE
+> If you enabled Metrics Insight Assist, you don't need to do below steps.
+
+2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
+3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
 
 ### Testing
 
@@ -220,7 +247,7 @@ Wait a few minutes, and the answers will appear in Slack.
 
 #### [Optional]Metrics Analysis Assist
 
-If you type `/insight` in the Slack chat form and send, a modal will be displayed.
+You type `/insight` in the Slack chat form and send, a modal will be displayed.
 In the modal form, enter [the question you want answered based on the metrics] and [the period you want to obtain the metrics].
 In about 1-2 minutes, you'll get an answer.
 The metric `Period` is calculated by `3600 + floor(number of days acquired / 5) * 3600`.
@@ -232,6 +259,15 @@ The following example asks questions about ECS performance.
 
 ![query-about-ecs-performance](./docs/images/en/fa2-query-about-ecs-performance.png)
 
+#### [Optional]Findings Report
+
+You type `/findings-report` in the Slack chat section and send it, a message indicating that the request has been accepted will be displayed.
+In about 1-2 minutes, a PDF of the Findings report will be uploaded.
+
+![findings-report](./docs/images/en/fa2-findings-report.png)
+
+The findings are gotten from `listGuardDutyFindings()` and `listSecurityHubFindings()` functions in `lambda/lib/aws-modules.ts`.
+Please modify these functions if you want to change the scope of these findings.
 
 ## Delete deployed resources
 

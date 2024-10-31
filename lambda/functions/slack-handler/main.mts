@@ -16,6 +16,7 @@ import logger from "../../lib/logger.js";
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
 const funcName = process.env.FUNCTION_NAME!;
 const metricsInsightFunction = process.env.METRICS_INSIGHT_NAME!;
+const findingsReportFunction = process.env.FINDINGS_REPORT_NAME!;
 const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const slackSigningSecretKey = process.env.SLACK_SIGNING_SECRET_KEY!;
 
@@ -36,6 +37,7 @@ if (
   typeof token !== "string" ||
   typeof signingSecret !== "string"
 ) {
+  logger.error("Credentials are not good.", {credentials: {token, signingSecret}})
   throw new Error("No slack credentials.");
 }
 
@@ -52,9 +54,7 @@ const messageClient = new MessageClient(token, lang);
 
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
-  logger.info(`Event= ${JSON.stringify(event)}`);
-  logger.info(`payload=${JSON.stringify(payload)}`);
-  logger.info(`body=${JSON.stringify(body)}`);
+  logger.info("message", {event: event, payload: payload, body: body});
 
   // This ID is for AWS Chatbot app.
   // FA2 will return the form, when AWS Chatbot sent a message.
@@ -65,13 +65,14 @@ app.message("", async ({ event, body, payload, say }) => {
       blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
       reply_broadcast: true
     } as SayArguments);
-    logger.info(`response: ${JSON.stringify(res)}`);
+    logger.info('response', {response: res});
   }
 });
 
 // When app receive input data from FA2 form, invoke FA2 backend lambda.
 app.action("submit_button", async ({ body, ack, respond }) => {
   await ack();
+  logger.info("submit_button action", {body})
 
   try {
     const payload = body as BlockAction;
@@ -118,7 +119,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
     } as RespondArguments);
   } catch (error) {
     // Send result to Slack
-    logger.error(JSON.stringify(error));
+    logger.error("Something happened", error as Error);
     await respond({
       blocks: messageClient.createErrorMessageBlock(),
       replace_original: true,
@@ -130,21 +131,22 @@ app.action("submit_button", async ({ body, ack, respond }) => {
 app.command('/insight', async ({ client, body, ack }) => {
   // Ack the request of insight command
   await ack();
+  logger.info("/insight command", {body})
 
   try {
-    const result = await client.views.open({
+    await client.views.open({
       trigger_id: body.trigger_id,
       view: messageClient.createInsightCommandFormView()
     });
-    logger.info(JSON.stringify(result));
   } catch (error) {
-    logger.error(JSON.stringify(error));
+    logger.error("Failed to open views", error as Error);
   }
 });
 
 app.view('view_insight', async ({ ack, view, client, body }) => {
   // Ack the request of view_insight
   await ack();
+  logger.info("view_insight view", {view, body})
   
   // Get the form data
   const query = view['state']['values']['input_query']['query']['value'];
@@ -166,7 +168,7 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
       metricsInsightFunction
     );
 
-    if (res.StatusCode! > 400) {
+    if (res.StatusCode! >= 400) {
       throw new Error("Failed to invoke lambda function");
     }
 
@@ -181,13 +183,44 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
     });
   } catch (error) {
     // Send result to Slack
-    logger.error(JSON.stringify(error));
+    logger.error("Somegthing happend", error as Error);
     await client.chat.postMessage({
       blocks: messageClient.createErrorMessageBlock(),
       channel: body.user.id
     });
   }
   return;
+});
+
+app.command('/findings-report', async ({ client, body, ack }) => {
+  // Ack the request of insight command
+  await ack();
+  logger.info("/findings-report command", {body})
+
+  try {
+    const res = await invokeAsyncLambdaFunc(
+      JSON.stringify({
+        channelId: body.channel_id 
+      }),
+      findingsReportFunction
+    );
+
+    if (res.StatusCode! >= 400) {
+      throw new Error("Failed to invoke lambda function");
+    }
+
+    // Send the message to notify the completion of receiving request.
+    await client.chat.postMessage({
+      blocks: messageClient.createMessageBlock(
+        lang === "ja"
+          ? `Findingsのレポート作成依頼を受け付けました。FA2の回答をお待ちください。`
+          : `FA2 received your request to create a report of findings. Please wait for its answer..`,
+      ),
+      channel: body.channel_id
+    });
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+  }
 });
 
 export const handler = async (
