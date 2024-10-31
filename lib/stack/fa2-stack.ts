@@ -69,7 +69,7 @@ export class FA2Stack extends Stack {
         },
       ]);
     }
-
+    
     if(props.slashCommands.findingsReport && props.detectorId){
       NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
         {
