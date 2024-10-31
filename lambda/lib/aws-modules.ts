@@ -30,6 +30,18 @@ import {
   XRayClient
 } from "@aws-sdk/client-xray";
 import {
+  GuardDutyClient,
+  GetFindingsCommand,
+  GetFindingsCommandInput,
+  ListFindingsCommandInput,
+  ListFindingsCommand,
+} from "@aws-sdk/client-guardduty";
+import {
+  SecurityHubClient,
+  GetFindingsCommand as GetSecurityHubFindingsCommand,
+  GetFindingsCommandInput as GetSecurityHubFindingsCommandInput,
+} from "@aws-sdk/client-securityhub";
+import {
   BedrockRuntimeClient,
   ConverseCommand,
   ConverseCommandInput,
@@ -45,24 +57,24 @@ import {split} from 'lodash';
 
 // To get CloudWatch metrics 
 export async function listMetrics(){
-  logger.info('listMetrics started');
+  logger.info("Start", {funciton: listMetrics.name, input: {}});
   const client = new CloudWatchClient();
   // To get recently active metrics only
   const resListMetricsCommand = await client.send(new ListMetricsCommand({RecentlyActive: "PT3H"}));
   const metrics = resListMetricsCommand.Metrics;
-  logger.info(`ListMetrics ended: ${JSON.stringify(metrics)}`);
+  logger.info("End", {funciton: listMetrics.name, output: {metrics}});
   return metrics ? metrics : [] as Metric[];
 }
 
 export async function generateMetricDataQuery(
   prompt: string
 ){
-  logger.info(`GenerateMetricDataQuery Input: ${prompt}`);
+  logger.info("Start", {funciton: generateMetricDataQuery.name, input: {prompt}});
 
   const converseOutput = await converse(prompt);
   const metricDataQuery = split(split(converseOutput, '<MetricDataQuery>')[1], '</MetricDataQuery>')[0];
 
-  logger.info(`MetricDataQuery: ${metricDataQuery}`);
+  logger.info("End", {funciton: generateMetricDataQuery.name, output: {metricDataQuery}});
 
   return JSON.parse(metricDataQuery) as MetricDataQuery[];
 }
@@ -73,9 +85,7 @@ export async function queryToCWMetrics(
   query: MetricDataQuery[],
   outputKey: string
 ){
-  logger.info(
-    `QueryToCW metrics Input: ${startDate}, ${endDate}, ${JSON.stringify(query)}`,
-  );
+  logger.info("Start", {funciton: queryToCWMetrics.name, input: {startDate, endDate, query, outputKey}});
 
   const client = new CloudWatchClient();
 
@@ -94,9 +104,7 @@ export async function queryToCWMetrics(
       metricsData.push(...resGetMetricDataCommand.MetricDataResults);
     }
   }
-  logger.info(
-    `QueryToCW metrics Output: ${JSON.stringify(metricsData)}`
-  );
+  logger.info("End", {funciton: queryToCWMetrics.name, output: {metricsData}});
   return { key: outputKey, value: metricsData };
 }
 
@@ -113,7 +121,7 @@ export async function queryToCWLogs(
   queryString: string,
   outputKey: string
 ) {
-  logger.info(`QueryToCWLogs Input: ${startDate}, ${endDate}, ${logGroups.join(", ")}, ${queryString}`);
+  logger.info("Start", {funciton: queryToCWLogs.name, input: {startDate, endDate, logGroups, queryString, outputKey}});
 
   const client = new CloudWatchLogsClient();
 
@@ -139,7 +147,7 @@ export async function queryToCWLogs(
     resQueryResults = await client.send(getQueryResultsCommand);
   }
 
-  logger.info(`QueryToCWLogs Output: ${JSON.stringify(resQueryResults.results)}`);
+  logger.info("End", {funciton: queryToCWLogs.name, output: {resQueryResults}});
 
   return { key: outputKey, value: resQueryResults.results };
 }
@@ -161,7 +169,7 @@ export async function queryToAthena(
   outputLocation: string,
   outputKey: string
 ) {
-  logger.info(`QueryToAthena Input: ${query}, ${queryExecutionContext.Database}`);
+  logger.info("Start", {funciton: queryToAthena.name, input: {query, queryExecutionContext, queryParams, outputLocation, outputKey}});
 
   const athenaClient = new AthenaClient();
 
@@ -226,7 +234,7 @@ export async function queryToAthena(
     () => `'${queryParams.shift()}'` || ""
   );
 
-  logger.info(`QueryToAthena Output: ${JSON.stringify(results)}`);
+  logger.info("End", {funciton: queryToAthena.name, output: {results, queryString}});
   // To decrease total tokens, transforming from rows to csv format.
   return [
     { key: outputKey, value: rowsToCSV(results) },
@@ -240,7 +248,7 @@ export async function queryToXray(
   endDate: string,
   outputKey: string
 ) {
-  logger.info(`QueryToXRay Input: ${startDate}, ${endDate}`);
+  logger.info("Start", {funciton: queryToXray.name, input: {startDate, endDate, outputKey}});
   const client = new XRayClient();
   const input = {
     StartTime: new Date(startDate),
@@ -262,8 +270,83 @@ export async function queryToXray(
     if (response.TraceSummaries) traces.push(...response.TraceSummaries);
   }
 
-  logger.info(`QueryToXRay Output: ${JSON.stringify(traces)}`);
+  logger.info("End", {funciton: queryToXray.name, output: {traces}});
   return { key: outputKey, value: traces };
+}
+
+export async function listGuardDutyFindings(detectorId: string, outputKey: string) {
+  logger.info("Start", {funciton: listGuardDutyFindings.name, input: {detectorId, outputKey}});
+  const guarddutyClient = new GuardDutyClient();
+
+  let listFindingsCommandInput: ListFindingsCommandInput = {
+    DetectorId: detectorId,
+    FindingCriteria: {
+      Criterion: {
+        severity: {
+          GreaterThanOrEqual: 4.0,
+        },
+      },
+    },
+  };
+  let listFindingsCommand = new ListFindingsCommand(listFindingsCommandInput);
+  let listFindingsResponse = await guarddutyClient.send(listFindingsCommand);
+  const findingIds = listFindingsResponse.FindingIds
+    ? listFindingsResponse.FindingIds
+    : [];
+
+  while (listFindingsResponse.NextToken) {
+    listFindingsCommandInput = {
+      ...listFindingsCommandInput,
+      NextToken: listFindingsResponse.NextToken,
+    };
+
+    listFindingsCommand = new ListFindingsCommand(listFindingsCommandInput);
+    listFindingsResponse = await guarddutyClient.send(listFindingsCommand);
+    if (listFindingsResponse.FindingIds)
+      findingIds.push(...listFindingsResponse.FindingIds);
+  }
+
+  const input: GetFindingsCommandInput = {
+    DetectorId: detectorId,
+    FindingIds: findingIds,
+  };
+  const getFindingsResponse = await guarddutyClient.send(new GetFindingsCommand(input));
+  const findings = getFindingsResponse.Findings
+    ? getFindingsResponse.Findings
+    : [];
+
+  logger.info("End", {funciton: listGuardDutyFindings.name, output: {numberOfFindings: findings.length, findings}});
+  return { key: outputKey, value: findings };
+}
+
+export async function listSecurityHubFindings(outputKey: string) {
+  logger.info("Start", {funciton: listSecurityHubFindings.name, input: {outputKey}});
+  const securityHubClient = new SecurityHubClient();
+
+  const getSecurityHubFindingsInput: GetSecurityHubFindingsCommandInput = {
+    // Refer to configuration of Baseline Environment on AWS
+    // https://github.com/aws-samples/baseline-environment-on-aws/blob/ef33275e8961f4305509eccfb7dc8338407dbc9f/usecases/blea-gov-base-ct/lib/construct/detection.ts#L334
+    Filters: {
+      SeverityLabel: [
+        { Comparison: "EQUALS", Value: "CRITICAL" },
+        { Comparison: "EQUALS", Value: "HIGH" },
+      ],
+      ComplianceStatus: [{ Comparison: "EQUALS", Value: "FAILED" }],
+      WorkflowStatus: [
+        { Comparison: "EQUALS", Value: "NEW" },
+        { Comparison: "EQUALS", Value: "NOTIFIED" },
+      ],
+      RecordState: [{ Comparison: "EQUALS", Value: "ACTIVE" }],
+    },
+  };
+  const getSecurityHubFindingsCommand = new GetSecurityHubFindingsCommand(
+    getSecurityHubFindingsInput
+  );
+
+  const response = await securityHubClient.send(getSecurityHubFindingsCommand);
+  logger.info("End", {funciton: listSecurityHubFindings.name, output: {numberOfFindings: response.Findings?.length, findings: response.Findings}});
+
+  return { key: outputKey, value: response.Findings};
 }
 
 export async function converse(
@@ -275,6 +358,7 @@ export async function converse(
     topP: 0.97
   }
 ){
+  logger.info("Start", {funciton: converse.name, input: {prompt, modelId, inferenceConfig}});
   const client = new BedrockRuntimeClient();
   const converseCommandInput :ConverseCommandInput = {
     modelId,
@@ -288,9 +372,10 @@ export async function converse(
   }
   try{
     const converseOutput = await client.send(new ConverseCommand(converseCommandInput));
+    logger.info("End", {funciton: converse.name, output: {converseOutput}});
     return converseOutput.output?.message?.content![0].text;
-  }catch(e){
-    logger.error(JSON.stringify(e));
+  }catch(error){
+    logger.error("Something happened", error as Error);
     return "";
   }
 }
@@ -299,7 +384,7 @@ export async function invokeAsyncLambdaFunc(
   payload: string,
   functionName: string
 ) {
-  logger.info(`InvokeAsyncLambda input: ${payload}, ${functionName}`);
+  logger.info("Start", {funciton: invokeAsyncLambdaFunc.name, input: {payload, functionName}});
   const lambdaClient = new LambdaClient();
   const input: InvokeCommandInputType = {
     FunctionName: functionName,
@@ -307,7 +392,8 @@ export async function invokeAsyncLambdaFunc(
     Payload: payload
   };
   const invokeCommand = new InvokeCommand(input);
-  logger.info(`send command: ${invokeCommand}`);
+  logger.info("Send command", {command: invokeCommand});
   const res = await lambdaClient.send(invokeCommand);
+  logger.info("End", {funciton: invokeAsyncLambdaFunc.name, output: {response: res}});
   return res;
 }

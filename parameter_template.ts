@@ -1,7 +1,10 @@
 import { Environment } from "aws-cdk-lib";
 
 export type Language = "ja" | "en";
-export type SlackCommands = {insight: boolean};
+export type SlashCommands = {
+  insight: boolean;
+  findingsReport: boolean;
+};
 
 export interface AppParameter {
   env?: Environment;
@@ -17,7 +20,8 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
-  slackCommands: SlackCommands;
+  slashCommands: SlashCommands;
+  detectorId?: string;
 }
 
 // Parameters for Dev Account
@@ -42,7 +46,9 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
-  slackCommands: {
-    insight: false
-  }
+  slashCommands: {
+    insight: false,
+    findingsReport: false,
+  },
+  detectorId: "ccc7636809ab9ef126976785ad0df79e"
 };

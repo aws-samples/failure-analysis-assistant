@@ -29,5 +29,6 @@ new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   databaseName: devParameter.databaseName,
   albAccessLogTableName: devParameter.albAccessLogTableName,
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
-  slackCommands: devParameter.slackCommands
+  slashCommands: devParameter.slashCommands,
+  detectorId: devParameter.detectorId
 });

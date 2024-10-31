@@ -1,25 +1,20 @@
 import { Handler } from "aws-lambda";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
-import { listMetrics, queryToCWMetrics, generateMetricDataQuery, converse } from "../../lib/aws-modules.js";
+import pLimit from "p-limit";
+import { split } from "lodash";
+import { converse, listGuardDutyFindings, listSecurityHubFindings } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
+import { convertMDToPDF } from "../../lib/puppeteer.js";
 
 export const handler: Handler = async (event: {
-  query: string;
-  startDate: string;
-  endDate: string;
-  channelId?: string;
+  channelId: string;
 }) => {
   // Event parameters
   logger.info("Request started", event);
-  const {
-    query,
-    startDate,
-    endDate,
-    channelId
-  } = event;
+  const { channelId } = event;
 
   // Environment variables
   const modelId = process.env.MODEL_ID;
@@ -29,13 +24,14 @@ export const handler: Handler = async (event: {
   const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
   const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const region = process.env.AWS_REGION;
+  const detectorId = process.env.DETECTOR_ID!;
   const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
 
   // Check required variables.
   if (!modelId || !region || !channelId ) {
-    logger.error(`Not found any environment variables. Please check them.`, {environments: {modelId, region, channelId}});
+    logger.error(`Not found any environment variables. Please check them.`);
     if (channelId) {
       messageClient.sendMessage(
         lang && lang === "ja"
@@ -48,34 +44,32 @@ export const handler: Handler = async (event: {
   }
 
   try {
-    // Generate a query for getMetricData API
-    const metrics = await listMetrics();
-    const metricSelectionPrompt = prompt.createSelectMetricsForInsightPrompt(query, JSON.stringify(metrics), (new Date(endDate)).getDate() - (new Date(startDate)).getDate())
-    const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
+    // Get findings from Security Hub, GuardDuty, and AWS Health.
+    const limit = pLimit(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: Promise<any>[] = [
+        limit(() => listGuardDutyFindings(detectorId, "GuardDutyFindings")),
+        limit(() => listSecurityHubFindings("SecHubFindings"))
+    ]
+    const results = await Promise.all(input);
+    
+    // Build prompt
+    const findingsReportPrompt = 
+        prompt.createFindingsReportPrompt(
+            Prompt.getStringValueFromQueryResult(results, "SecHubFindings"),
+            Prompt.getStringValueFromQueryResult(results, "GuardDutyFindings")
+        );
 
-    const results = await queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics");
+    // Summarize and make report by inference
+    const res = await converse(findingsReportPrompt);
+    const report = split(split(res, '<OutputReport>')[1], '</OutputReport>')[0];
+    logger.info(`report: ${report}`)
+    if(!report) throw new Error("No response from LLM");
 
-    const metricsInsightPrompt = 
-        prompt.createMetricsInsightPrompt(query, JSON.stringify(results.value));
-    logger.info("Made prompt", {prompt: metricsInsightPrompt})
-
-    const answer = await converse(metricsInsightPrompt);
-    if(!answer) throw new Error("No response from LLM");
-
-    logger.info("Answer", answer);
-
-    if(answer.length < 3500){
-      // Send the answer to Slack directly.
-      await messageClient.sendMessage(
-        messageClient.createMessageBlock(answer),
-        channelId,
-      );
-    }else{
-      // Send the snippet of answer instead of message due to limitation of message size.
-      await messageClient.sendMarkdownSnippet("answer.md", answer, channelId)
-    }
+    const pdf = await convertMDToPDF(report);
+    await messageClient.sendFile(pdf, "findings-report.pdf", channelId)
   } catch (error) {
-    logger.error("Something happened", error as Error);
+    logger.error(`${JSON.stringify(error)}`);
     // Send the form to retry when error was occured.
     if(channelId){
       await messageClient.sendMessage(

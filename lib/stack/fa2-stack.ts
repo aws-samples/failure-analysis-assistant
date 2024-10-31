@@ -1,7 +1,7 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language, SlackCommands } from "../../parameter";
+import { Language, SlashCommands } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 
 interface FA2StackProps extends StackProps {
@@ -13,10 +13,11 @@ interface FA2StackProps extends StackProps {
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
-  slackCommands: SlackCommands;
+  slashCommands: SlashCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+  detectorId?: string;
 }
 
 export class FA2Stack extends Stack {
@@ -33,10 +34,11 @@ export class FA2Stack extends Stack {
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,
-      slackCommands: props.slackCommands,
+      slashCommands: props.slashCommands,
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
+      detectorId: props.detectorId,
     });
     
     // ----- CDK Nag Suppressions -----
@@ -53,8 +55,23 @@ export class FA2Stack extends Stack {
       },
     ]);
 
-    if(props.slackCommands.insight){
+    if(props.slashCommands.insight){
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
+    
+    if(props.slashCommands.findingsReport && props.detectorId){
+      NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
         {
           id: "AwsSolutions-IAM4",
           reason:

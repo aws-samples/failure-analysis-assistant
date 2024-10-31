@@ -1,6 +1,6 @@
 import { Handler } from "aws-lambda";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
-import { split } from "lodash";
+import { random, split } from "lodash";
 import pLimit from "p-limit";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -17,7 +17,7 @@ import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
-import { convertMermaidToImage } from "../../lib/puppeteer-mermaid.js";
+import { convertMermaidToImage } from "../../lib/puppeteer.js";
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -27,7 +27,7 @@ export const handler: Handler = async (event: {
   threadTs?: string;
 }) => {
   // Event parameters
-  logger.info(`Event: ${JSON.stringify(event)}`);
+  logger.info("Request started", event);
   const {
     errorDescription,
     startDate,
@@ -57,11 +57,11 @@ export const handler: Handler = async (event: {
 
   const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
-  const prompt = new Prompt(lang, architectureDescription, errorDescription);
+  const prompt = new Prompt(lang, architectureDescription);
 
   // Check required variables.
   if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
-    logger.error(`Not found any environment variables. Please check them.`);
+    logger.error(`Not found any environment variables. Please check.`, {environemnts: {modelId, cwLogsQuery, logGroups, region, channelId, threadTs}});
     if (channelId && threadTs) {
       messageClient.sendMessage(
         lang && lang === "ja"
@@ -77,7 +77,7 @@ export const handler: Handler = async (event: {
   try {
     // Generate a query for getMetricData API
     const metrics = await listMetrics();
-    const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(JSON.stringify(metrics));
+    const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(errorDescription, JSON.stringify(metrics));
     const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
 
     // Send query to each AWS APIs in parallel.
@@ -147,6 +147,7 @@ export const handler: Handler = async (event: {
     // Prompt
     const failureAnalysisPrompt =
       prompt.createFailureAnalysisPrompt(
+        errorDescription,
         Prompt.getStringValueFromQueryResult(
           results,
           "ApplicationLogs",
@@ -166,7 +167,7 @@ export const handler: Handler = async (event: {
         Prompt.getStringValueFromQueryResult(results, "XrayTraces")
       );
 
-    logger.info(`Bedrock prompt: ${failureAnalysisPrompt}`);
+    logger.info("Made prompt", {prompt: failureAnalysisPrompt});
 
     const answer = await converse(failureAnalysisPrompt);
 
@@ -185,7 +186,7 @@ export const handler: Handler = async (event: {
       await messageClient.sendMarkdownSnippet("answer.md", answer, channelId, threadTs)
     }
 
-    logger.info(`Bedrock answer: ${answer}`);
+    logger.info('Success to get answer:', answer);
 
     // Create explanation how to get logs by operators.
     const howToGetLogs =
@@ -199,7 +200,7 @@ export const handler: Handler = async (event: {
         Prompt.getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
         Prompt.getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
       );
-    logger.info(`HowToGetLogs: ${howToGetLogs}`);
+    logger.info('Success to create HowToGetLogs', {howToGetLogs});
 
     // Send the explanation to Slack directly.
     await messageClient.sendMarkdownSnippet(
@@ -213,11 +214,11 @@ export const handler: Handler = async (event: {
     // Additional process. It shows the root cause on the image.
     // If you don't need it, please comment out below.
     const outputImageResponse = await converse(
-      prompt.createImageGenerationPrompt(answer), 
+      prompt.createImageGenerationPrompt(errorDescription, answer), 
       'anthropic.claude-3-5-sonnet-20240620-v1:0', 
     )
     const mermaidSyntax = split(split(outputImageResponse, '<OutputMermaidSyntax>')[1], '</OutputMermaidSyntax>')[0];
-    logger.info(`Mermaid syntax: ${mermaidSyntax}`)
+    logger.info('Success to create Mermaid syntax', {mermaidSyntax})
 
     const png = await convertMermaidToImage(mermaidSyntax)
 
@@ -225,12 +226,13 @@ export const handler: Handler = async (event: {
       throw new Error("Failed to create Mermaid image")
     }
 
-    await messageClient.sendPngImage(png, channelId, threadTs);
+    await messageClient.sendFile(png, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, channelId, threadTs);
+        
     // end of output image task
     /* ****** */
 
   } catch (error) {
-    logger.error(`${JSON.stringify(error)}`);
+    logger.error("Something happened", error as Error);
     // Send the form to retry when error was occured.
     if(channelId && threadTs){
       await messageClient.sendMessage(

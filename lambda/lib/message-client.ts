@@ -1,7 +1,6 @@
 import { format, parse } from "date-fns";
 import { KnownBlock, View } from "@slack/types";
 import { WebClient } from "@slack/web-api";
-import { random } from "lodash";
 import logger from "./logger.js";
 import { Language } from "../../parameter.js";
 
@@ -846,7 +845,7 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
         });
       }
     } catch (error) {
-      logger.error(JSON.stringify(error));
+      logger.error("Failed", error as Error);
       await this.slackClient.chat.postMessage({
         channel: channelId,
         text: "Error. Please contact your system admin.",
@@ -880,7 +879,7 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
         });
       }
     } catch (error) {
-      logger.error(JSON.stringify(error));
+      logger.error("Failed", error as Error);
       await this.slackClient.chat.postMessage({
         channel: channelId,
         text: "Error. Please contact your system admin.",
@@ -889,31 +888,38 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     }
   }
 
-  public async sendPngImage(
-    png: Uint8Array<ArrayBufferLike> | undefined,
+  public async sendFile(
+    file: Uint8Array<ArrayBufferLike> | undefined,
+    filename: string,
     channelId: string,
-    threadTs: string
+    threadTs?: string
   ){
-    if ((channelId.startsWith("C") || channelId.startsWith("D")) && threadTs) {
-      try {
-        const uploadedFile = await this.slackClient.filesUploadV2({
-          channel_id: channelId!,
-          thread_ts: threadTs!,
-          file: Buffer.from(png!),
-          filename: `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`,
-          initial_comment: this.language === "ja" ? "障害原因を図示しました。" : "It shows the root cause on the diagram."
-        })
-        logger.info(`Uploaded file: ${JSON.stringify(uploadedFile.files.at(0)!.files!.at(0)!)}`)
-      } catch (error) {
-        logger.error(JSON.stringify(error));
-        await this.slackClient.chat.postMessage({
-          channel: channelId,
-          text: "Error. Please contact your system admin.",
+    try {
+      let uploadedFile;
+      if(threadTs){
+        uploadedFile = await this.slackClient.filesUploadV2({
+          channel_id: channelId,
           thread_ts: threadTs,
-        });
+          file: Buffer.from(file!),
+          filename,
+          initial_comment: this.language === "ja" ? "ファイルをアップロードしました" : "Uploaded a file."
+        })
+      }else{
+        uploadedFile = await this.slackClient.filesUploadV2({
+          channel_id: channelId,
+          file: Buffer.from(file!),
+          filename,
+          initial_comment: this.language === "ja" ? "ファイルをアップロードしました" : "Uploaded a file."
+        })
       }
-    } else {
-      throw new Error("Channel ID and ThreadTS are required.");
+      logger.info('Uploaded file', {uploadFile: JSON.stringify(uploadedFile.files.at(0)!.files!.at(0)!)})
+    } catch (error) {
+      logger.error("Failed", error as Error);
+      await this.slackClient.chat.postMessage({
+        channel: channelId,
+        text: "Error. Please contact your system admin.",
+        thread_ts: threadTs,
+      });
     }
   }
 }
