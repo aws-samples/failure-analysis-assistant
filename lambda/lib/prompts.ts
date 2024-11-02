@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { Language } from "../../parameter.js";
+import logger from "./logger.js";
 
 export class Prompt {
   language: Language;
@@ -281,6 +282,7 @@ export class Prompt {
 
   // To create the prompt for metrics selection
   public createSelectMetricsForInsightPrompt(query: string, metrics: string, days: number){
+    logger.info("Start", {function: this.createSelectMetricsForInsightPrompt.name, query, metrics, days} )
     return `あなたは、AWS上で稼働するワークロードを監視・運用する日本語が得意なエージェントです。必ず日本語で回答してください。
     ${this.architectureDescription}
     運用管理者から${query}という依頼が来ています。
