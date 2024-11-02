@@ -290,7 +290,7 @@ export class Prompt {
     ${metrics}
     </metrics>
 
-    <metricDataQuery>
+    クエリ:
     ` 
   }
 
@@ -341,7 +341,7 @@ export class Prompt {
     ${metrics}
     </metrics>
 
-    <metricDataQuery>
+    クエリ:
     ` 
   }
 
