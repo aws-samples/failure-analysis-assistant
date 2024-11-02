@@ -22,6 +22,17 @@ export class Prompt {
     cloudTrailLogs?: string,
     xrayTraces?: string
     ) {
+    logger.info("Start", {
+      function: this.createFailureAnalysisPrompt.name,
+      input: {
+        query,
+        applicationLogs: applicationLogs?.length,
+        metrics: metrics?.length,
+        albAccessLogs: albAccessLogs?.length,
+        cloudtrail: cloudTrailLogs?.length,
+        xray: xrayTraces
+      }
+    });
     let prompt: string;
     if(this.language === "ja"){
       prompt = `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。必ず日本語で回答してください。
@@ -91,6 +102,7 @@ export class Prompt {
   };
 
   public createMetricsInsightPrompt(query: string, metrics: string){
+    logger.info("Start", {function: this.createMetricsInsightPrompt.name, input: {query, metrics: metrics.length}} )
     return this.language === "ja" ?
     `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。
     ${this.architectureDescription}
@@ -121,7 +133,8 @@ export class Prompt {
   }
 
   public createFindingsReportPrompt(secHubFindings?: string, guarddutyFindings?: string){
-       return this.language === "ja" ?
+    logger.info("Start", {function: this.createFindingsReportPrompt.name, input: {securityHub: secHubFindings?.length, guardduty: guarddutyFindings?.length}} )
+    return this.language === "ja" ?
     `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントで、セキュリティのIssueに対し、レポートをする役割を持っています。
     ${this.architectureDescription}
     <steps>
@@ -232,6 +245,7 @@ export class Prompt {
 
   // To create the prompt for metrics selection
   public createSelectMetricsForFailureAnalysisPrompt(query: string, metrics: string){
+    logger.info("Start", {function: this.createSelectMetricsForFailureAnalysisPrompt.name, input: {query, metrics: metrics.length}} )
     return `あなたは、AWS上で稼働するワークロードを監視・運用する日本語が得意なエージェントです。必ず日本語で回答してください。
     ${this.architectureDescription}
     運用管理者から${query}という状況が報告されています。
@@ -282,7 +296,7 @@ export class Prompt {
 
   // To create the prompt for metrics selection
   public createSelectMetricsForInsightPrompt(query: string, metrics: string, days: number){
-    logger.info("Start", {function: this.createSelectMetricsForInsightPrompt.name, query, metrics, days} )
+    logger.info("Start", {function: this.createSelectMetricsForInsightPrompt.name, input: {query, metrics, days}} )
     return `あなたは、AWS上で稼働するワークロードを監視・運用する日本語が得意なエージェントです。必ず日本語で回答してください。
     ${this.architectureDescription}
     運用管理者から${query}という依頼が来ています。
@@ -331,6 +345,7 @@ export class Prompt {
     query: string,
     rootCauseHypothesis: string,
   ) {
+    logger.info("Start", {function: this.createImageGenerationPrompt.name, input: {query, rootCauseHypothesis}} )
     return `AWS上で稼働するワークロードを監視・運用するエージェントです。
     あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
     現在、このワークロードで、${query} という障害が観測されています。
