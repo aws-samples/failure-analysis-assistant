@@ -128,7 +128,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
   return;
 });
 
-app.command('/insight', async ({ client, body, ack }) => {
+app.command('/insight-dev', async ({ client, body, ack }) => {
   // Ack the request of insight command
   await ack();
   logger.info("/insight command", {body})
@@ -192,7 +192,7 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
   return;
 });
 
-app.command('/findings-report', async ({ client, body, ack }) => {
+app.command('/findings-report-dev', async ({ client, body, ack }) => {
   // Ack the request of insight command
   await ack();
   logger.info("/findings-report command", {body})
