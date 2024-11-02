@@ -145,8 +145,8 @@ export class Prompt {
     </steps>
 
     <rule>
-    * レポートは <OutputReport></OutputReport> の xml タグに囲われた通りに出力してください。
-    * レポートのフォーマットは、<ReportFormat></ReportFormat> を参照し、これを必ず守ってください。例外はありません。
+    * レポートは <outputReport></outputReport> の xml タグに囲われた通りに出力してください。
+    * レポートのフォーマットは、<reportFormat></reportFormat> を参照し、これを必ず守ってください。例外はありません。
     * 必ず日本語で答えてください。
     </rules>
 
@@ -155,7 +155,7 @@ export class Prompt {
       <guardduty>${guarddutyFindings}</guardduty>
     </findings>
 
-    <ReportFormat>
+    <reportFormat>
     # 全体サマリ
 
     // 全てのFindingsを横断的にチェックした時のサマリを記載し、もし緊急度の高いFindingがあれば、それも記載する
@@ -184,7 +184,7 @@ export class Prompt {
     ---
     // 上記を1セットとし、検知された分だけ繰り返す。Findingsが存在しない場合は、そのことがわかるよう記述する。
 
-    </ReportFormat>
+    </reportFormat>
 
     レポート:
     `:
@@ -198,8 +198,8 @@ export class Prompt {
     </steps>
 
     <rule>
-    * Please output the report as surrounded by <OutputReport></OutputReport> tags.
-    * The report format is shown as surrounded by <ReportFormat></ReportFormat> tags. There are no exceptions.
+    * Please output the report as surrounded by <outputReport></outputReport> tags.
+    * The report format is shown as surrounded by <reportFormat></reportFormat> tags. There are no exceptions.
     * Please be sure to answer in English。
     </rules>
 
@@ -208,7 +208,7 @@ export class Prompt {
       <guardduty>${guarddutyFindings}</guardduty>
     </findings>
 
-    <ReportFormat>
+    <reportFormat>
     # Summary
 
     // Describe a summary of when all Findings have been checked in a cross-sectional manner
@@ -237,7 +237,7 @@ export class Prompt {
     ---
     // Set the above to 1 set and repeat for as long as detected
 
-    </ReportFormat>
+    </reportFormat>
 
     Report:
     `; 
@@ -251,18 +251,18 @@ export class Prompt {
     運用管理者から${query}という状況が報告されています。
     次の手順でGetMetricData APIに送るためのMetricDataQueryを作成してください。
     <steps>
-    1. <Metrics></Metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
+    1. <metrics></metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
     2. 運用管理者から報告された状況が、なぜ発生しているか、根本原因を探るために必要なメトリクスを全て選ぶ
     3. 一つ以上の選んだメトリクスから、GetMetricData APIに送るためのMetricDataQueryをJSON形式で作成する
-    4. 作成したクエリは、<MetricDataQuery></MetricDataQuery>というタグで囲んで出力し、それ以外の回答はしない
+    4. 作成したクエリは、<metricDataQuery></metricDataQuery>というタグで囲んで出力し、それ以外の回答はしない
     </steps>
 
     <rules>
-    * クエリは、<QuerySpecification></QuerySpecification>タグに記載されたJSONフォーマットに従ってください。例外は認めません。
+    * クエリは、<querySpecification></querySpecification>タグに記載されたJSONフォーマットに従ってください。例外は認めません。
     * クエリ以外の出力はしないでください。例外は認めません。
     </rules>
 
-    <QuerySpecification>
+    <querySpecification>
     [
       {
         "Id": "cwm1といった、小文字から始まる英数字を組み合わせたクエリ内で一意のIDを付与する",
@@ -284,13 +284,13 @@ export class Prompt {
       },
       // 複数のメトリクスが必要な場合は、上記のフォーマットのオブジェクトが追加される
     ] // 単一のメトリクスの場合でも、[]で囲み、配列とすること。例外はありません
-    </MetricDataQuerySpecification>
+    </querySpecification>
 
-    <Metrics>
+    <metrics>
     ${metrics}
-    </Metrics>
+    </metrics>
 
-    クエリ:
+    <metricDataQuery>
     ` 
   }
 
@@ -300,15 +300,20 @@ export class Prompt {
     return `あなたは、AWS上で稼働するワークロードを監視・運用する日本語が得意なエージェントです。必ず日本語で回答してください。
     ${this.architectureDescription}
     運用管理者から${query}という依頼が来ています。
-    次の手順でGetMetricData APIに送るためのMetricDataQueryを<MetricDataQuerySpecification></MetricDataQuerySpecification>タグの間に示されるJSON形式で作成してください。
-    <Steps>
-    1. <Metrics></Metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
+    次の手順でGetMetricData APIに送るためのMetricDataQueryを作成してください。
+    <steps>
+    1. <metrics></metrics>タグの間に定義された、現在設定されているCloudWatchのメトリクスを確認する
     2. 運用管理者からの依頼に答えるために必要なメトリクスを全て選ぶ
     3. 一つ以上の選んだメトリクスから、GetMetricData APIに送るためのMetricDataQueryをJSON形式で作成する
-    4. 作成したクエリは、<MetricDataQuery></MetricDataQuery>というタグで囲んで出力し、それ以外の回答は絶対にしない
-    </Steps>
+    4. 作成したクエリは、<metricDataQuery></metricDataQuery>というタグで囲んで出力し、それ以外の回答は絶対にしない
+    </steps>
 
-    <MetricDataQuerySpecification>
+    <rules>
+    * クエリは、<querySpecification></querySpecification>タグに記載されたJSONフォーマットに従ってください。例外は認めません。
+    * クエリ以外の出力はしないでください。例外は認めません。
+    </rules>
+
+    <querySpecification>
     [
       {
         "Id": "cwm1といった、小文字から始まる英数字を組み合わせたクエリ内で一意のIDを付与する",
@@ -330,13 +335,13 @@ export class Prompt {
       },
       // 複数のメトリクスが必要な場合は、上記のようなオブジェクトが追加される
     ]
-    </MetricDataQuerySpecification>
+    </querySpecification>
 
-    <Metrics>
+    <metrics>
     ${metrics}
-    </Metrics>
+    </metrics>
 
-    <MetricDataQuery>
+    <metricDataQuery>
     ` 
   }
 
@@ -349,12 +354,12 @@ export class Prompt {
     return `AWS上で稼働するワークロードを監視・運用するエージェントです。
     あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
     現在、このワークロードで、${query} という障害が観測されています。
-    あなたには、<RootCauseHypothesis></RootCauseHypothesis>というタグで、発生した障害の根本原因の仮説が与えられます。
-    アーキテクチャのどこに障害が発生したのか、その原因の仮説とともに、<OutputMermaidSyntax></OutputMermaidSyntax>タグの間にMermaid記法で、簡易的なアーキテクチャ図を出力してください。
+    あなたには、<rootCauseHypothesis></rootCauseHypothesis>というタグで、発生した障害の根本原因の仮説が与えられます。
+    アーキテクチャのどこに障害が発生したのか、その原因の仮説とともに、<outputMermaidSyntax></outputMermaidSyntax>タグの間にMermaid記法で、簡易的なアーキテクチャ図を出力してください。
 
-    <RootCauseHypothesis>
+    <rootCauseHypothesis>
       ${rootCauseHypothesis}
-    </RootCauseHypothesis>
+    </rootCauseHypothesis>
 
     アーキテクチャ図: 
     `  
