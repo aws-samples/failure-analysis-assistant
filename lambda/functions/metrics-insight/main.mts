@@ -50,7 +50,7 @@ export const handler: Handler = async (event: {
   try {
     // Generate a query for getMetricData API
     const metrics = await listMetrics();
-    const metricSelectionPrompt = prompt.createSelectMetricsForInsightPrompt(query, JSON.stringify(metrics), (new Date(endDate)).getDate() - (new Date(startDate)).getDate())
+    const metricSelectionPrompt = prompt.createSelectMetricsForInsightPrompt(query, JSON.stringify(metrics), ((new Date(endDate)).getTime() - (new Date(startDate)).getTime())/(1000 * 60 * 60* 24))
     const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
 
     const results = await queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics");
