@@ -72,7 +72,7 @@ export async function generateMetricDataQuery(
   logger.info("Start", {funciton: generateMetricDataQuery.name, input: {prompt}});
 
   const converseOutput = await converse(prompt);
-  const metricDataQuery = split(split(converseOutput, '<MetricDataQuery>')[1], '</MetricDataQuery>')[0];
+  const metricDataQuery = split(split(converseOutput, '<metricDataQuery>')[1], '</metricDataQuery>')[0];
 
   logger.info("End", {funciton: generateMetricDataQuery.name, output: {metricDataQuery}});
 

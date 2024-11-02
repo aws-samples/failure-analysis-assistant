@@ -217,7 +217,7 @@ export const handler: Handler = async (event: {
       prompt.createImageGenerationPrompt(errorDescription, answer), 
       'anthropic.claude-3-5-sonnet-20240620-v1:0', 
     )
-    const mermaidSyntax = split(split(outputImageResponse, '<OutputMermaidSyntax>')[1], '</OutputMermaidSyntax>')[0];
+    const mermaidSyntax = split(split(outputImageResponse, '<outputMermaidSyntax>')[1], '</outputMermaidSyntax>')[0];
     logger.info('Success to create Mermaid syntax', {mermaidSyntax})
 
     const png = await convertMermaidToImage(mermaidSyntax)
