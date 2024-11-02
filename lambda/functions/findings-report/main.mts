@@ -62,7 +62,7 @@ export const handler: Handler = async (event: {
 
     // Summarize and make report by inference
     const res = await converse(findingsReportPrompt);
-    const report = split(split(res, '<OutputReport>')[1], '</OutputReport>')[0];
+    const report = split(split(res, '<outputReport>')[1], '</outputReport>')[0];
     logger.info(`report: ${report}`)
     if(!report) throw new Error("No response from LLM");
 
