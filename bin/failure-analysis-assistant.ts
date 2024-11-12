@@ -8,7 +8,7 @@ const app = new App();
 
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
-new FA2Stack(app, "Dev-FA2", {
+new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   env: {
     account: devParameter.env?.account || process.env.CDK_DEFAULT_ACCOUNT,
     region: devParameter.env?.region || process.env.CDK_DEFAULT_REGION,
@@ -18,13 +18,17 @@ new FA2Stack(app, "Dev-FA2", {
   },
   description:
     "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:chatbot-customaction).",
-  modelId: devParameter.modelId,
   language: devParameter.language,
+  modelId: devParameter.modelId,
+  topicArn: devParameter.topicArn,
+  architectureDescription: devParameter.architectureDescription,
   cwLogLogGroups: devParameter.cwLogsLogGroups,
   cwLogsInsightQuery: devParameter.cwLogsInsightQuery,
   xrayTrace: devParameter.xrayTrace,
   databaseName: devParameter.databaseName,
   albAccessLogTableName: devParameter.albAccessLogTableName,
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
-  topicArn: devParameter.topicArn,
+  insight: devParameter.insight,
+  findingsReport: devParameter.findingsReport,
+  detectorId: devParameter.detectorId
 });

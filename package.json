@@ -5,18 +5,21 @@
   "bin": {
     "infra": "npx ts-node --prefer-ts-exts bin/failure-analysis-assistant.ts"
   },
-  "workspaces": ["lambda/functions/*", "lambda/lib"],
+  "workspaces": [
+    "lambda/functions/*",
+    "lambda/lib"
+  ],
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "create-slack-secret": "aws secretsmanager create-secret --name SlackToken --secret-string "
+    "build:layer": "cd lambda/layers/nodejs && npm ci"
   },
   "devDependencies": {
     "@eslint/js": "^9.7.0",
     "@types/node": "^20.12.8",
-    "aws-cdk": "2.139.0",
+    "aws-cdk": "2.156.0",
     "esbuild": "^0.23.0",
     "eslint": "^9.7.0",
     "globals": "^15.8.0",
@@ -28,19 +31,18 @@
     "typescript-eslint": "^8.0.0-alpha.10"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.577.0",
-    "@aws-sdk/client-cloudwatch-logs": "^3.523.0",
-    "@aws-sdk/client-xray": "^3.572.0",
-    "aws-cdk-lib": "2.139.0",
-    "axios": "^1.7.0",
-    "bedrock-agents-cdk": "^0.0.11",
+    "aws-cdk-lib": "2.156.0",
     "cdk-nag": "^2.28.154",
     "constructs": "^10.0.0",
     "source-map-support": "^0.5.21"
   },
   "lint-staged": {
-    "*.(ts|mts)": ["npx eslint --fix"],
-    "*.(json|md)": ["npx prettier --write"]
+    "*.(ts|mts)": [
+      "npx eslint --fix"
+    ],
+    "*.(json|md)": [
+      "npx prettier --write"
+    ]
   },
   "license": "MIT-0"
 }

@@ -3,17 +3,38 @@
 [View this page in English](./README_en.md)
 
 AWS Chatbot が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
-あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
 
 本 README では、**AWS Chatbot の Custom Action を利用した実装を紹介しています。**
+
 AWS Summit Japan 2024 のブースで展示していた Slack App の実装を確認したい方は、[Failure Analysis Assistant (FA2) Slack App 版](https://github.com/aws-samples/failure-analysis-assistant)を参照ください。
+本サンプルで試せることは以下の通りです。
+
+**障害分析支援**
+
+あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
+機能の動作イメージは、[障害分析支援](#障害分析支援) を参照ください。
+
+**メトリクス分析支援**
+
+ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
+機能の動作イメージは、[[オプション]メトリクス分析支援](#オプションメトリクス分析支援) を参照ください。
+**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]メトリクス分析支援機能のための Slack App の設定](#オプションメトリクス分析支援機能のための-slack-app-の設定)をご確認ください。
+
+**Findings レポート**
+
+Security Hub と GuardDuty の Findings を生成 AI が解説するレポートを作成する機能を追加しました。
+機能の動作イメージは、[[オプション]Findings レポート機能](#オプションfindings-レポート機能) を参照ください。
+**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]Findings レポート機能のための Slack App の設定](#オプションfindings-レポート機能のための-slack-app-の設定)をご確認ください。
+
+
+
 
 ## Architecture & Workflow
 
 既存ワークロードの範囲は、既に実装されているという前提です。
 本サンプルは、CloudWatch Logs にログが出力されていれば、お試しいただけます。
 
-![chatbo-architecture](./docs/images/ja/fa2-architecture-chatbot.png)
+![chatbot-architecture](./docs/images/ja/fa2-architecture-chatbot.png)
 
 1. 対象システムで、メトリクスなどに設定したアラームが発火し、Amazon SNS と AWS Chatbot を通じ Slack に通知が届きます
 2. FA2 をターゲットに設定した Custom Action を実行し、`ログの取得時間範囲`と`アラームからわかるイベント情報`を入力し、リクエストします
@@ -31,7 +52,8 @@ AWS Summit Japan 2024 のブースで展示していた Slack App の実装を�
   - Amazon Athena や AWS X-Ray は任意の設定項目となります
   - AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
-- Amazon Bedrock でモデルアクセスから、Claude v3 Sonnet のアクセス許可をしていること
+- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet, Claude 3.5 Sonnet のアクセス許可をしていること
+  - Claude 3.5 Sonnet は、Mermaid記法で画像による障害原因の仮説を図示するために利用します
 - 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 
@@ -51,6 +73,9 @@ export const devParameter: AppParameter = {
   language: "ja",
   envName: "Development",
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  topicArn:
+    "arn:aws:sns:us-east-1:123456789012:ExampleTopic",
+  architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
   cwLogsLogGroups: [
     "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
   ],
@@ -59,8 +84,7 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
-  topicArn:
-    "arn:aws:sns:us-east-1:123456789012:ExampleTopic",
+  detectorId: "xxxxxxxxxxxxxxx"
 };
 ```
 
@@ -73,23 +97,40 @@ export const devParameter: AppParameter = {
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                        |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                    |
 | `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                      |
+| `topicArn`               | `"arn:aws:sns:us-east-1:123456789012:ExampleTopic"`                       | AWS Chatbot にイベントを渡している Amazon SNS の Topic の ARN。ClientType が `AWSCHATBOT` の場合必須です                                                                   |
+| `architectureDescription`  | `"あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | CloudWatch Logs Insight で利用したいクエリを指定します。コンテキストウィンドウとの兼ね合いから、デフォルトでは、100 件に制限する（実際のプロンプトに応じて、調整ください） |
 | `databaseName`           | `"athenadatacatalog"`                                                     | Amazon Athena のデータベース名。Athena を使ってログ検索を行いたい場合は必須です                                                                                            |
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します            |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します       |
 | `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                  |
-| `topicArn`               | `"arn:aws:sns:us-east-1:123456789012:ExampleTopic"`                       | AWS Chatbot にイベントを渡している Amazon SNS の Topic の ARN。ClientType が `AWSCHATBOT` の場合必須です                                                                   |
+| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
+
+#### プロンプトの変更
+
+`lambda/lib/prompts.ts` にそれぞれの推論で利用するプロンプトが記載されています。
+それぞれのプロンプトでは、`parameter.ts` にある、`architectureDescription` を使って、対象となるワークロードのアーキテクチャの説明文を取得しています。
+ご自身が FA2 をデプロイする環境に合わせ、このアーキテクチャの説明文を変更してください。
+
+また、デプロイ後のテストで、期待した結果が得られない場合は、`createFailureAnalysisPrompt` 関数に記載されているプロンプトをチューニングしてください。
 
 ### CDK デプロイ
 
-通常の CDK のデプロイと同じようにデプロイする
+まず、障害原因の仮説を図示する機能でLambda関数のLayerが必要となります。
+そこで、最初にLayerに必要なモジュールをインストールするコマンドを実行してください。
+続いて、通常のCDKのデプロイのコマンドを実施します。
 
 ```
+$ npm run build:layer // 障害原因の仮説を図示する機能を利用するために実施します
 $ npm install
 $ npx cdk bootstrap --profile {your_profile}
 $ npx cdk deploy --all --profile {your_profile} --require-approval never
 ```
+
+> [!NOTE]
+> `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` の、`// Additional process.`の記載から始まる箇所が、障害原因の仮説の図を生成する処理になります。
+> 図の生成が不要の場合、この部分はコメントアウトまたは削除してください。
 
 ### Custom Action の設定
 
@@ -122,7 +163,17 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 7. **AWS Chatbot が次から送信する通知**には、作成した [FA2] の Custom Action がボタンとして表示されます
    ![fa2-customaction-button](./docs/images/ja/fa2-customaction-button.png)
 
-## テスト
+### [オプション]メトリクス分析支援機能のための Custom Action の設定
+
+// FIXME
+
+### [オプション]Findings レポート機能のための Custom Action の設定
+
+// FIXME
+
+### テスト
+
+#### 障害分析支援
 
 1. 表示されたアラームの中にある [FA2] ボタンをクリックします
 2. フォームが表示されるので、次の画像のように入力します
@@ -145,6 +196,14 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
    ![fa2-customaction-answer](./docs/images/ja/fa2-customaction-answer.png)
 
+#### [オプション]メトリクス分析支援
+
+// FIXME
+
+#### [オプション]Findings レポート機能
+
+// FIXME
+
 ## リソースの削除
 
 以下のコマンドを実行し、デプロイしたリソースを削除してください。
@@ -153,6 +212,11 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 $ npx cdk destroy --profile {your_profile}
 ```
 
+## 注意事項
+
+本ソースコードはサンプルのため、Amazon API Gateway に対し、AWS WAF をアタッチしていません。
+Slack のエンドポイントはパブリックに公開されているため、攻撃対象となる可能性があります。
+本番利用される際は、セキュリティリスク軽減のため、AWS WAF のご利用を検討してください。
 
 ## Amazon Bedrock 利用に向けた検討事項
 

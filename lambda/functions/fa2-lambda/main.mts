@@ -1,52 +1,37 @@
+import { Handler } from "aws-lambda";
+import pLimit from "p-limit";
+import { split, random } from "lodash";
 import {
   queryToXray,
   queryToAthena,
   queryToCWLogs,
-  invokeModel,
+  queryToCWMetrics,
+  generateMetricDataQuery,
+  converse,
+  listMetrics,
+  uploadFileAndGetUrl,
 } from "../../lib/aws-modules.js";
-import { Handler } from "aws-lambda";
-import { Logger } from "@aws-lambda-powertools/logger";
-import { injectLambdaContext } from "@aws-lambda-powertools/logger/middleware";
-import axios from "axios";
-import middy from "@middy/core";
-import pLimit from "p-limit";
-import {
-  createPromptJa,
-  createPromptEn,
-  getStringValueFromQueryResult,
-} from "../../lib/prompts.js";
-import {
-  createHowToGetLogsJa,
-  createHowToGetLogsEn,
-  sendMessageToClient,
-  createAnswerBlockJa,
-  createAnswerBlockEn,
-  createAnswerMessageJa,
-  createAnswerMessageEn,
-  createErrorMessageBlockJa,
-  createErrorMessageBlockEn,
-} from "../../lib/messages.js";
+import { Prompt } from "../../lib/prompts.js";
+import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
+import logger from "../../lib/logger.js"; 
+import { convertMermaidToImage } from "../../lib/puppeteer.js";
 
-const logger = new Logger({ serviceName: "FA2" });
-
-export const lambdaHandler: Handler = async (event: {
+export const handler: Handler = async (event: {
   errorDescription: string;
   startDate: string;
   endDate: string;
-  responseUrl?: string;
-  alarmName?: string;
-  alarmTimestamp?: string;
+  alarmName: string;
+  alarmTimestamp: string;
 }) => {
   // Event parameters
-  logger.info(`Event: ${JSON.stringify(event)}`);
+  logger.info("Request started", event);
   const {
     errorDescription,
     startDate,
     endDate,
-    responseUrl,
     alarmName,
-    alarmTimestamp,
+    alarmTimestamp
   } = event;
 
   // Environment variables
@@ -54,6 +39,7 @@ export const lambdaHandler: Handler = async (event: {
   const lang: Language = process.env.LANG
     ? (process.env.LANG as Language)
     : "en";
+  const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
   const logGroups = (
     JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
@@ -66,218 +52,177 @@ export const lambdaHandler: Handler = async (event: {
   const athenaDatabaseName = process.env.ATHENA_DATABASE_NAME;
   const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
   const topicArn = process.env.TOPIC_ARN;
+  const outputBucket = process.env.OUTPUT_BUCKET;
+
+  const messageClient = new MessageClient(topicArn!.toString(), lang);
+  const prompt = new Prompt(lang, architectureDescription);
 
   // Check required variables.
-  if (!modelId || !lang || !cwLogsQuery || !logGroups || !region) {
-    logger.error(`Not found any environment variables. Please check them.`);
-    if (responseUrl) {
-      await axios.post(responseUrl, {
-        text:
-          lang && lang === "ja"
-            ? "エラーが発生しました: 環境変数が設定されていない、または渡されていない可能性があります。"
-            : "Error: Not found any environment variables.",
-      });
-    }
+  if (!modelId || !cwLogsQuery || !logGroups || !region || !outputBucket) {
+    logger.error(`Not found any environment variables. Please check.`, {environemnts: {modelId, cwLogsQuery, logGroups, region, topicArn, outputBucket}});
+    messageClient.sendMessage(messageClient.createErrorMessage());
     return;
   }
 
-  // Send query to each AWS APIs in parallel.
-  const limit = pLimit(5);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const input: Promise<any>[] = [
-    limit(() =>
-      queryToCWLogs(
+  try {
+    // Generate a query for getMetricData API
+    const metrics = await listMetrics();
+    const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(errorDescription, JSON.stringify(metrics));
+    const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
+
+    // Send query to each AWS APIs in parallel.
+    const limit = pLimit(5);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: Promise<any>[] = [
+      limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
+      limit(() => queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics"))
+    ];
+  
+    if (
+      athenaDatabaseName &&
+      athenaQueryOutputLocation &&
+      albAccessLogTableName
+    ) {
+      // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
+      // It's just sample query. Please you optimize to your situation.
+      const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code >= 400`;
+      const albQueryParams = [startDate, endDate];
+      input.push(
+        limit(() =>
+          queryToAthena(
+            albQuery,
+            {
+              Database: athenaDatabaseName,
+            },
+            albQueryParams,
+            athenaQueryOutputLocation,
+            "AlbAccessLogs"
+          ),
+        )
+      );
+    }
+
+    if (
+      athenaDatabaseName &&
+      athenaQueryOutputLocation &&
+      cloudTrailLogTableName
+    ) {
+      // The columns used are limited. In this case, we thought that all columns are not required for failure analysis.
+      // It's just sample query. Please you optimize to your situation.
+      const trailQuery = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage FROM ${cloudTrailLogTableName} WHERE eventtime BETWEEN ? AND ? AND awsregion = ? AND sourceipaddress LIKE ?`;
+      const trailQueryParams = [startDate, endDate, region, "%.amazonaws.com"];
+      input.push(
+        limit(() =>
+          queryToAthena(
+            trailQuery,
+            {
+              Database: athenaDatabaseName,
+            },
+            trailQueryParams,
+            athenaQueryOutputLocation,
+            "CloudTrailLogs"
+          ),
+        )
+      );
+    }
+
+    if (xrayTrace) {
+      input.push(
+        limit(() => queryToXray(startDate, endDate, "XrayTraces"))
+      );
+    }
+
+    const results = await Promise.all(input);
+
+    // Prompt
+    const failureAnalysisPrompt =
+      prompt.createFailureAnalysisPrompt(
+        errorDescription,
+        Prompt.getStringValueFromQueryResult(
+          results,
+          "ApplicationLogs",
+        ),
+        Prompt.getStringValueFromQueryResult(
+          results,
+          "CWMetrics",
+        ),
+        Prompt.getStringValueFromQueryResult(
+          results,
+          "AlbAccessLogs",
+        ),
+        Prompt.getStringValueFromQueryResult(
+          results,
+          "CloudTrailLogs",
+        ),
+        Prompt.getStringValueFromQueryResult(results, "XrayTraces")
+      );
+
+    logger.info("Made prompt", {prompt: failureAnalysisPrompt});
+
+    const answer = await converse(failureAnalysisPrompt);
+
+    if(!answer) throw new Error("No response from LLM");
+
+    await messageClient.sendMessage(
+      messageClient.createAnswerMessage(alarmName, alarmTimestamp, answer)
+    );
+
+    logger.info('Success to get answer:', answer);
+
+    // Create explanation how to get logs by operators.
+    const howToGetLogs =
+      messageClient.createHowToGetLogs(
         startDate,
         endDate,
         logGroups,
         cwLogsQuery,
-        "ApplicationLogs",
-        logger,
-      ),
-    ),
-  ];
-
-  if (
-    athenaDatabaseName &&
-    athenaQueryOutputLocation &&
-    albAccessLogTableName
-  ) {
-    // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
-    // It's just sample query. Please you optimize to your situation.
-    const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code > 400`;
-    const albQueryParams = [startDate, endDate];
-    input.push(
-      limit(() =>
-        queryToAthena(
-          albQuery,
-          {
-            Database: athenaDatabaseName,
-          },
-          albQueryParams,
-          athenaQueryOutputLocation,
-          "AlbAccessLogs",
-          logger,
-        ),
-      ),
-    );
-  }
-
-  if (
-    athenaDatabaseName &&
-    athenaQueryOutputLocation &&
-    cloudTrailLogTableName
-  ) {
-    // The columns used are limited. In this case, we thought that all columns are not required for failure analysis.
-    // It's just sample query. Please you optimize to your situation.
-    const trailQuery = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage FROM ${cloudTrailLogTableName} WHERE eventtime BETWEEN ? AND ? AND awsregion = ? AND sourceipaddress LIKE ?`;
-    const trailQueryParams = [startDate, endDate, region, "%.amazonaws.com"];
-    input.push(
-      limit(() =>
-        queryToAthena(
-          trailQuery,
-          {
-            Database: athenaDatabaseName,
-          },
-          trailQueryParams,
-          athenaQueryOutputLocation,
-          "CloudTrailLogs",
-          logger,
-        ),
-      ),
-    );
-  }
-
-  if (xrayTrace) {
-    input.push(
-      limit(() => queryToXray(startDate, endDate, "XrayTraces", logger)),
-    );
-  }
-
-  try {
-    const results = await Promise.all(input);
-
-    // Prompt
-    const prompt =
-      lang === "ja"
-        ? createPromptJa({
-            errorDescription,
-            applicationLogs: getStringValueFromQueryResult(
-              results,
-              "ApplicationLogs",
-            ),
-            albAccessLogs: getStringValueFromQueryResult(
-              results,
-              "AlbAccessLogs",
-            ),
-            cloudTrailLogs: getStringValueFromQueryResult(
-              results,
-              "CloudTrailLogs",
-            ),
-            xrayTraces: getStringValueFromQueryResult(results, "XrayTraces"),
-          })
-        : createPromptEn({
-            errorDescription,
-            applicationLogs: getStringValueFromQueryResult(
-              results,
-              "ApplicationLogs",
-            ),
-            albAccessLogs: getStringValueFromQueryResult(
-              results,
-              "AlbAccessLogs",
-            ),
-            cloudTrailLogs: getStringValueFromQueryResult(
-              results,
-              "CloudTrailLogs",
-            ),
-            xrayTraces: getStringValueFromQueryResult(results, "XrayTraces"),
-          });
-
-    logger.info(`Bedrock prompt: ${prompt}`);
-
-    // If you want to tune parameters for LLM.
-    const llmPayload = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
-    };
-
-    const answer = await invokeModel(llmPayload, modelId, logger);
-
-    // Create explanation to get logs by operators.
-    const howToGetLogs =
-      lang === "ja"
-        ? createHowToGetLogsJa(
-            startDate,
-            endDate,
-            logGroups,
-            cwLogsQuery,
-            xrayTrace,
-            getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-            getStringValueFromQueryResult(results, "CloudTrailLogsQueryString"),
-          )
-        : createHowToGetLogsEn(
-            startDate,
-            endDate,
-            logGroups,
-            cwLogsQuery,
-            xrayTrace,
-            getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-            getStringValueFromQueryResult(results, "CloudTrailLogsQueryString"),
-          );
-    logger.info(`Bedrock answer: ${answer}`);
-
-    if (responseUrl) {
-      // Send answer that combined the explanation to Slack directly.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createAnswerBlockJa(answer, howToGetLogs)
-          : createAnswerBlockEn(answer, howToGetLogs),
-        responseUrl, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
+        JSON.stringify(metricDataQuery),
+        xrayTrace,
+        Prompt.getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
+        Prompt.getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
       );
-    } else if (alarmName && alarmTimestamp && topicArn) {
-      // This case is sending answer via SNS topic and AWS Chatbot.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createAnswerMessageJa(
-              alarmName,
-              alarmTimestamp,
-              answer,
-              howToGetLogs,
-            )
-          : createAnswerMessageEn(
-              alarmName,
-              alarmTimestamp,
-              answer,
-              howToGetLogs,
-            ),
-        topicArn!, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
-      );
+    logger.info('Success to create HowToGetLogs', {howToGetLogs});
+
+    // Send the explanation how to get logs, metrics, and traces.
+    await messageClient.sendMessage(howToGetLogs);
+
+    // CustomAction ver is not able to upload files via SNS and AWS Chatbot due to the specification of them.
+    // It doesn't allow to call fileUpload API of Slack via them.
+    // If you want to use this feature, you try to use uploadFileAndGetUrl method in aws-modules.ts.
+    // You can get the generated architecture image.
+    
+    /* ****** */
+    // Additional process. It shows the root cause on the image.
+    // If you don't need it, please comment out below.
+    const outputImageResponse = await converse(
+      prompt.createImageGenerationPrompt(errorDescription, answer), 
+      'anthropic.claude-3-5-sonnet-20240620-v1:0', 
+    )
+    const mermaidSyntax = split(split(outputImageResponse, '<outputMermaidSyntax>')[1], '</outputMermaidSyntax>')[0];
+    logger.info('Success to create Mermaid syntax', {mermaidSyntax})
+
+    const png = await convertMermaidToImage(mermaidSyntax)
+
+    if(!png) {
+      throw new Error("Failed to create Mermaid image")
     }
+
+    // You will set the environment variable of OUTPUT_BUCKET for this lambda function.
+    const signedUrl = await uploadFileAndGetUrl(outputBucket, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, png);
+
+    await messageClient.sendMessage(`
+*根本原因の仮説の図示*\n
+根本原因の仮説を示した図は以下のURLからダウンロードしてください。\n
+<${signedUrl}|Download URL>
+`)
+         
+    // end of output image task
+    /* ****** */
+
   } catch (error) {
-    logger.error(`${JSON.stringify(error)}`);
-    if (responseUrl) {
-      // Send answer that combined the explanation to Slack directly.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createErrorMessageBlockJa()
-          : createErrorMessageBlockEn(),
-        responseUrl, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
-      );
-    } else if (alarmName && alarmTimestamp && topicArn) {
-      // This case is sending answer via SNS topic and AWS Chatbot.
-      await sendMessageToClient(
-        lang === "ja"
-          ? createErrorMessageBlockJa()
-          : createErrorMessageBlockEn(),
-        topicArn!, // If you want to use Custom action, please pass the TopicARN for this parameter.
-        logger,
-      );
-    }
+    logger.error("Something happened", error as Error);
+    // Send the form to retry when error was occured.
+    await messageClient.sendMessage(messageClient.createErrorMessage());
   }
   return;
 };
-
-export const handler = middy(lambdaHandler).use(injectLambdaContext(logger));

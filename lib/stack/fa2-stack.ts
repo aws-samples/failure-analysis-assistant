@@ -5,15 +5,19 @@ import { Language } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 
 interface FA2StackProps extends StackProps {
-  modelId: string;
   language: Language;
+  modelId: string;
+  topicArn: string;
+  architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
-  topicArn?: string;
+  insight: boolean;
+  findingsReport: boolean;
+  detectorId?: string;
 }
 
 export class FA2Stack extends Stack {
@@ -21,15 +25,19 @@ export class FA2Stack extends Stack {
     super(scope, id, props);
 
     const fa2 = new FA2(this, "FA2Chatbot", {
-      modelId: props.modelId,
       language: props.language,
+      modelId: props.modelId,
+      topicArn: props.topicArn,
+      architectureDescription: props.architectureDescription,
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
-      topicArn: props.topicArn,
+      insight: props.insight,
+      findingsReport: props.findingsReport,
+      detectorId: props.detectorId,
     });
 
     // ----- CDK Nag Suppressions -----
@@ -45,6 +53,36 @@ export class FA2Stack extends Stack {
           "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
       },
     ]);
+
+    if(props.insight){
+      NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
+    
+    if(props.findingsReport && props.detectorId){
+      NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
 
     if (
       props.databaseName &&
