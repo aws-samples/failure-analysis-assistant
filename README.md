@@ -2,9 +2,9 @@
 
 [View this page in English](./README_en.md)
 
-AWS Chatbot が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
+AWS Chatbot から AWS Lambda を実行し、エラーの根本原因を分析を支援するサンプル実装です。
 
-本 README では、**AWS Chatbot の Custom Action を利用した実装を紹介しています。**
+本 README では、**AWS Chatbot の Custom Action や Command Alias を利用した実装を紹介しています。**
 
 AWS Summit Japan 2024 のブースで展示していた Slack App の実装を確認したい方は、[Failure Analysis Assistant (FA2) Slack App 版](https://github.com/aws-samples/failure-analysis-assistant)を参照ください。
 本サンプルで試せることは以下の通りです。
@@ -25,9 +25,6 @@ AWS Summit Japan 2024 のブースで展示していた Slack App の実装を�
 Security Hub と GuardDuty の Findings を生成 AI が解説するレポートを作成する機能を追加しました。
 機能の動作イメージは、[[オプション]Findings レポート機能](#オプションfindings-レポート機能) を参照ください。
 **こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]Findings レポート機能のための Slack App の設定](#オプションfindings-レポート機能のための-slack-app-の設定)をご確認ください。
-
-
-
 
 ## Architecture & Workflow
 
@@ -63,8 +60,9 @@ Security Hub と GuardDuty の Findings を生成 AI が解説するレポート
 
 次の記載を参考に、`parameter_template.ts`をコピーし、`parameter.ts` を作成した上で、それぞれの値を変更してください。
 
-```
-// 例: AWS Chatbot 版で、 Claude 3 Sonnet を利用し、CloudWatch Logs、Athena、X-Ray、を検索対象とした場合の設定
+例: AWS Chatbot 版で、 Claude 3 Sonnet を利用し、CloudWatch Logs、Athena、X-Ray、を検索対象とした場合の設定です。
+
+```json
 export const devParameter: AppParameter = {
   env: {
     account: "123456789012",
@@ -84,6 +82,8 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
+  insight: true,
+  findingsReport: true,
   detectorId: "xxxxxxxxxxxxxxx"
 };
 ```
@@ -105,6 +105,8 @@ export const devParameter: AppParameter = {
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します            |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します       |
 | `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                  |
+| `insight`              | `true`                                                                    | メトリクス分析支援を利用する場合には、 `true` を設定してください                                                                                                       |
+| `findingsReport`              | `true`                                                                    |  Findings レポートを利用するには、 `true` を設定してください                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
 
 #### プロンプトの変更
@@ -121,7 +123,7 @@ export const devParameter: AppParameter = {
 そこで、最初にLayerに必要なモジュールをインストールするコマンドを実行してください。
 続いて、通常のCDKのデプロイのコマンドを実施します。
 
-```
+```bash
 $ npm run build:layer // 障害原因の仮説を図示する機能を利用するために実施します
 $ npm install
 $ npx cdk bootstrap --profile {your_profile}
@@ -148,7 +150,8 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
    ![fa2-customaction-step1](./docs/images/ja/fa2-customaction-step1.png)
 
 5. [Define CLI command] に以下のスクリプトの Lambda 関数名とリージョンをデプロイしたものに書き換えた上で、コピー＆ペーストします
-   ```
+
+   ```bash
    lambda invoke --function-name {デプロイしたLambda関数の名前} --payload {
      "startDate" : "$startDate",
      "endDate": "$endDate",
@@ -157,19 +160,32 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
      "alarmTimestamp": "$Timestamp"
    } --region {デプロイ先リージョン} --invocation-type Event
    ```
+
    ![fa2-customaction-step2](./docs/images/ja/fa2-customaction-step2.png)
+
 6. [Display criteria] は変更せず、そのまま [Save] をクリックします
    ![fa2-customaction-step3](./docs/images/ja/fa2-customaction-step3.png)
+
 7. **AWS Chatbot が次から送信する通知**には、作成した [FA2] の Custom Action がボタンとして表示されます
    ![fa2-customaction-button](./docs/images/ja/fa2-customaction-button.png)
 
-### [オプション]メトリクス分析支援機能のための Custom Action の設定
+### [オプション]メトリクス分析支援機能のための Command Alias の設定
 
-// FIXME
+メトリクス分析支援を利用する場合は、Lambda の呼び出しを簡略化するため、AWS Chatbot の Command Alias 機能を利用します。
+AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
+
+```bash
+@aws alias create insihgt lambda invoke --function-name {メトリクス分析支援を提供する Lambda 関数名} --payload { "query" : $query, "duration": $duration } --region {関数をデプロイしたリージョン} --invocation-type Event
+```
 
 ### [オプション]Findings レポート機能のための Custom Action の設定
 
-// FIXME
+Findings レポートを利用する場合は、Lambda の呼び出しを簡略化するため、AWS Chatbot の Command Alias 機能を利用します。
+AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
+
+```bash
+@aws alias create findings-report lambda invoke --function-name {メトリクス分析支援を提供する Lambda 関数名} --region {関数をデプロイしたリージョン} --invocation-type Event
+```
 
 ### テスト
 
@@ -198,17 +214,45 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
 #### [オプション]メトリクス分析支援
 
-// FIXME
+AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
+
+```bash
+@aws run insight --query ""ECSのリソースは十分ですか？チューニングの必要はありますか？"" --duration 14
+```
+
+> NOTE
+> `--query` に渡す文字列を囲うダブルクオーテーションは、例のように二重にする必要があります。
+
+入力が受け付けられると、次のようなメッセージが表示されます。
+
+![fa2-insight-received-message](./docs/images/ja/fa2-insight-received-message.png)
+
+実行が完了すると、次の画像のように分析結果が表示されます。
+
+![fa2-insight-result-message](./docs/images/ja/fa2-insight-result-message.png)
 
 #### [オプション]Findings レポート機能
 
-// FIXME
+AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
+
+```bash
+@aws run findings-report
+```
+
+入力が受け付けられると、次のようなメッセージが表示されます。
+
+![fa2-findings-report-received-message](./docs/images/ja/fa2-findings-report-received-message.png)
+
+実行が完了すると、次の画像のようにレポートのダウンロード URL が表示されます。
+ダウンロード URL は、デフォルトでは 1 時間です。ダウンロードし、レポートの中身をご確認ください。
+
+![fa2-findings-report-result-message](./docs/images/ja/fa2-findings-report-result-message.png)
 
 ## リソースの削除
 
 以下のコマンドを実行し、デプロイしたリソースを削除してください。
 
-```
+```bash
 $ npx cdk destroy --profile {your_profile}
 ```
 

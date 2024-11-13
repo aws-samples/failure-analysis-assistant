@@ -56,7 +56,7 @@ You can try this sample if the log is output to Amazon CloudWatch Logs. Amazon S
 
 Refer to the following description, copy `parameter_template.ts`, create `parameter.ts`, and then change each value.
 
-```
+```json
 // Example: Settings for the AWS Chatbot version when using Claude 3 Sonnet and using CloudWatch Logs, Athena, and X-Ray as search targets
 export const devParameter: AppParameter = {
   env: {
@@ -77,6 +77,8 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
+  insight: true,
+  findingsReport: true,
   detectorId: "xxxxxxxxxxxxxxx"
 };
 ```
@@ -97,6 +99,8 @@ export const devParameter: AppParameter = {
 | `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
 | `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
 | `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
+| `insight`              | `true`                                                                    | If you turn on Metrics Insight feature, Please set `true` for this parameter.                                                                                                      |
+| `findingsReport`              | `true`                                                                    |  If you turn on Findings Report feature, Please set `true` for this parameter.                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
 
 #### Modify prompts
@@ -113,7 +117,7 @@ First, a Lambda function layer is required for the function of illustrating the 
 So, first run the command to install the modules required for Layer.
 Next, execute the normal CDK deployment command.
 
-```
+```bash
 $ npm run build:layer // This must be done for the function of illustrating hypotheses about the architecture of the system you are responsible for.
 $ npm install
 $ npx cdk bootstrap --profile {your_profile}
@@ -159,7 +163,21 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
 #### [Optional]Configuration of Slack App for Metrics Insight Assist
 
+When using Metric Insight Assist, use the AWS Chatbot Command Alias feature to simplify Lambda invocation.
+Enter the following into the chat field of the channel where AWS Chatbot has been implemented.
+
+```bash
+@aws alias create insihgt lambda invoke --function-name {Lambda function name that provides metric analysis assistance} --payload {“query”: $query, “duration”: $duration} --region {region where the function was deployed} --invocation-type Event
+```
+
 #### [Optional]Configuration of Slack App for Findings Report
+
+When using Findings report, use the AWS Chatbot Command Alias feature to simplify Lambda invocation.
+Enter the following into the chat field of the channel where AWS Chatbot has been implemented.
+
+```bash
+@aws alias create findings-report lambda invoke --function-name {Lambda function name that provides metric analysis assistance} --region {region where the function was deployed} --invocation-type Event
+```
 
 ### Testing
 
@@ -188,7 +206,39 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
 #### [Optional]Metrics Analysis Assist
 
+Enter the following into the chat field of the channel where AWS Chatbot has been installed.
+
+```bash
+@aws run insight --query ""Are ECS resources enough? Do I need to tune it?"" --duration 14
+```
+
+> NOTE
+> Double quotes surrounding the string passed to `--query` must be double, as in the example.
+
+When input is accepted, a message similar to the following is displayed.
+
+![fa2-insight-received-message](./docs/images/ja/fa2-insight-received-message.png)
+
+Once the execution is complete, the analysis results are displayed as shown in the following image.
+
+![fa2-insight-result-message](./docs/images/ja/fa2-insight-result-message.png)
+
 #### [Optional]Findings Report
+
+Enter the following into the chat field of the channel where AWS Chatbot has been installed.
+
+```bash
+@aws run findings-report
+```
+
+When input is accepted, a message similar to the following is displayed.
+
+![fa2-findings-report-received-message](./docs/images/ja/fa2-findings-report-received-message.png)
+
+When execution is complete, the report download URL is displayed as shown in the following image.
+The download URL is 1 hour by default. Please download and check the contents of the report.
+
+![fa2-findings-report-result-message](. /docs/images/ja/fa2-findings-report-result-message.png)
 
 ## Delete deployed resources
 
