@@ -60,9 +60,8 @@ Security Hub と GuardDuty の Findings を生成 AI が解説するレポート
 
 次の記載を参考に、`parameter_template.ts`をコピーし、`parameter.ts` を作成した上で、それぞれの値を変更してください。
 
-例: AWS Chatbot 版で、 Claude 3 Sonnet を利用し、CloudWatch Logs、Athena、X-Ray、を検索対象とした場合の設定です。
-
-```json
+```js
+// 例: AWS Chatbot 版で、 Claude 3 Sonnet を利用し、CloudWatch Logs、Athena、X-Ray、を検索対象とした場合の設定です。
 export const devParameter: AppParameter = {
   env: {
     account: "123456789012",

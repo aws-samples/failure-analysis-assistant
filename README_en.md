@@ -56,7 +56,7 @@ You can try this sample if the log is output to Amazon CloudWatch Logs. Amazon S
 
 Refer to the following description, copy `parameter_template.ts`, create `parameter.ts`, and then change each value.
 
-```json
+```js
 // Example: Settings for the AWS Chatbot version when using Claude 3 Sonnet and using CloudWatch Logs, Athena, and X-Ray as search targets
 export const devParameter: AppParameter = {
   env: {
