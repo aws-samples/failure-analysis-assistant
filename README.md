@@ -2,6 +2,8 @@
 
 [View this page in English](./README_en.md)
 
+## 概要
+
 AWS Chatbot から AWS Lambda を実行し、エラーの根本原因を分析を支援するサンプル実装です。
 
 本 README では、**AWS Chatbot の Custom Action や Command Alias を利用した実装を紹介しています。**
@@ -9,22 +11,22 @@ AWS Chatbot から AWS Lambda を実行し、エラーの根本原因を分析�
 AWS Summit Japan 2024 のブースで展示していた Slack App の実装を確認したい方は、[Failure Analysis Assistant (FA2) Slack App 版](https://github.com/aws-samples/failure-analysis-assistant)を参照ください。
 本サンプルで試せることは以下の通りです。
 
-**障害分析支援**
+### 障害分析支援
 
 あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
-機能の動作イメージは、[障害分析支援](#障害分析支援) を参照ください。
+機能の動作イメージは、[障害分析支援の実行例](#障害分析支援の実行例) を参照ください。
 
-**メトリクス分析支援**
+### [オプション]メトリクス分析支援
 
 ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
-機能の動作イメージは、[[オプション]メトリクス分析支援](#オプションメトリクス分析支援) を参照ください。
-**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]メトリクス分析支援機能のための Slack App の設定](#オプションメトリクス分析支援機能のための-slack-app-の設定)をご確認ください。
+機能の動作イメージは、[[オプション]メトリクス分析支援の実行例](#オプションメトリクス分析支援の実行例) を参照ください。
+**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]メトリクス分析支援のための Command Alias の設定](#オプションメトリクス分析支援のための-command-alias-の設定)をご確認ください。
 
-**Findings レポート**
+### [オプション]Findings レポート
 
 Security Hub と GuardDuty の Findings を生成 AI が解説するレポートを作成する機能を追加しました。
-機能の動作イメージは、[[オプション]Findings レポート機能](#オプションfindings-レポート機能) を参照ください。
-**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]Findings レポート機能のための Slack App の設定](#オプションfindings-レポート機能のための-slack-app-の設定)をご確認ください。
+機能の動作イメージは、[[オプション]Findings レポートの実行例](#オプションfindings-レポートの実行例) を参照ください。
+**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]Findings レポートのための Command Alias の設定](#オプションfindings-レポートのための-command-alias-の設定)をご確認ください。
 
 ## Architecture & Workflow
 
@@ -123,10 +125,10 @@ export const devParameter: AppParameter = {
 続いて、通常のCDKのデプロイのコマンドを実施します。
 
 ```bash
-$ npm run build:layer // 障害原因の仮説を図示する機能を利用するために実施します
-$ npm install
-$ npx cdk bootstrap --profile {your_profile}
-$ npx cdk deploy --all --profile {your_profile} --require-approval never
+npm run build:layer // 障害原因の仮説を図示する機能を利用するために実施します
+npm install
+npx cdk bootstrap --profile {your_profile}
+npx cdk deploy --all --profile {your_profile} --require-approval never
 ```
 
 > [!NOTE]
@@ -188,8 +190,7 @@ Resource は対象となる関数だけに絞ることを推奨いたします�
 }
 ```
 
-
-### [オプション]メトリクス分析支援機能のための Command Alias の設定
+### [オプション]メトリクス分析支援のための Command Alias の設定
 
 メトリクス分析支援を利用する場合は、Lambda の呼び出しを簡略化するため、AWS Chatbot の Command Alias 機能を利用します。
 AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
@@ -204,7 +205,7 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
 [AWS Chatbot への権限追加](#aws-chatbot-への権限追加)を参考に、AWS Chatbot からメトリクス分析支援機能の Lambda 関数を実行できるように、チャネルロールの該当ポリシーのリソースに追加してください。
 
-### [オプション]Findings レポート機能のための Custom Action の設定
+### [オプション]Findings レポートのための Command Alias の設定
 
 Findings レポートを利用する場合は、Lambda の呼び出しを簡略化するため、AWS Chatbot の Command Alias 機能を利用します。
 AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
@@ -221,7 +222,7 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
 ### テスト
 
-#### 障害分析支援
+#### 障害分析支援の実行例
 
 1. 表示されたアラームの中にある [FA2] ボタンをクリックします
 2. フォームが表示されるので、次の画像のように入力します
@@ -244,7 +245,7 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
    ![fa2-customaction-answer](./docs/images/ja/fa2-customaction-answer.png)
 
-#### [オプション]メトリクス分析支援
+#### [オプション]メトリクス分析支援の実行例
 
 AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
 
@@ -267,7 +268,7 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
 ![fa2-insight-result](./docs/images/ja/fa2-customaction-insight-result.png)
 
-#### [オプション]Findings レポート機能
+#### [オプション]Findings レポートの実行例
 
 AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
 
@@ -293,7 +294,7 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 以下のコマンドを実行し、デプロイしたリソースを削除してください。
 
 ```bash
-$ npx cdk destroy --profile {your_profile}
+npx cdk destroy --profile {your_profile}
 ```
 
 ## 注意事項

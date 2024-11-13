@@ -2,26 +2,29 @@
 
 [日本語で読む](./README.md)
 
+## Overview
+
 This is a sample implementation that responds to alarms sent to Slack by AWS Chatbot and helps analyze the root cause of the failure.
 This README introduces an implementation using **AWS Chatbot's Custom Action.**
 If you want to check the Slack App version that was shown at the AWS Summit Japan 2024, go to [Failure Analysis Assistant (FA2) Slack App version](https://github.com/aws-samples/failure-analysis-assistant).
 
-**Failure analysis assist**
+### Failure analysis assist
 
 Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
 For an example of how the function works, see [Failure Analysis Assist](#failure-analysis-assist).
 
-**Metrics analysis support**
+### Metrics analysis support
 
 In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
 For example of the operation of the function, see [[Optional]Metric Analysis Assist](#optionalmetrics-analysis-assist).
 **This feature is optional.** If you want to use it, please see [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Metrics Insight Assist](#optionalconfiguration-of-slack-app-for-metrics-insight-assist).
 
-**Findings Report**
+### Findings Report
 
 We've added the feature to create a report explaining Security Hub and GuardDuty Findings by LLM.
 For example of the function in action, see [[OPTIONAL]Findings Report](#optionalfindings-report).
 **This feature is optional**, so if you want to enable it, check [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Findings Report](#optionalconfiguration-of-slack-app-for-findings-report).
+
 ## Architecture & Workflow
 
 The scope of existing workloads is based on the assumption that you have already been implemented.
@@ -118,10 +121,10 @@ So, first run the command to install the modules required for Layer.
 Next, execute the normal CDK deployment command.
 
 ```bash
-$ npm run build:layer // This must be done for the function of illustrating hypotheses about the architecture of the system you are responsible for.
-$ npm install
-$ npx cdk bootstrap --profile {your_profile}
-$ npx cdk deploy --all --profile {your_profile} --require-approval never
+npm run build:layer // This must be done for the function of illustrating hypotheses about the architecture of the system you are responsible for.
+npm install
+npx cdk bootstrap --profile {your_profile}
+npx cdk deploy --all --profile {your_profile} --require-approval never
 ```
 
 > [!NOTE]
@@ -252,8 +255,8 @@ The download URL is 1 hour by default. Please download and check the contents of
 
 Please use below command to delete the resources you deployed
 
-```
-$ npx cdk destroy --profile {your_profile}
+```bash
+npx cdk destroy --profile {your_profile}
 ```
 
 ## Considerations
