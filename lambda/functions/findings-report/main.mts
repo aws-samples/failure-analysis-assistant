@@ -29,7 +29,7 @@ export const handler: Handler = async () => {
   // Check required variables.
   if (!modelId || !region || !detectorId || !outputBucket) {
     logger.error(`Not found any environment variables. Please check them.`);
-    messageClient.sendMessage(messageClient.createErrorMessage());
+    await messageClient.sendMessage(messageClient.createErrorMessage());
     return;
   }
 

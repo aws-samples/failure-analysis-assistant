@@ -32,13 +32,14 @@ export const handler: Handler = async (event: {
   // Check required variables.
   if (!modelId || !region) {
     logger.error(`Not found any environment variables. Please check them.`);
-    messageClient.sendMessage(messageClient.createErrorMessage());
+    await messageClient.sendMessage(messageClient.createErrorMessage());
     return;
   }
 
-  if (duration > 14 && duration < 1){
+  logger.info("typeof duration", typeof duration);
+  if (duration > 14 || duration < 1){
     logger.error("Duration is not correct", {duration});
-    messageClient.sendMessage("メトリクス取得期間は1から14で入力してください。");
+    await messageClient.sendMessage(lang === "ja" ? "メトリクス取得期間は1から14で入力してください。": "Duration must be from 1 to 14.");
     return;
   }
   // Convert from duration to datetime

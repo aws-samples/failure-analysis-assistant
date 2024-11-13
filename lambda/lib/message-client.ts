@@ -209,6 +209,18 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
 `;
     }
   }
+
+  public createArchitectureImageMessage(signedUrl: string){
+    if(this.language === "ja"){
+      return `*根本原因の仮説の図示*\n
+根本原因の仮説を示した図は以下のURLからダウンロードしてください。\n
+<${signedUrl}|Download URL>`;
+    }else{
+      return `*Illustration of the root cause hypothesis*\n
+Please download the image of the root cause hypothesis from below link.\n
+<${signedUrl}|Download URL>`;
+    }
+  }
   
   public createMetricsInsightMessage(answer: string){
     if(this.language === "ja"){

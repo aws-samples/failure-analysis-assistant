@@ -60,7 +60,7 @@ export const handler: Handler = async (event: {
   // Check required variables.
   if (!modelId || !cwLogsQuery || !logGroups || !region || !outputBucket) {
     logger.error(`Not found any environment variables. Please check.`, {environemnts: {modelId, cwLogsQuery, logGroups, region, topicArn, outputBucket}});
-    messageClient.sendMessage(messageClient.createErrorMessage());
+    await messageClient.sendMessage(messageClient.createErrorMessage());
     return;
   }
 
@@ -188,8 +188,7 @@ export const handler: Handler = async (event: {
 
     // CustomAction ver is not able to upload files via SNS and AWS Chatbot due to the specification of them.
     // It doesn't allow to call fileUpload API of Slack via them.
-    // If you want to use this feature, you try to use uploadFileAndGetUrl method in aws-modules.ts.
-    // You can get the generated architecture image.
+    // So, we upload an image via S3.
     
     /* ****** */
     // Additional process. It shows the root cause on the image.
@@ -210,11 +209,7 @@ export const handler: Handler = async (event: {
     // You will set the environment variable of OUTPUT_BUCKET for this lambda function.
     const signedUrl = await uploadFileAndGetUrl(outputBucket, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, png);
 
-    await messageClient.sendMessage(`
-*根本原因の仮説の図示*\n
-根本原因の仮説を示した図は以下のURLからダウンロードしてください。\n
-<${signedUrl}|Download URL>
-`)
+    await messageClient.sendMessage(messageClient.createArchitectureImageMessage(signedUrl));
          
     // end of output image task
     /* ****** */
