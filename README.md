@@ -169,14 +169,41 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 7. **AWS Chatbot が次から送信する通知**には、作成した [FA2] の Custom Action がボタンとして表示されます
    ![fa2-customaction-button](./docs/images/ja/fa2-customaction-button.png)
 
+### AWS Chatbot への権限追加
+
+AWS Chatbot が FA2 の Lambda 関数を実行するために、チャネルロールに `lambda:InvokeFunction` を付与する必要があります。
+
+チャネルロールには、次のようなポリシーを付与してください。
+Resource は対象となる関数だけに絞ることを推奨いたします。
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": "lambda:InvokeFunction",
+            "Resource": "*", // FA2 でデプロイされる Lambda 関数だけにする
+            "Effect": "Allow"
+        }
+    ]
+}
+```
+
+
 ### [オプション]メトリクス分析支援機能のための Command Alias の設定
 
 メトリクス分析支援を利用する場合は、Lambda の呼び出しを簡略化するため、AWS Chatbot の Command Alias 機能を利用します。
 AWS Chatbot が導入されているチャンネルのチャット欄に、以下を入力します。
 
 ```bash
-@aws alias create insihgt lambda invoke --function-name {メトリクス分析支援を提供する Lambda 関数名} --payload { "query" : $query, "duration": $duration } --region {関数をデプロイしたリージョン} --invocation-type Event
+@aws alias create insight lambda invoke --function-name {メトリクス分析支援を提供する Lambda 関数名} --payload { "query" : $query, "duration": $duration } --region {関数をデプロイしたリージョン} --invocation-type Event
 ```
+
+次の画像のようなメッセージが表示されたら設定が成功しています。
+
+![command-alias-success](./docs/images/ja/fa2-command-alias-success.png)
+
+[AWS Chatbot への権限追加](#aws-chatbot-への権限追加)を参考に、AWS Chatbot からメトリクス分析支援機能の Lambda 関数を実行できるように、チャネルロールの該当ポリシーのリソースに追加してください。
 
 ### [オプション]Findings レポート機能のための Custom Action の設定
 
@@ -186,6 +213,12 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 ```bash
 @aws alias create findings-report lambda invoke --function-name {メトリクス分析支援を提供する Lambda 関数名} --region {関数をデプロイしたリージョン} --invocation-type Event
 ```
+
+次の画像のようなメッセージが表示されたら設定が成功しています。
+
+![command-alias-success](./docs/images/ja/fa2-command-alias-success.png)
+
+[AWS Chatbot への権限追加](#aws-chatbot-への権限追加)を参考に、AWS Chatbot から Findings レポート機能の Lambda 関数を実行できるように、チャネルロールの該当ポリシーのリソースに追加してください。
 
 ### テスト
 
@@ -225,11 +258,15 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
 入力が受け付けられると、次のようなメッセージが表示されます。
 
-![fa2-insight-received-message](./docs/images/ja/fa2-insight-received-message.png)
+![fa2-insight-received-message](./docs/images/ja/fa2-customaction-insight-received-message.png)
 
-実行が完了すると、次の画像のように分析結果が表示されます。
+[Run] command をクリックすると、次の画像のようにコマンドの実行結果が表示されます。
 
-![fa2-insight-result-message](./docs/images/ja/fa2-insight-result-message.png)
+![fa2-insight-wait](./docs/images/ja/fa2-customaction-insight-wait.png)
+
+推論が終わると、分析結果が表示されます。
+
+![fa2-insight-result](./docs/images/ja/fa2-customaction-insight-result.png)
 
 #### [オプション]Findings レポート機能
 
@@ -241,12 +278,16 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 
 入力が受け付けられると、次のようなメッセージが表示されます。
 
-![fa2-findings-report-received-message](./docs/images/ja/fa2-findings-report-received-message.png)
+![fa2-findings-report-received-message](./docs/images/ja/fa2-customaction-findingsreport-received-message.png)
+
+[Run] command をクリックし、関数を実行します。
+
+![fa2-findings-report-wait](./docs/images/ja/fa2-customaction-findingsreport-wait.png)
 
 実行が完了すると、次の画像のようにレポートのダウンロード URL が表示されます。
 ダウンロード URL は、デフォルトでは 1 時間です。ダウンロードし、レポートの中身をご確認ください。
 
-![fa2-findings-report-result-message](./docs/images/ja/fa2-findings-report-result-message.png)
+![fa2-findings-report-result-message](./docs/images/ja/fa2-customaction-findingsreport-result.png)
 
 ## リソースの削除
 

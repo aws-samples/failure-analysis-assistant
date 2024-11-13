@@ -217,11 +217,15 @@ Enter the following into the chat field of the channel where AWS Chatbot has bee
 
 When input is accepted, a message similar to the following is displayed.
 
-![fa2-insight-received-message](./docs/images/ja/fa2-insight-received-message.png)
+![fa2-insight-received-message](./docs/images/en/fa2-customaction-insight-received-message.png)
+
+Message is changed after clicking `[Run] command`.
+
+![fa2-insight-wait](./docs/images/en/fa2-customaction-insight-wait.png)
 
 Once the execution is complete, the analysis results are displayed as shown in the following image.
 
-![fa2-insight-result-message](./docs/images/ja/fa2-insight-result-message.png)
+![fa2-insight-result](./docs/images/en/fa2-customaction-insight-result.png)
 
 #### [Optional]Findings Report
 
@@ -233,12 +237,16 @@ Enter the following into the chat field of the channel where AWS Chatbot has bee
 
 When input is accepted, a message similar to the following is displayed.
 
-![fa2-findings-report-received-message](./docs/images/ja/fa2-findings-report-received-message.png)
+![fa2-findingsreport-received-message](./docs/images/en/fa2-customaction-findingsreport-received-message.png)
+
+Message is changed after clicking `[Run] command`.
+
+![fa2-findingsreport-wait](./docs/images/en/fa2-customaction-findingsreport-wait.png)
 
 When execution is complete, the report download URL is displayed as shown in the following image.
 The download URL is 1 hour by default. Please download and check the contents of the report.
 
-![fa2-findings-report-result-message](. /docs/images/ja/fa2-findings-report-result-message.png)
+![fa2-findings-report-result-message](./docs/images/en/fa2-customaction-findingsreport-result.png)
 
 ## Delete deployed resources
 
