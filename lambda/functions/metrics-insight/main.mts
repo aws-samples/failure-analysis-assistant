@@ -62,10 +62,7 @@ export const handler: Handler = async (event: {
 
     logger.info("Answer", answer);
 
-    await messageClient.sendMessage(
-      `*Metrics Insight コマンドの実行結果*\n
-${answer}
-`) 
+    await messageClient.sendMessage(messageClient.createMetricsInsightMessage(answer)); 
 
   } catch (error) {
     logger.error("Something happened", error as Error);

@@ -209,6 +209,30 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
 `;
     }
   }
+  
+  public createMetricsInsightMessage(answer: string){
+    if(this.language === "ja"){
+      return `*Metrics Insight コマンドの実行結果*\n
+${answer}`;
+    }else{
+      return `*The result of metrics insight*\n
+${answer} `;
+    }
+  }
+
+  public createFindingsReportMessage(signedUrl: string){
+    if(this.language === "ja"){
+      return `*findings-report コマンドの実行結果*\n
+レポートを作成しました。URL の有効期限は1時間です。\n
+<${signedUrl}|Download URL> 
+      `
+    }else{
+      return `*The result of findings-report*\n
+Findings report was created. This URL expires in 1 hour.\n
+<${signedUrl}|Download URL> 
+`
+    }
+  }
 
   // To send message via Slack directly.
   public async sendMessage(

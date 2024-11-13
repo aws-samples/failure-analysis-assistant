@@ -59,11 +59,7 @@ export const handler: Handler = async () => {
     const pdf = await convertMDToPDF(report);
     const signedUrl = await uploadFileAndGetUrl(outputBucket, `findings-reports/report-${(new Date()).toISOString()}-${random(10000000, 99999999)}.pdf`, pdf)
     
-    await messageClient.sendMessage(
-    `*findings-report コマンドの実行結果*\n
-レポートを作成しました。URL の有効期限は1時間です。\n
-<${signedUrl}|Download URL>
-`)
+    await messageClient.sendMessage(messageClient.createFindingsReportMessage(signedUrl));
 
   } catch (error) {
     logger.error("Something happened", error as Error);
