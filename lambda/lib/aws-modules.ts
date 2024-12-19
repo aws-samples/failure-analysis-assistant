@@ -1,10 +1,19 @@
 // This file is wrapper of AWS SDK.
 import {
+  CloudWatchClient,
+  GetMetricDataCommand,
+  GetMetricDataCommandInput,
+  ListMetricsCommand,
+  Metric,
+  MetricDataQuery,
+  MetricDataResult
+} from '@aws-sdk/client-cloudwatch';
+import {
   CloudWatchLogsClient,
   StartQueryCommand,
   GetQueryResultsCommand,
   StartQueryCommandInput,
-  QueryStatus,
+  QueryStatus
 } from "@aws-sdk/client-cloudwatch-logs";
 import {
   AthenaClient,
@@ -12,25 +21,96 @@ import {
   GetQueryResultsCommand as AthenaGetQueryResultsCommand,
   StartQueryExecutionCommand,
   QueryExecutionState,
-  Row,
+  Row
 } from "@aws-sdk/client-athena";
 import {
   GetTraceSummariesCommand,
   TimeRangeType,
   TraceSummary,
-  XRayClient,
+  XRayClient
 } from "@aws-sdk/client-xray";
 import {
+  GuardDutyClient,
+  GetFindingsCommand,
+  GetFindingsCommandInput,
+  ListFindingsCommandInput,
+  ListFindingsCommand,
+} from "@aws-sdk/client-guardduty";
+import {
+  SecurityHubClient,
+  GetFindingsCommand as GetSecurityHubFindingsCommand,
+  GetFindingsCommandInput as GetSecurityHubFindingsCommandInput,
+} from "@aws-sdk/client-securityhub";
+import {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  ConverseCommand,
+  ConverseCommandInput,
+  InferenceConfiguration,
 } from "@aws-sdk/client-bedrock-runtime";
-import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import {
   LambdaClient,
   InvokeCommandInputType,
-  InvokeCommand,
+  InvokeCommand
 } from "@aws-sdk/client-lambda";
-import { Logger } from "@aws-lambda-powertools/logger";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { StreamingBlobPayloadInputTypes } from "@smithy/types";
+import logger from './logger.js';
+import {split} from 'lodash';
+
+// To get CloudWatch metrics 
+export async function listMetrics(){
+  logger.info("Start", {funciton: listMetrics.name, input: {}});
+  const client = new CloudWatchClient();
+  // To get recently active metrics only
+  const resListMetricsCommand = await client.send(new ListMetricsCommand({RecentlyActive: "PT3H"}));
+  const metrics = resListMetricsCommand.Metrics;
+  logger.info("End", {funciton: listMetrics.name, output: {metrics}});
+  return metrics ? metrics : [] as Metric[];
+}
+
+export async function generateMetricDataQuery(
+  prompt: string
+){
+  logger.info("Start", {funciton: generateMetricDataQuery.name, input: {prompt}});
+
+  const converseOutput = await converse(prompt);
+  const metricDataQuery = split(split(converseOutput, '<metricDataQuery>')[1], '</metricDataQuery>')[0];
+
+  logger.info("End", {funciton: generateMetricDataQuery.name, output: {metricDataQuery}});
+
+  return JSON.parse(metricDataQuery) as MetricDataQuery[];
+}
+
+export async function queryToCWMetrics(
+  startDate: string,
+  endDate: string,
+  query: MetricDataQuery[],
+  outputKey: string
+){
+  logger.info("Start", {funciton: queryToCWMetrics.name, input: {startDate, endDate, query, outputKey}});
+
+  const client = new CloudWatchClient();
+
+  const input: GetMetricDataCommandInput = {
+    MetricDataQueries: query,
+    StartTime: new Date(startDate),
+    EndTime: new Date(endDate) 
+  };
+
+  let resGetMetricDataCommand = await client.send(new GetMetricDataCommand(input))
+  const metricsData = resGetMetricDataCommand.MetricDataResults ? resGetMetricDataCommand.MetricDataResults : [] as MetricDataResult[];
+
+  while(resGetMetricDataCommand.NextToken){
+    resGetMetricDataCommand = await client.send(new GetMetricDataCommand({NextToken: resGetMetricDataCommand.NextToken, ...input}));
+    if(resGetMetricDataCommand.MetricDataResults){
+      metricsData.push(...resGetMetricDataCommand.MetricDataResults);
+    }
+  }
+  logger.info("End", {funciton: queryToCWMetrics.name, output: {metricsData}});
+  return { key: outputKey, value: metricsData };
+}
 
 function iso8601ToMilliseconds(isoDate: string): number {
   const date = new Date(isoDate);
@@ -43,27 +123,23 @@ export async function queryToCWLogs(
   endDate: string,
   logGroups: string[],
   queryString: string,
-  outputKey: string,
-  logger: Logger,
+  outputKey: string
 ) {
-  logger.info(
-    `QueryToCWLogs Input: ${startDate}, ${endDate}, ${logGroups.join(
-      ", ",
-    )}, ${queryString}`,
-  );
+  logger.info("Start", {funciton: queryToCWLogs.name, input: {startDate, endDate, logGroups, queryString, outputKey}});
+
   const client = new CloudWatchLogsClient();
 
   const input: StartQueryCommandInput = {
     logGroupNames: [...logGroups],
     startTime: iso8601ToMilliseconds(startDate),
     endTime: iso8601ToMilliseconds(endDate),
-    queryString,
+    queryString
   };
   const startQueryCommand = new StartQueryCommand(input);
   const resStartQuery = await client.send(startQueryCommand);
 
   const getQueryResultsCommand = new GetQueryResultsCommand({
-    queryId: resStartQuery.queryId,
+    queryId: resStartQuery.queryId
   });
   let resQueryResults = await client.send(getQueryResultsCommand);
 
@@ -75,7 +151,7 @@ export async function queryToCWLogs(
     resQueryResults = await client.send(getQueryResultsCommand);
   }
 
-  logger.info(`QueryToCWLogs Output: ${resQueryResults.results}`);
+  logger.info("End", {funciton: queryToCWLogs.name, output: {resQueryResults}});
 
   return { key: outputKey, value: resQueryResults.results };
 }
@@ -95,12 +171,10 @@ export async function queryToAthena(
   queryExecutionContext: { Database: string },
   queryParams: string[],
   outputLocation: string,
-  outputKey: string,
-  logger: Logger,
+  outputKey: string
 ) {
-  logger.info(
-    `QueryToAthena Input: ${query}, ${queryExecutionContext.Database}`,
-  );
+  logger.info("Start", {funciton: queryToAthena.name, input: {query, queryExecutionContext, queryParams, outputLocation, outputKey}});
+
   const athenaClient = new AthenaClient();
 
   let results = [] as Row[];
@@ -111,16 +185,16 @@ export async function queryToAthena(
       QueryExecutionContext: queryExecutionContext,
       ExecutionParameters: queryParams,
       ResultConfiguration: {
-        OutputLocation: outputLocation,
-      },
+        OutputLocation: outputLocation
+      }
     });
 
   const { QueryExecutionId } = await athenaClient.send(
-    startQueryExecutionCommand,
+    startQueryExecutionCommand
   );
 
   const getQueryExecutionCommand = new GetQueryExecutionCommand({
-    QueryExecutionId,
+    QueryExecutionId
   });
   let queryExecution = await athenaClient.send(getQueryExecutionCommand);
 
@@ -136,7 +210,7 @@ export async function queryToAthena(
 
   // Get result of query
   let getQueryResultsCommand = new AthenaGetQueryResultsCommand({
-    QueryExecutionId,
+    QueryExecutionId
   });
   let queryResults = await athenaClient.send(getQueryResultsCommand);
   results =
@@ -148,28 +222,27 @@ export async function queryToAthena(
   while (queryResults.NextToken) {
     getQueryResultsCommand = new AthenaGetQueryResultsCommand({
       QueryExecutionId,
-      NextToken: queryResults.NextToken,
+      NextToken: queryResults.NextToken
     });
     queryResults = await athenaClient.send(getQueryResultsCommand);
     (results as Row[]).push(
       ...(queryResults.ResultSet && queryResults.ResultSet.Rows
         ? queryResults.ResultSet.Rows
-        : []),
-    );
+        : []));
   }
 
   // Do not use for query to run on Athena. Just use for the explanation how to get Logs
   const queryString = query.replace(
     /\?/g,
     // eslint-disable-next-line no-constant-binary-expression
-    () => `'${queryParams.shift()}'` || "",
+    () => `'${queryParams.shift()}'` || ""
   );
 
-  logger.info(`QueryToAthena Output: ${JSON.stringify(results)}`);
+  logger.info("End", {funciton: queryToAthena.name, output: {results, queryString}});
   // To decrease total tokens, transforming from rows to csv format.
   return [
     { key: outputKey, value: rowsToCSV(results) },
-    { key: `${outputKey}QueryString`, value: queryString },
+    { key: `${outputKey}QueryString`, value: queryString }
   ];
 }
 
@@ -177,15 +250,14 @@ export async function queryToAthena(
 export async function queryToXray(
   startDate: string,
   endDate: string,
-  outputKey: string,
-  logger: Logger,
+  outputKey: string
 ) {
-  logger.info(`QueryToXRay Input: ${startDate}, ${endDate}`);
+  logger.info("Start", {funciton: queryToXray.name, input: {startDate, endDate, outputKey}});
   const client = new XRayClient();
   const input = {
     StartTime: new Date(startDate),
     EndTime: new Date(endDate),
-    TimeRangeType: TimeRangeType.Event,
+    TimeRangeType: TimeRangeType.Event
   };
   let command = new GetTraceSummariesCommand(input);
   let response = await client.send(command);
@@ -196,58 +268,150 @@ export async function queryToXray(
   while (response.NextToken) {
     command = new GetTraceSummariesCommand({
       ...input,
-      NextToken: response.NextToken,
+      NextToken: response.NextToken
     });
     response = await client.send(command);
     if (response.TraceSummaries) traces.push(...response.TraceSummaries);
   }
 
-  logger.info(`QueryToXRay Output: ${JSON.stringify(traces)}`);
+  logger.info("End", {funciton: queryToXray.name, output: {traces}});
   return { key: outputKey, value: traces };
 }
 
-// To invoke Bedrock's LLM
-export async function invokeModel(
-  llmPayload: {
-    anthropic_version: string;
-    max_tokens: number;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    messages: any;
-  },
-  modelId: string,
-  logger: Logger,
-): Promise<string> {
-  logger.info(`InvokeModel Input: ${JSON.stringify(llmPayload)}`);
-  const bedrockClient = new BedrockRuntimeClient();
+export async function listGuardDutyFindings(detectorId: string, outputKey: string) {
+  logger.info("Start", {funciton: listGuardDutyFindings.name, input: {detectorId, outputKey}});
+  const guarddutyClient = new GuardDutyClient();
 
-  const invokeModelCommand = new InvokeModelCommand({
-    contentType: "application/json",
-    body: JSON.stringify(llmPayload),
+  let listFindingsCommandInput: ListFindingsCommandInput = {
+    DetectorId: detectorId,
+    FindingCriteria: {
+      Criterion: {
+        severity: {
+          GreaterThanOrEqual: 4.0,
+        },
+      },
+    },
+  };
+  let listFindingsCommand = new ListFindingsCommand(listFindingsCommandInput);
+  let listFindingsResponse = await guarddutyClient.send(listFindingsCommand);
+  const findingIds = listFindingsResponse.FindingIds
+    ? listFindingsResponse.FindingIds
+    : [];
+
+  while (listFindingsResponse.NextToken) {
+    listFindingsCommandInput = {
+      ...listFindingsCommandInput,
+      NextToken: listFindingsResponse.NextToken,
+    };
+
+    listFindingsCommand = new ListFindingsCommand(listFindingsCommandInput);
+    listFindingsResponse = await guarddutyClient.send(listFindingsCommand);
+    if (listFindingsResponse.FindingIds)
+      findingIds.push(...listFindingsResponse.FindingIds);
+  }
+
+  const input: GetFindingsCommandInput = {
+    DetectorId: detectorId,
+    FindingIds: findingIds,
+  };
+  const getFindingsResponse = await guarddutyClient.send(new GetFindingsCommand(input));
+  const findings = getFindingsResponse.Findings
+    ? getFindingsResponse.Findings
+    : [];
+
+  logger.info("End", {funciton: listGuardDutyFindings.name, output: {numberOfFindings: findings.length, findings}});
+  return { key: outputKey, value: findings };
+}
+
+export async function listSecurityHubFindings(outputKey: string) {
+  logger.info("Start", {funciton: listSecurityHubFindings.name, input: {outputKey}});
+  const securityHubClient = new SecurityHubClient();
+
+  const getSecurityHubFindingsInput: GetSecurityHubFindingsCommandInput = {
+    // Refer to configuration of Baseline Environment on AWS
+    // https://github.com/aws-samples/baseline-environment-on-aws/blob/ef33275e8961f4305509eccfb7dc8338407dbc9f/usecases/blea-gov-base-ct/lib/construct/detection.ts#L334
+    Filters: {
+      SeverityLabel: [
+        { Comparison: "EQUALS", Value: "CRITICAL" },
+        { Comparison: "EQUALS", Value: "HIGH" },
+      ],
+      ComplianceStatus: [{ Comparison: "EQUALS", Value: "FAILED" }],
+      WorkflowStatus: [
+        { Comparison: "EQUALS", Value: "NEW" },
+        { Comparison: "EQUALS", Value: "NOTIFIED" },
+      ],
+      RecordState: [{ Comparison: "EQUALS", Value: "ACTIVE" }],
+    },
+  };
+  const getSecurityHubFindingsCommand = new GetSecurityHubFindingsCommand(
+    getSecurityHubFindingsInput
+  );
+
+  const response = await securityHubClient.send(getSecurityHubFindingsCommand);
+  logger.info("End", {funciton: listSecurityHubFindings.name, output: {numberOfFindings: response.Findings?.length, findings: response.Findings}});
+
+  return { key: outputKey, value: response.Findings};
+}
+
+export async function converse(
+  prompt: string, 
+  modelId: string = process.env.MODEL_ID!,
+  inferenceConfig: InferenceConfiguration = {
+    maxTokens: 2000,
+    temperature: 0.1,
+    topP: 0.97
+  }
+){
+  logger.info("Start", {funciton: converse.name, input: {prompt, modelId, inferenceConfig}});
+  const client = new BedrockRuntimeClient();
+  const converseCommandInput :ConverseCommandInput = {
     modelId,
-  });
+    messages: [
+      {
+        "role": "user",
+        "content": [{"text": prompt}]
+      }
+    ],
+    inferenceConfig,
+  }
+  try{
+    const converseOutput = await client.send(new ConverseCommand(converseCommandInput));
+    logger.info("End", {funciton: converse.name, output: {converseOutput}});
+    return converseOutput.output?.message?.content![0].text;
+  }catch(error){
+    logger.error("Something happened", error as Error);
+    return "";
+  }
+}
 
-  const bedrockInvokeModelResponse =
-    await bedrockClient.send(invokeModelCommand);
-  const decodedResponseBody = new TextDecoder().decode(
-    bedrockInvokeModelResponse.body,
-  );
-
-  logger.info(
-    `InvokeModel Output: ${JSON.parse(decodedResponseBody).content[0].text}`,
-  );
-  return JSON.parse(decodedResponseBody).content[0].text;
+export async function invokeAsyncLambdaFunc(
+  payload: string,
+  functionName: string
+) {
+  logger.info("Start", {funciton: invokeAsyncLambdaFunc.name, input: {payload, functionName}});
+  const lambdaClient = new LambdaClient();
+  const input: InvokeCommandInputType = {
+    FunctionName: functionName,
+    InvocationType: "Event",
+    Payload: payload
+  };
+  const invokeCommand = new InvokeCommand(input);
+  logger.info("Send command", {command: invokeCommand});
+  const res = await lambdaClient.send(invokeCommand);
+  logger.info("End", {funciton: invokeAsyncLambdaFunc.name, output: {response: res}});
+  return res;
 }
 
 // To publish the message, like a answer and a error message, via SNS.
 export async function publish(
   topicArn: string,
   message: string,
-  logger: Logger,
 ) {
-  logger.info(`Publish Input: ${topicArn}, ${message}`);
+  logger.info("Start", {function: publish.name, input: {topicArn, message}});
   const snsClient = new SNSClient();
+  let res;
   try {
-    const res = await snsClient.send(
+    res = await snsClient.send(
       new PublishCommand({
         TopicArn: topicArn,
         Message: message,
@@ -260,24 +424,30 @@ export async function publish(
       }, ${JSON.stringify(res.$metadata)}`,
     );
   } catch (error) {
-    logger.error(`${JSON.stringify(error)}`);
+    logger.error("Something happened", error as Error);
   }
+  logger.info("End", {funciton: publish.name, output: {response: res}});
 }
 
-export async function invokeAsyncLambdaFunc(
-  payload: string,
-  functionName: string,
-  logger: Logger,
-) {
-  logger.info(`InvokeAsyncLambda input: ${payload}, ${functionName}`);
-  const lambdaClient = new LambdaClient();
-  const input: InvokeCommandInputType = {
-    FunctionName: functionName,
-    InvocationType: "Event",
-    Payload: payload,
-  };
-  const invokeCommand = new InvokeCommand(input);
-  logger.info(`send command: ${invokeCommand}`);
-  const res = await lambdaClient.send(invokeCommand);
-  return res;
+export async function uploadFileAndGetUrl(bucketName: string, key: string, file: StreamingBlobPayloadInputTypes, ){
+  logger.info("Start", {function: uploadFileAndGetUrl.name, input: {bucketName, key, file: file.toString().slice(0,10)}});
+  const s3Client = new S3Client();
+
+  try{
+    const putObjCommand = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: file
+    });
+    const res = await s3Client.send(putObjCommand)
+    logger.info("Put result", {response: res})
+
+    const getObjCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
+    const url = await getSignedUrl(s3Client, getObjCommand, {expiresIn: 3600})
+    logger.info("End", {function: uploadFileAndGetUrl.name, output:{url}})
+    return url;
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+    return ""
+  }
 }
