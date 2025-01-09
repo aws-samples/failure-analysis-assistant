@@ -37,13 +37,12 @@ export class AuroraServerless extends Construct {
     super(scope, id);
     
     const secret = rds.Credentials.fromGeneratedSecret('postgres', {
-      secretName: 'aurora-secret',
+      secretName: `aurora-secret-${Stack.of(this).stackName.toLocaleLowerCase()}`,
     });
 
     // Security Group
     const auroraSG = new ec2.SecurityGroup(this, 'AuroraSecurityGroup', {
       vpc: props.vpc,
-      securityGroupName: 'aurora-security-group',
     })
 
     // Create the serverless cluster, provide all values needed to customise the database.
@@ -95,11 +94,11 @@ export class AuroraServerless extends Construct {
           resources: ['*'],
         }),
         new iam.PolicyStatement({
-          actions: ['rds:DescribeDBClusters'],
-          resources: [cluster.clusterArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ['rds-data:ExecuteStatement','rds-data:BatchExecuteStatement'],
+          actions: [
+            'rds:DescribeDBClusters', 
+            'rds-data:ExecuteStatement',
+            'rds-data:BatchExecuteStatement'
+          ],
           resources: [cluster.clusterArn],
         }),
         new iam.PolicyStatement({
@@ -108,9 +107,7 @@ export class AuroraServerless extends Construct {
         })
       ],
     });
-    cluster.secret!.grantRead(lambdaFunction);
     auroraSG.addIngressRule(lambdaFunction.connections.securityGroups[0], ec2.Port.tcp(5432));
-    lambdaFunction.connections.allowTo(cluster, ec2.Port.tcp(5432));
 
     const provider = new cr.Provider(this, "CustomResourceProvider", {
       onEventHandler: lambdaFunction,

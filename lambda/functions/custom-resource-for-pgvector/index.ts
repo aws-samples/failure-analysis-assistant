@@ -96,10 +96,8 @@ async function executeSqlCommands(
 ) {
   try {
     await connection.query("CREATE EXTENSION IF NOT EXISTS vector;");
-    console.log("created extension %s", schemaName);
 
     await connection.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName};`);
-    console.log("created schema %s", schemaName);
 
     await connection.query(`
       DO $$
@@ -108,10 +106,8 @@ async function executeSqlCommands(
       EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '%, moving to next statement', SQLERRM USING ERRCODE = SQLSTATE;
       END
       $$`);
-    console.log("created role");
 
     await connection.query(`GRANT ALL ON SCHEMA ${schemaName} TO bedrock_user;`);
-    console.log("granted schema to user");
 
     await connection.query(
       `CREATE TABLE IF NOT EXISTS ${schemaName}.${tableName} (
@@ -121,13 +117,11 @@ async function executeSqlCommands(
         ${metadataField} json
       );`
     );
-    console.log("created table");
 
     await connection.query(
       `CREATE INDEX IF NOT EXISTS ${vectorField}_idx ON ${schemaName}.${tableName} 
       USING hnsw (${vectorField} vector_cosine_ops);`
     );
-    console.log("created index");
 
   } catch (error) {
     throw new Error("Error executing SQL commands: " + JSON.stringify(error));
