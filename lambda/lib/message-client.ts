@@ -2,6 +2,7 @@ import { format, parse } from "date-fns";
 import { publish } from "./aws-modules.js";
 import logger from "./logger.js";
 import { Language } from "../../parameter.js";
+import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 function convertDateFormat(dateString: string): string {
   // Parse dateString from specific format
@@ -243,6 +244,48 @@ ${answer} `;
 Findings report was created. This URL expires in 1 hour.\n
 <${signedUrl}|Download URL> 
 `
+    }
+  }
+
+  // Message template for retrieve result.
+  public createRetrieveResultMessage(
+    output: string,
+    citations: Citation[],
+  ) {
+    if(this.language === "ja"){
+      return `
+過去ドキュメントを検索した結果、以下の情報が得られました。\n
+${citations.map((citation, index) => {
+`
+*[${index}]*\n
+*過去ドキュメントからの原因仮説や解決策: *\n
+${citation.generatedResponsePart!.textResponsePart!.text}\n
+*検索で該当した参考ドキュメントの抜粋: *\n
+${citation.retrievedReferences?.map((ref) => 
+`
+${ref.content!.text}
+ファイルURL: ${ref.location && ref.location.s3Location ? ref.location?.s3Location?.uri : "No URL"}
+`)}\n
+`
+})}
+`;
+    }else{
+      return `
+Earned the information by retrieving the docs in Knowledge Base.\n
+${citations.map((citation, index) => {
+`
+*[${index}]*\n
+*Assumption of root cause analysis: *\n
+${citation.generatedResponsePart!.textResponsePart!.text}\n
+*Citations: *\n
+${citation.retrievedReferences?.map((ref) => 
+`
+${ref.content!.text}
+URL: ${ref.location && ref.location.s3Location ? ref.location?.s3Location?.uri : "No URL"}
+`)}\n
+`
+})}
+`;
     }
   }
 

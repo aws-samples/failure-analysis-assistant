@@ -1,5 +1,5 @@
 {
-  "name": "fa2-lambda",
+  "name": "custom-resource-for-pgvector",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
@@ -8,16 +8,11 @@
   "devDependencies": {
     "@aws-sdk/types": "^3.418.0",
     "@types/aws-lambda": "^8.10.115",
-    "@types/lodash": "^4.14.202",
     "@types/node": "^20.1.2",
     "@types/tough-cookie": "^4.0.2"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agent-runtime": "^3.723.0",
-    "@sparticuz/chromium": "^129.0.0",
-    "lodash": "^4.17.21",
-    "p-limit": "^5.0.0",
-    "puppeteer-core": "^23.5.3"
+    "postgrejs": "^2.22.2"
   },
   "private": true
 }

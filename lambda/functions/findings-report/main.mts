@@ -13,7 +13,7 @@ export const handler: Handler = async () => {
   logger.info("Request started");
 
   // Environment variables
-  const modelId = process.env.MODEL_ID;
+  const modelId = process.env.QUALITY_MODEL_ID;
   const lang: Language = process.env.LANG
     ? (process.env.LANG as Language)
     : "en";

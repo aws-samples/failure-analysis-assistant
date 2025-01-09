@@ -48,6 +48,13 @@ import {
   InferenceConfiguration,
 } from "@aws-sdk/client-bedrock-runtime";
 import {
+  BedrockAgentRuntimeClient,
+  KnowledgeBaseRetrievalResult,
+  RetrieveAndGenerateCommand,
+  RetrieveCommand,
+  RetrieveCommandOutput,
+} from "@aws-sdk/client-bedrock-agent-runtime";
+import {
   LambdaClient,
   InvokeCommandInputType,
   InvokeCommand
@@ -355,7 +362,7 @@ export async function listSecurityHubFindings(outputKey: string) {
 
 export async function converse(
   prompt: string, 
-  modelId: string = process.env.MODEL_ID!,
+  modelId: string = process.env.QUALITY_MODEL_ID!,
   inferenceConfig: InferenceConfiguration = {
     maxTokens: 2000,
     temperature: 0.1,
@@ -449,5 +456,107 @@ export async function uploadFileAndGetUrl(bucketName: string, key: string, file:
   } catch (error) {
     logger.error("Something happened", error as Error);
     return ""
+  }
+}
+
+export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, outputKey: string) {
+
+  logger.info("Start", {function: retrieveAndGenerate.name, input: {knowledgeBaseId, retrieveQuery}});
+
+  const client = new BedrockAgentRuntimeClient();
+  try {
+    const retrieveCommand = new RetrieveCommand({
+      knowledgeBaseId: knowledgeBaseId,
+      retrievalQuery: {
+        text: retrieveQuery,
+      },
+      retrievalConfiguration: {
+        vectorSearchConfiguration: {
+          numberOfResults: 5,
+          overrideSearchType: 'SEMANTIC',
+          rerankingConfiguration: {
+            type: 'BEDROCK_RERANKING_MODEL',
+            bedrockRerankingConfiguration: {
+              modelConfiguration: {
+                modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.RERANKING_MODEL_ID!}`,
+              },
+              numberOfRerankedResults: 5,
+            }
+          }
+        },
+      },
+    });
+    const retrieveResponse: RetrieveCommandOutput = await client.send(retrieveCommand);
+    logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
+    return {
+      key: outputKey,
+      value: retrieveResponse.retrievalResults!.map((result, index) => `[${index}]${result.content?.text}\n`)
+    }
+  } catch (error) {
+    logger.error("Something happend", error as Error);
+    return [] as KnowledgeBaseRetrievalResult[];
+  }
+}
+
+export async function retrieveAndGenerate(knowledgeBaseId: string, retrieveQuery: string, errorDescription: string) {
+  logger.info("Start", {function: retrieveAndGenerate.name, input: {knowledgeBaseId, retrieveQuery, errorDescription}});
+
+  const client = new BedrockAgentRuntimeClient();
+  try {
+    const retrieveCommand = new RetrieveAndGenerateCommand({
+      input: {
+        text: retrieveQuery,
+      },
+      retrieveAndGenerateConfiguration: {
+        knowledgeBaseConfiguration: {
+          knowledgeBaseId: knowledgeBaseId,
+          modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.FAST_MODEL_ID!}`,
+          retrievalConfiguration: {
+            vectorSearchConfiguration: {
+              numberOfResults: 5,
+              overrideSearchType: 'SEMANTIC',
+              rerankingConfiguration: {
+                type: 'BEDROCK_RERANKING_MODEL',
+                bedrockRerankingConfiguration: {
+                  modelConfiguration: {
+                    modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.RERANKING_MODEL_ID!}`,
+                  },
+                  numberOfRerankedResults: 5,
+                }
+              }
+            },
+          },
+          generationConfiguration: {
+            promptTemplate: {
+              textPromptTemplate: `
+              あなたの仕事は、検索結果の情報のみを使用してユーザーの質問に答えることです。
+              以下のルールに必ず従ってください。
+              <rules>
+              * 検索結果に質問に回答できる情報が含まれていない場合は、「質問に対する正確な回答が見つかりませんでした」と回答してください。
+              * 回答の末尾には、% [1]%、% [2]%、% [3]% などのマーカーを使って引用を追加してください。対応する箇所が回答を裏付けるためです。
+              * 回答には必ず簡単な説明を追加してください。回答は簡潔かつ包括的にしてください。
+              </rules>
+
+              運用者から${errorDescription}という報告が上がっています。
+              以下に示す検索結果を元に、根本原因と解決策を推測してください。
+              $search_results$
+
+              $output_format_instructions$
+              `
+            }
+          }
+        },
+        type: "KNOWLEDGE_BASE",
+      },
+    });
+    const retrieveResponse = await client.send(retrieveCommand);
+    logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
+    return {
+      output: retrieveResponse.output,
+      citations: retrieveResponse.citations
+    };
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+    return {};
   }
 }
