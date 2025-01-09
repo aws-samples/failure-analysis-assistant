@@ -32,7 +32,7 @@ export const devParameter: AppParameter = {
   language: "ja",
   envName: "Development",
   qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  fastModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
   topicArn: "arn:aws:sns:us-east-1:123456789012:MonitoringAlarmTopicXXXXXXXX-xxxxxxxxxxxx",
   architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
   cwLogsLogGroups: [

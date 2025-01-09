@@ -94,7 +94,8 @@ export const devParameter: AppParameter = {
 | `env.region`             | `"us-east-1"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
 | `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
 | `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
-| `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Put the model ID of Amazon Bedrock you want to use. Please check access grants of chosen model.                                                                                             |
+| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc.                                                                      |
+| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what model access allows. Here, please specify a model that emphasizes the speed of generation. It is used for query expansion, etc.                                                                      |
 | `topicArn`               | `"arn:aws:sns:us-east-1:123456789012:ExampleTopic"`                       | The ARN of the Amazon SNS topic that is handing events to AWS Chatbot.                                                                               |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
@@ -105,6 +106,8 @@ export const devParameter: AppParameter = {
 | `insight`              | `true`                                                                    | If you turn on Metrics Insight feature, Please set `true` for this parameter.                                                                                                      |
 | `findingsReport`              | `true`                                                                    |  If you turn on Findings Report feature, Please set `true` for this parameter.                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
+| `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
+| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | Required when using the Knowledge Base. Set up the Rerank Model.                                                                                                      |
 
 #### Modify prompts
 
@@ -130,6 +133,12 @@ npx cdk deploy --all --profile {your_profile} --require-approval never
 > [!NOTE]
 > The part that begins with the description of `// Additional process` in `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` that is the process of generating a hypothetical diagram of the cause of the fault.
 > If you don't need to generate a diagram, comment out or delete this part.
+
+### [Optional] Sync datasource of Knowledge Base
+
+When you enabled `knowledgeBase` property, a knowledge base and a datasource are provisioned.
+After checking the status of them, you need to upload the related documents to S3 that is a datasource of knowledge base.
+By default, there is no data in the Knowledge Base.
 
 ### Configuration for Custom Action
 
