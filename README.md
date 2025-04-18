@@ -87,7 +87,7 @@ export const devParameter: AppParameter = {
   insight: true,
   findingsReport: true,
   detectorId: "xxxxxxxxxxxxxxx",
-  nowledgeBase: true,
+  knowledgeBase: true,
   rerankModelId: "amazon.rerank-v1:0"
 };
 ```
