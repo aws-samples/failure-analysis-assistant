@@ -1,5 +1,5 @@
 import _ from "lodash";
-import { Language } from "../../parameter.ts_old";
+import { Language } from "../../parameter.js";
 import logger from "./logger.js";
 
 export class Prompt {
@@ -20,12 +20,8 @@ export class Prompt {
     metrics?: string,
     albAccessLogs?: string,
     cloudTrailLogs?: string,
-<<<<<<< HEAD
-    xrayTraces?: string
-=======
     xrayTraces?: string,
     retrieveResults?: string
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     ) {
     logger.info("Start", {
       function: this.createFailureAnalysisPrompt.name,
@@ -43,12 +39,8 @@ export class Prompt {
       prompt = `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。必ず日本語で回答してください。
         あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
         現在、運用管理者から ${query} という事象が発生したとの連絡がありました。
-<<<<<<< HEAD
-        あなたは、<logs>タグに与えられたログと<metrics>タグに与えられたメトリクス、<trace>タグに与えられたトレースを確認し、発生した事象の根本原因を推測してください。
-=======
         あなたは、<logs>タグに与えられたログと<metrics>タグに与えられたメトリクス、<trace>タグに与えられたトレース、
         <documents>タグに与えられた事象に関連した資料を確認し、発生した事象の根本原因を推測してください。
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
         根本原因を記述する際に、参考にしたログやメトリクスの内容についても記載し、運用管理者が実際のログやメトリクスを確認しやすくしてください。
         <logs>
           <ApplicationLogs>${applicationLogs}</ApplicationLogs>
@@ -73,11 +65,8 @@ export class Prompt {
 
       prompt += xrayTraces ? `<traces>${xrayTraces}</traces>` : "";
 
-<<<<<<< HEAD
-=======
       prompt += retrieveResults ? `<documents>${retrieveResults}</documents>` : "";
 
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       prompt += "発生した事象の根本原因 : ";
     }else{
       prompt = `You are an agent that monitors and operates workloads running on AWS.
@@ -380,8 +369,6 @@ export class Prompt {
     `  
   }
 
-<<<<<<< HEAD
-=======
   // To retrieve system manuals and tickets data from knowledge base
   public createPromptToRetrieveDocs(
     errorDescription: string
@@ -399,7 +386,6 @@ export class Prompt {
     `
   }
 
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
   static getStringValueFromQueryResult(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     queryResult: any[],

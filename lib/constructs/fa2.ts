@@ -10,7 +10,7 @@ import {
 import { Construct } from "constructs";
 import * as path from "path";
 import { Bucket } from "./bucket";
-import { Language, SlashCommands } from "../../parameter.ts_old";
+import { Language } from "../../parameter.js";
 
 interface FA2Props {
   language: Language;
@@ -21,7 +21,6 @@ interface FA2Props {
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
@@ -36,8 +35,6 @@ export class FA2 extends Construct {
   backendFunction: lambdaNodejs.NodejsFunction;
   metricsInsightRole: iam.Role;
   findingsReportRole: iam.Role;
-  slackHandlerRole: iam.Role;
-  slackRestApi: apigateway.RestApi;
   constructor(scope: Construct, id: string, props: FA2Props) {
     super(scope, id);
 

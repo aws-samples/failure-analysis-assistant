@@ -14,7 +14,7 @@ import {
 } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
-import { Language } from "../../../parameter.ts_old";
+import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
 import { convertMermaidToImage } from "../../lib/puppeteer.js";
 
@@ -140,15 +140,12 @@ export const handler: Handler = async (event: {
       input.push(
         limit(() => queryToXray(startDate, endDate, "XrayTraces"))
       );
-<<<<<<< HEAD
-=======
     } 
 
     if (knowledgeBaseId != null && knowledgeBaseId != "") {
       input.push(
         limit(() => retrieve(knowledgeBaseId, retrieveQuery, "Retrieve"))
       )
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     }
 
     const results = await Promise.all(input);
@@ -173,12 +170,8 @@ export const handler: Handler = async (event: {
           results,
           "CloudTrailLogs",
         ),
-<<<<<<< HEAD
-        Prompt.getStringValueFromQueryResult(results, "XrayTraces")
-=======
         Prompt.getStringValueFromQueryResult(results, "XrayTraces"),
         Prompt.getStringValueFromQueryResult(results, "Retrieve")
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       );
 
     logger.info("Made prompt", {prompt: failureAnalysisPrompt});
@@ -187,24 +180,9 @@ export const handler: Handler = async (event: {
 
     if(!answer) throw new Error("No response from LLM");
 
-<<<<<<< HEAD
-    // We assume that threshold is 3,500. And it's not accurate. Please modify this value when you met error. 
-    if(answer.length < 3500){
-      // Send the answer to Slack directly.
-      await messageClient.sendMessage(
-        messageClient.createMessageBlock(answer),
-        channelId,
-        threadTs
-      );
-    }else{
-      // Send the snippet of answer instead of message due to limitation of message size.
-      await messageClient.sendMarkdownSnippet("answer.md", answer, channelId, threadTs)
-    }
-=======
     await messageClient.sendMessage(
       messageClient.createAnswerMessage(alarmName, alarmTimestamp, answer)
     );
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
 
     logger.info('Success to get answer:', answer);
 
@@ -222,16 +200,6 @@ export const handler: Handler = async (event: {
       );
     logger.info('Success to create HowToGetLogs', {howToGetLogs});
 
-<<<<<<< HEAD
-    // Send the explanation to Slack directly.
-    await messageClient.sendMarkdownSnippet(
-      "HowToGet.md",
-      howToGetLogs,
-      channelId,
-      threadTs
-    );
-
-=======
     // Send the explanation how to get logs, metrics, and traces.
     await messageClient.sendMessage(howToGetLogs);
 
@@ -239,7 +207,6 @@ export const handler: Handler = async (event: {
     // It doesn't allow to call fileUpload API of Slack via them.
     // So, we upload an image via S3.
     
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     /* ****** */
     // Additional process. It shows the root cause on the image.
     // If you don't need it, please comment out below.
@@ -256,48 +223,18 @@ export const handler: Handler = async (event: {
       throw new Error("Failed to create Mermaid image")
     }
 
-<<<<<<< HEAD
-    await messageClient.sendFile(png, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, channelId, threadTs);
-        
-=======
     // You will set the environment variable of OUTPUT_BUCKET for this lambda function.
     const signedUrl = await uploadFileAndGetUrl(outputBucket, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, png);
 
     await messageClient.sendMessage(messageClient.createArchitectureImageMessage(signedUrl));
          
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     // end of output image task
     /* ****** */
 
   } catch (error) {
     logger.error("Something happened", error as Error);
     // Send the form to retry when error was occured.
-<<<<<<< HEAD
-    if(channelId && threadTs){
-      await messageClient.sendMessage(
-        messageClient.createErrorMessageBlock(),
-        channelId, 
-        threadTs
-      );
-      await messageClient.sendMessage( 
-        messageClient.createMessageBlock(
-          lang === "ja" 
-            ? "リトライしたい場合は、以下のフォームからもう一度同じ内容のリクエストを送ってください。" 
-            : "If you want to retry it, you send same request again from below form."
-        ),
-        channelId, 
-        threadTs
-      );
-      const now = toZonedTime(new Date(), "Asia/Tokyo");
-      await messageClient.sendMessage(
-        messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
-        channelId,
-        threadTs
-      )
-    }
-=======
     await messageClient.sendMessage(messageClient.createErrorMessage());
->>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
   }
   return;
 };

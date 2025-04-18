@@ -3,7 +3,7 @@ import { sub } from "date-fns";
 import { listMetrics, queryToCWMetrics, generateMetricDataQuery, converse } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
-import { Language } from "../../../parameter.ts_old";
+import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
 
 export const handler: Handler = async (event: {
