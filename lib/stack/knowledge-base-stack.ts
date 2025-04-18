@@ -9,7 +9,7 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 interface KnowledgeBaseStackProps extends StackProps {
   envName: string;
   fa2BackendFunction: NodejsFunction;
-  rerankModelId: string;
+  rerankModelId?: string;
 }
 
 export class KnowledgeBaseStack extends Stack {
@@ -33,7 +33,7 @@ export class KnowledgeBaseStack extends Stack {
     })
     knowledgeBase.node.addDependency(auroraServerless.cluster);
     props.fa2BackendFunction.addEnvironment("KNOWLEDGEBASE_ID", knowledgeBase.knowledgeBaseId);
-    props.fa2BackendFunction.addEnvironment("RERANK_MODEL_ID", props.rerankModelId);
+    props.rerankModelId && props.fa2BackendFunction.addEnvironment("RERANK_MODEL_ID", props.rerankModelId);
 
     // add permissions to fa2 backend function
     props.fa2BackendFunction.addToRolePolicy(
@@ -53,15 +53,17 @@ export class KnowledgeBaseStack extends Stack {
         resources: [`arn:aws:bedrock:${Stack.of(this).region}:${Stack.of(this).account}:knowledge-base/${knowledgeBase.knowledgeBaseId}`],
       })
     );
-    props.fa2BackendFunction.addToRolePolicy(
-      new PolicyStatement({
-        actions: [
-          'bedrock:InvokeModel'
-        ],
-        resources: [
-          `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.rerankModelId}`,
-        ],
-      })
-    )
+    if (props.rerankModelId) {
+      props.fa2BackendFunction.addToRolePolicy(
+        new PolicyStatement({
+          actions: [
+            'bedrock:InvokeModel'
+          ],
+          resources: [
+            `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.rerankModelId}`,
+          ],
+        })
+      )
+    }
   }
 }

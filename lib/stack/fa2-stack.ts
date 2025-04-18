@@ -1,7 +1,7 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language } from "../../parameter.js";
+import { Language } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 

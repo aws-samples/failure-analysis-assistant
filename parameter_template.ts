@@ -24,6 +24,7 @@ export interface AppParameter {
   findingsReport: boolean;
   detectorId?: string;
   knowledgeBase?: boolean;
+  reranking: boolean;
   rerankModelId?: string;
 }
 
@@ -53,5 +54,5 @@ export const devParameter: AppParameter = {
   findingsReport: true,
   detectorId: "ccc7636809ab9ef126976785ad0df79e",
   knowledgeBase: true,
-  rerankModelId: "amazon.rerank-v1:0"
+  reranking: false,
 };

@@ -17,6 +17,7 @@ import { MessageClient } from "../../lib/message-client.js";
 import { Language } from "../../../parameter.js";
 import logger from "../../lib/logger.js"; 
 import { convertMermaidToImage } from "../../lib/puppeteer.js";
+import { RerankingConfigurationType } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/index.js";
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -55,7 +56,8 @@ export const handler: Handler = async (event: {
   const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
   const topicArn = process.env.TOPIC_ARN;
   const outputBucket = process.env.OUTPUT_BUCKET;
-  const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID;
+  const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID !== "" ? process.env.KNOWLEDGEBASE_ID : undefined;
+  const rerankModelId = process.env.RERANK_MODEL_ID !== "" ? process.env.RERANK_MODEL_ID : undefined;
 
   const messageClient = new MessageClient(topicArn!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
@@ -75,7 +77,7 @@ export const handler: Handler = async (event: {
 
     // If Knowledge Base is enabled, generate retrieve query
     let retrieveQuery: string = '';
-    if(knowledgeBaseId != null && knowledgeBaseId != '') {
+    if(knowledgeBaseId) {
       const promptToRetrieveDocs: string = knowledgeBaseId ? prompt.createPromptToRetrieveDocs(errorDescription) : '';
       retrieveQuery = split(split((await converse(promptToRetrieveDocs, fastModelId)), '<retrieveQuery>')[1], '</retrieveQuery>')[0]
     }
@@ -142,9 +144,9 @@ export const handler: Handler = async (event: {
       );
     } 
 
-    if (knowledgeBaseId != null && knowledgeBaseId != "") {
+    if (knowledgeBaseId) {
       input.push(
-        limit(() => retrieve(knowledgeBaseId, retrieveQuery, "Retrieve"))
+        limit(() => retrieve(knowledgeBaseId, retrieveQuery, rerankModelId, "Retrieve"))
       )
     }
 

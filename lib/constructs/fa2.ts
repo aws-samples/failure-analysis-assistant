@@ -10,7 +10,7 @@ import {
 import { Construct } from "constructs";
 import * as path from "path";
 import { Bucket } from "./bucket";
-import { Language } from "../../parameter.js";
+import { Language } from "../../parameter";
 
 interface FA2Props {
   language: Language;
@@ -27,7 +27,6 @@ interface FA2Props {
   insight?: boolean;
   findingsReport?: boolean;
   detectorId?: string;
-  knowledgeBaseId?: string;
 }
 
 export class FA2 extends Construct {
@@ -152,7 +151,7 @@ export class FA2 extends Construct {
           loggroups: props.cwLogLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
-        OUTPUT_BUCKET: outputBucket.bucket.bucketName
+        OUTPUT_BUCKET: outputBucket.bucket.bucketName,
       },
       layers: [converterLayer],
       bundling: {
@@ -313,11 +312,6 @@ export class FA2 extends Construct {
         }),
       );
       fa2Function.addEnvironment("XRAY_TRACE", "true");
-    }
-
-    // If you turn on Knowledge Base for FA2
-    if(props.knowledgeBaseId) {
-      fa2Function.addEnvironment('KNOWLEDGEBASE_ID', props.knowledgeBaseId)
     }
 
     // For the command of metrics insight

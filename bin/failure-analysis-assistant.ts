@@ -1,6 +1,6 @@
 import "source-map-support/register";
 import { App, Aspects } from "aws-cdk-lib";
-import { devParameter } from "../parameter.js";
+import { devParameter } from "../parameter";
 import { FA2Stack } from "../lib/stack/fa2-stack";
 import { AwsSolutionsChecks } from "cdk-nag";
 import { KnowledgeBaseStack } from "../lib/stack/knowledge-base-stack";
@@ -35,7 +35,7 @@ const fa2Stack = new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   detectorId: devParameter.detectorId,
 });
 
-if(devParameter.knowledgeBase && devParameter.rerankModelId){
+if(devParameter.knowledgeBase){
   new KnowledgeBaseStack(app, `${devParameter.envName.slice(0,3)}-KnowledgeBase`, {
     env: {
       account: devParameter.env?.account || process.env.CDK_DEFAULT_ACCOUNT,

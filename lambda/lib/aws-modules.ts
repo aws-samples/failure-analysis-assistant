@@ -459,33 +459,40 @@ export async function uploadFileAndGetUrl(bucketName: string, key: string, file:
   }
 }
 
-export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, outputKey: string) {
+export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, rerankModelId: string|undefined, outputKey: string) {
 
   logger.info("Start", {function: retrieveAndGenerate.name, input: {knowledgeBaseId, retrieveQuery}});
 
   const client = new BedrockAgentRuntimeClient();
   try {
-    const retrieveCommand = new RetrieveCommand({
-      knowledgeBaseId: knowledgeBaseId,
-      retrievalQuery: {
-        text: retrieveQuery,
-      },
-      retrievalConfiguration: {
-        vectorSearchConfiguration: {
-          numberOfResults: 5,
-          overrideSearchType: 'SEMANTIC',
-          rerankingConfiguration: {
-            type: 'BEDROCK_RERANKING_MODEL',
-            bedrockRerankingConfiguration: {
-              modelConfiguration: {
-                modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.RERANKING_MODEL_ID!}`,
-              },
-              numberOfRerankedResults: 5,
-            }
-          }
+    const retrieveCommand = rerankModelId ? 
+      new RetrieveCommand({
+        knowledgeBaseId: knowledgeBaseId,
+        retrievalQuery: {
+          text: retrieveQuery,
         },
-      },
-    });
+        retrievalConfiguration: {
+          vectorSearchConfiguration: {
+            numberOfResults: 5,
+            overrideSearchType: 'SEMANTIC',
+            rerankingConfiguration: {
+              type: 'BEDROCK_RERANKING_MODEL',
+              bedrockRerankingConfiguration: {
+                modelConfiguration: {
+                  modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${rerankModelId}`,
+                },
+                numberOfRerankedResults: 5,
+              }
+            }
+          },
+        },
+      }):
+      new RetrieveCommand({
+        knowledgeBaseId: knowledgeBaseId,
+        retrievalQuery: {
+          text: retrieveQuery,
+        },
+      })
     const retrieveResponse: RetrieveCommandOutput = await client.send(retrieveCommand);
     logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
     return {
