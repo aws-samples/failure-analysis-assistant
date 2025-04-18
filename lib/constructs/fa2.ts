@@ -3,21 +3,20 @@ import {
   aws_iam as iam,
   aws_lambda as lambda,
   aws_lambda_nodejs as lambdaNodejs,
-  aws_logs as logs,
-  aws_secretsmanager as secretsManager,
+  aws_sns as sns,
   Duration,
-  Stack,
+  Stack
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
 import { Bucket } from "./bucket";
-import { Language, SlashCommands } from "../../parameter";
+import { Language, SlashCommands } from "../../parameter.ts_old";
 
 interface FA2Props {
   language: Language;
-  modelId: string;
-  slackAppTokenKey: string;
-  slackSigningSecretKey: string;
+  qualityModelId: string;
+  fastModelId: string;
+  topicArn: string;
   architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
@@ -26,11 +25,15 @@ interface FA2Props {
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+  insight?: boolean;
+  findingsReport?: boolean;
   detectorId?: string;
+  knowledgeBaseId?: string;
 }
 
 export class FA2 extends Construct {
   backendRole: iam.Role;
+  backendFunction: lambdaNodejs.NodejsFunction;
   metricsInsightRole: iam.Role;
   findingsReportRole: iam.Role;
   slackHandlerRole: iam.Role;
@@ -46,17 +49,11 @@ export class FA2 extends Construct {
       throw new Error("Please configure CloudWatch Logs LogGroups and Query.");
     }
 
-    // Slack Credentials
-    const token = secretsManager.Secret.fromSecretNameV2(
-      this,
-      "SlackAppToken",
-      props.slackAppTokenKey,
-    );
-    const signingSecret = secretsManager.Secret.fromSecretNameV2(
-      this,
-      "SlackSigningSecret",
-      props.slackSigningSecretKey
-    );
+    // SNS Topic that is associated to AWS Chatbot
+    const snsTopic = sns.Topic.fromTopicArn(this, "TopicOfChatbot", props.topicArn);
+
+    // The bucket to upload output of each functions.
+    const outputBucket = new Bucket(this, "FA2OutputBucket");
 
     // Function of Failure Analysis
     const fa2BackendRole = new iam.Role(this, "FA2BackendRole", {
@@ -112,16 +109,27 @@ export class FA2 extends Construct {
               effect: iam.Effect.ALLOW,
               actions: ["bedrock:InvokeModel"],
               resources: [
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                  props.modelId
-                }`,
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.qualityModelId}`,
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.fastModelId}`,
                 `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`
               ],
             }),
           ],
         }),
+        // s3
+        s3: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["s3:*"],
+              resources: [outputBucket.bucket.bucketArn, `${outputBucket.bucket.bucketArn}/*`]
+            })
+          ]
+        })
       },
     });
+    snsTopic.grantPublish(fa2BackendRole);
+    outputBucket.bucket.grantReadWrite(fa2BackendRole);
     this.backendRole = fa2BackendRole;
     // Layer includes fonts and nodejs directroies.
     // Font file is necessary to show Japanese characters in the diagram.
@@ -138,14 +146,16 @@ export class FA2 extends Construct {
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
-        MODEL_ID: props.modelId,
+        QUALITY_MODEL_ID: props.qualityModelId,
+        FAST_MODEL_ID: props.fastModelId,
         LANG: props.language,
-        SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
+        TOPIC_ARN: props.topicArn,
         ARCHITECTURE_DESCRIPTION: props.architectureDescription,
         CW_LOGS_LOGGROUPS: JSON.stringify({
           loggroups: props.cwLogLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
+        OUTPUT_BUCKET: outputBucket.bucket.bucketName
       },
       layers: [converterLayer],
       bundling: {
@@ -160,7 +170,7 @@ export class FA2 extends Construct {
       },
       role: fa2BackendRole,
     });
-    token.grantRead(fa2Function);
+    this.backendFunction = fa2Function;
 
     // Existed workload has athena database and tables
     if (
@@ -308,80 +318,13 @@ export class FA2 extends Construct {
       fa2Function.addEnvironment("XRAY_TRACE", "true");
     }
 
-    // Function and API Endpoint for Slack App
-    const slackHandlerRole = new iam.Role(this, "SlackHandlerRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      managedPolicies: [
-        // To put lambda logs to CloudWatch Logs
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole",
-        ),
-      ],
-    });
-    this.slackHandlerRole = slackHandlerRole;
-
-    const slackHandler = new lambdaNodejs.NodejsFunction(
-      this,
-      "SlackHandler",
-      {
-        runtime: lambda.Runtime.NODEJS_20_X,
-        timeout: Duration.seconds(600),
-        entry: path.join(
-          __dirname,
-          "../../lambda/functions/slack-handler/main.mts",
-        ),
-        environment: {
-          LANG: props.language,
-          SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
-          SLACK_SIGNING_SECRET_KEY: props.slackSigningSecretKey,
-          FUNCTION_NAME: fa2Function.functionName,
-        },
-        role: slackHandlerRole,
-        bundling: {
-          minify: true,
-          keepNames: true,
-          mainFields: ["module", "main"],
-          // To solve warning of esbuild
-          externalModules: ["@aws-sdk/*", "bufferutil", "utf-8-validate"],
-          tsconfig: path.join(__dirname, "../../tsconfig.json"),
-          format: lambdaNodejs.OutputFormat.ESM,
-          esbuildArgs: {
-            "--tree-shaking": "true",
-          },
-          // Ref: https://docs.powertools.aws.dev/lambda/typescript/2.0.2/upgrade/#unable-to-use-esm
-          banner:
-            "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
-        },
-      },
-    );
-    token.grantRead(slackHandler);
-    signingSecret.grantRead(slackHandler);
-    fa2Function.grantInvoke(slackHandler);
-
-    const logGroup = new logs.LogGroup(this, "ApiGatewayLogGroup");
-    const restApi = new apigateway.RestApi(this, "SlackHandlerEndpoint", {
-      deployOptions: {
-        stageName: "v1",
-        accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
-        accessLogFormat: apigateway.AccessLogFormat.clf(),
-        loggingLevel: apigateway.MethodLoggingLevel.INFO,
-      },
-    });
-    this.slackRestApi = restApi;
-    restApi.addRequestValidator("ApiGatewayRequestValidator", {
-      validateRequestBody: true,
-      validateRequestParameters: true,
-    });
-    const slackEvents = restApi.root
-      .addResource("slack")
-      .addResource("events");
-    slackEvents.addMethod(
-      "POST",
-      new apigateway.LambdaIntegration(slackHandler),
-    );
+    // If you turn on Knowledge Base for FA2
+    if(props.knowledgeBaseId) {
+      fa2Function.addEnvironment('KNOWLEDGEBASE_ID', props.knowledgeBaseId)
+    }
 
     // For the command of metrics insight
-    if(props.slashCommands.insight){
+    if(props.insight){
       const metricsInsightRole = new iam.Role(this, "MetricsInsightRole", {
         assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
         managedPolicies: [
@@ -417,26 +360,37 @@ export class FA2 extends Construct {
                 actions: ["bedrock:InvokeModel"],
                 resources: [
                   `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
+                    props.qualityModelId
                   }`
                 ],
               }),
             ],
           }),
+          // sns topic
+          sns: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ["sns:publish"],
+                resources: [props.topicArn],
+              })
+            ]
+          })
         },
       });
+      snsTopic.grantPublish(metricsInsightRole);
       this.metricsInsightRole = metricsInsightRole;
 
-      const metricsInsightFunction = new lambdaNodejs.NodejsFunction(this, "MetricsInsight", {
+      new lambdaNodejs.NodejsFunction(this, "MetricsInsight", {
         runtime: lambda.Runtime.NODEJS_20_X,
         memorySize: 512,
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
-          SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
-          ARCHITECTURE_DESCRIPTION: props.architectureDescription
+          TOPIC_ARN: props.topicArn,
+          ARCHITECTURE_DESCRIPTION: props.architectureDescription,
         },
         bundling: {
           minify: true,
@@ -449,16 +403,10 @@ export class FA2 extends Construct {
         },
         role: metricsInsightRole,
       });
-      // Give access permission of slack token from metrics insight function
-      token.grantRead(metricsInsightFunction);
-
-      // Give access permission from slack handler to metrics insight function
-      slackHandler.addEnvironment("METRICS_INSIGHT_NAME", metricsInsightFunction.functionName)
-      metricsInsightFunction.grantInvoke(slackHandler);
     }
 
     // For the command of findings report
-    if(props.slashCommands.findingsReport && props.detectorId){
+    if(props.findingsReport && props.detectorId){
       const findingsReportRole = new iam.Role(this, "FindingsReportRole", {
         assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
         managedPolicies: [
@@ -483,27 +431,49 @@ export class FA2 extends Construct {
                 actions: ["bedrock:InvokeModel"],
                 resources: [
                   `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
+                    props.qualityModelId
                   }`
                 ],
               }),
             ],
           }),
+          // sns topic
+          sns: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ["sns:publish"],
+                resources: [props.topicArn],
+              })
+            ]
+          }),
+          // s3
+          s3: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ["s3:*"],
+                resources: [outputBucket.bucket.bucketArn, `${outputBucket.bucket.bucketArn}/*`]
+              })
+            ]
+          })
         },
       });
+      snsTopic.grantPublish(findingsReportRole);
       this.findingsReportRole = findingsReportRole;
 
-      const findingsReportFunction = new lambdaNodejs.NodejsFunction(this, "FindingsReport", {
+      new lambdaNodejs.NodejsFunction(this, "FindingsReport", {
         runtime: lambda.Runtime.NODEJS_20_X,
         memorySize: 2048,
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/findings-report/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
-          SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
+          TOPIC_ARN: props.topicArn,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription,
-          DETECTOR_ID: props.detectorId
+          DETECTOR_ID: props.detectorId,
+          OUTPUT_BUCKET: outputBucket.bucket.bucketName
         },
         layers: [converterLayer],
         bundling: {
@@ -518,12 +488,6 @@ export class FA2 extends Construct {
         },
         role: findingsReportRole,
       });
-      // Give access permission of slack token from metrics insight function
-      token.grantRead(findingsReportFunction);
-
-      // Give access permission from slack handler to metrics insight function
-      slackHandler.addEnvironment("FINDINGS_REPORT_NAME", findingsReportFunction.functionName)
-      findingsReportFunction.grantInvoke(slackHandler); 
     }
   }
 }

@@ -1,8 +1,15 @@
 import { format, parse } from "date-fns";
+<<<<<<< HEAD
 import { KnownBlock, View } from "@slack/types";
 import { WebClient } from "@slack/web-api";
 import logger from "./logger.js";
+import { Language } from "../../parameter.ts_old";
+=======
+import { publish } from "./aws-modules.js";
+import logger from "./logger.js";
 import { Language } from "../../parameter.js";
+import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
 
 function convertDateFormat(dateString: string): string {
   // Parse dateString from specific format
@@ -19,6 +26,7 @@ function convertDateFormat(dateString: string): string {
 };
 
 export class MessageClient {
+<<<<<<< HEAD
   slackClient: WebClient;
   language: Language; 
   constructor(
@@ -26,6 +34,15 @@ export class MessageClient {
     language: Language = "en",
   ){
     this.slackClient = new WebClient(token);
+=======
+  topicArn: string;
+  language: Language; 
+  constructor(
+    topicArn: string,
+    language: Language = "en"
+  ){
+    this.topicArn = topicArn;
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     this.language = language;
   }
   
@@ -182,6 +199,7 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     return howToGetLogs;
   }
 
+<<<<<<< HEAD
   // Message template by Slack Block Kit
   public createFormBlock(date: string, time: string): KnownBlock[] {
     if(this.language === "ja"){
@@ -792,6 +810,13 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
           },
         },
       ];
+=======
+  public createErrorMessage(): string{
+    if(this.language === "ja"){
+      return "エラーが発生しました。システム管理者にご連絡ください。";
+    }else{
+      return "Error: Please contact your system admin.";
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     }
   }
 
@@ -799,6 +824,7 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
   public createAnswerMessage(
     alarmName: string,
     alarmTimestamp: string,
+<<<<<<< HEAD
     answer: string,
     howToGetLogs: string,
   ) {
@@ -820,11 +846,106 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     -----\n
     *How to get Logs:*\n ${howToGetLogs}
     `;
+=======
+    answer: string
+  ) {
+    if(this.language === "ja"){
+      return `
+*発生したAlarm:* ${alarmName}\n
+*発生時刻:* ${convertDateFormat(alarmTimestamp)}\n
+*FA2によるエラー原因の仮説:*\n  ${answer}\n
+`;
+    }else{
+      return `
+*Alarm name:* ${alarmName}\n
+*Alarm timestamp:* ${convertDateFormat(alarmTimestamp)}\n
+*Assumption of root cause analysis by FA2:*\n  ${answer}\n
+`;
+    }
+  }
+
+  public createArchitectureImageMessage(signedUrl: string){
+    if(this.language === "ja"){
+      return `*根本原因の仮説の図示*\n
+根本原因の仮説を示した図は以下のURLからダウンロードしてください。\n
+<${signedUrl}|Download URL>`;
+    }else{
+      return `*Illustration of the root cause hypothesis*\n
+Please download the image of the root cause hypothesis from below link.\n
+<${signedUrl}|Download URL>`;
+    }
+  }
+  
+  public createMetricsInsightMessage(answer: string){
+    if(this.language === "ja"){
+      return `*Metrics Insight コマンドの実行結果*\n
+${answer}`;
+    }else{
+      return `*The result of metrics insight*\n
+${answer} `;
+    }
+  }
+
+  public createFindingsReportMessage(signedUrl: string){
+    if(this.language === "ja"){
+      return `*findings-report コマンドの実行結果*\n
+レポートを作成しました。URL の有効期限は1時間です。\n
+<${signedUrl}|Download URL> 
+      `
+    }else{
+      return `*The result of findings-report*\n
+Findings report was created. This URL expires in 1 hour.\n
+<${signedUrl}|Download URL> 
+`
+    }
+  }
+
+  // Message template for retrieve result.
+  public createRetrieveResultMessage(
+    output: string,
+    citations: Citation[],
+  ) {
+    if(this.language === "ja"){
+      return `
+過去ドキュメントを検索した結果、以下の情報が得られました。\n
+${citations.map((citation, index) => {
+`
+*[${index}]*\n
+*過去ドキュメントからの原因仮説や解決策: *\n
+${citation.generatedResponsePart!.textResponsePart!.text}\n
+*検索で該当した参考ドキュメントの抜粋: *\n
+${citation.retrievedReferences?.map((ref) => 
+`
+${ref.content!.text}
+ファイルURL: ${ref.location && ref.location.s3Location ? ref.location?.s3Location?.uri : "No URL"}
+`)}\n
+`
+})}
+`;
+    }else{
+      return `
+Earned the information by retrieving the docs in Knowledge Base.\n
+${citations.map((citation, index) => {
+`
+*[${index}]*\n
+*Assumption of root cause analysis: *\n
+${citation.generatedResponsePart!.textResponsePart!.text}\n
+*Citations: *\n
+${citation.retrievedReferences?.map((ref) => 
+`
+${ref.content!.text}
+URL: ${ref.location && ref.location.s3Location ? ref.location?.s3Location?.uri : "No URL"}
+`)}\n
+`
+})}
+`;
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
     }
   }
 
   // To send message via Slack directly.
   public async sendMessage(
+<<<<<<< HEAD
     message: KnownBlock[] | string,
     channelId: string,
     threadTs?: string
@@ -922,4 +1043,34 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
       });
     }
   }
+=======
+    message: string,
+  ){
+    try {
+      await publish(
+        this.topicArn,
+        JSON.stringify({
+          version: "1.0",
+          source: "custom",
+          content: {
+            description: message,
+          },
+        })
+      );
+    } catch (error) {
+      logger.error("Failed", error as Error);
+      await publish(
+        this.topicArn,
+        JSON.stringify({
+          version: "1.0",
+          source: "custom",
+          content: {
+            description: this.createErrorMessage(),
+          },
+        })
+      );
+    }
+  }
+
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
 }

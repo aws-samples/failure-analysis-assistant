@@ -10,9 +10,9 @@ export interface AppParameter {
   env?: Environment;
   language: Language;
   envName: string;
-  modelId: string;
-  slackAppTokenKey: string;
-  slackSigningSecretKey: string;
+  qualityModelId: string;
+  fastModelId: string;
+  topicArn: string; // SNS Topic Arn that is connected to AWS Chatbot
   architectureDescription: string;
   cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
@@ -20,8 +20,11 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
+  insight: boolean;
+  findingsReport: boolean;
   detectorId?: string;
+  knowledgeBase?: boolean;
+  rerankModelId?: string;
 }
 
 // Parameters for Dev Account
@@ -32,9 +35,9 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  slackAppTokenKey: "SlackAppToken",
-  slackSigningSecretKey: "SlackSigningSecret",
+  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+  topicArn: "arn:aws:sns:us-east-1:123456789012:MonitoringAlarmTopicXXXXXXXX-xxxxxxxxxxxx",
   architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
   cwLogsLogGroups: [
     "EcsAppApiLogGroupXXXXXXXX-xxxxxxxxxxxx",
@@ -46,9 +49,9 @@ export const devParameter: AppParameter = {
   albAccessLogTableName: "alb_access_logs",
   cloudTrailLogTableName: "cloud_trail_logs",
   xrayTrace: true,
-  slashCommands: {
-    insight: false,
-    findingsReport: false,
-  },
-  detectorId: "ccc7636809ab9ef126976785ad0df79e"
+  insight: true,
+  findingsReport: true,
+  detectorId: "ccc7636809ab9ef126976785ad0df79e",
+  knowledgeBase: true,
+  rerankModelId: "amazon.rerank-v1:0"
 };

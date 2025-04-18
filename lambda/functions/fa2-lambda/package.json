@@ -13,8 +13,7 @@
     "@types/tough-cookie": "^4.0.2"
   },
   "dependencies": {
-    "@aws-lambda-powertools/parameters": "^2.3.0",
-    "@slack/web-api": "^7.3.4",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.723.0",
     "@sparticuz/chromium": "^129.0.0",
     "lodash": "^4.17.21",
     "p-limit": "^5.0.0",

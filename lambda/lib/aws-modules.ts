@@ -48,10 +48,21 @@ import {
   InferenceConfiguration,
 } from "@aws-sdk/client-bedrock-runtime";
 import {
+  BedrockAgentRuntimeClient,
+  KnowledgeBaseRetrievalResult,
+  RetrieveAndGenerateCommand,
+  RetrieveCommand,
+  RetrieveCommandOutput,
+} from "@aws-sdk/client-bedrock-agent-runtime";
+import {
   LambdaClient,
   InvokeCommandInputType,
   InvokeCommand
 } from "@aws-sdk/client-lambda";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { StreamingBlobPayloadInputTypes } from "@smithy/types";
 import logger from './logger.js';
 import {split} from 'lodash';
 
@@ -351,7 +362,7 @@ export async function listSecurityHubFindings(outputKey: string) {
 
 export async function converse(
   prompt: string, 
-  modelId: string = process.env.MODEL_ID!,
+  modelId: string = process.env.QUALITY_MODEL_ID!,
   inferenceConfig: InferenceConfiguration = {
     maxTokens: 2000,
     temperature: 0.1,
@@ -396,4 +407,156 @@ export async function invokeAsyncLambdaFunc(
   const res = await lambdaClient.send(invokeCommand);
   logger.info("End", {funciton: invokeAsyncLambdaFunc.name, output: {response: res}});
   return res;
+}
+
+// To publish the message, like a answer and a error message, via SNS.
+export async function publish(
+  topicArn: string,
+  message: string,
+) {
+  logger.info("Start", {function: publish.name, input: {topicArn, message}});
+  const snsClient = new SNSClient();
+  let res;
+  try {
+    res = await snsClient.send(
+      new PublishCommand({
+        TopicArn: topicArn,
+        Message: message,
+        MessageStructure: "default",
+      }),
+    );
+    logger.info(
+      `Publish Output: ${res.MessageId}, ${
+        res.SequenceNumber
+      }, ${JSON.stringify(res.$metadata)}`,
+    );
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+  }
+  logger.info("End", {funciton: publish.name, output: {response: res}});
+}
+
+export async function uploadFileAndGetUrl(bucketName: string, key: string, file: StreamingBlobPayloadInputTypes, ){
+  logger.info("Start", {function: uploadFileAndGetUrl.name, input: {bucketName, key, file: file.toString().slice(0,10)}});
+  const s3Client = new S3Client();
+
+  try{
+    const putObjCommand = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: file
+    });
+    const res = await s3Client.send(putObjCommand)
+    logger.info("Put result", {response: res})
+
+    const getObjCommand = new GetObjectCommand({ Bucket: bucketName, Key: key });
+    const url = await getSignedUrl(s3Client, getObjCommand, {expiresIn: 3600})
+    logger.info("End", {function: uploadFileAndGetUrl.name, output:{url}})
+    return url;
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+    return ""
+  }
+}
+
+export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, outputKey: string) {
+
+  logger.info("Start", {function: retrieveAndGenerate.name, input: {knowledgeBaseId, retrieveQuery}});
+
+  const client = new BedrockAgentRuntimeClient();
+  try {
+    const retrieveCommand = new RetrieveCommand({
+      knowledgeBaseId: knowledgeBaseId,
+      retrievalQuery: {
+        text: retrieveQuery,
+      },
+      retrievalConfiguration: {
+        vectorSearchConfiguration: {
+          numberOfResults: 5,
+          overrideSearchType: 'SEMANTIC',
+          rerankingConfiguration: {
+            type: 'BEDROCK_RERANKING_MODEL',
+            bedrockRerankingConfiguration: {
+              modelConfiguration: {
+                modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.RERANKING_MODEL_ID!}`,
+              },
+              numberOfRerankedResults: 5,
+            }
+          }
+        },
+      },
+    });
+    const retrieveResponse: RetrieveCommandOutput = await client.send(retrieveCommand);
+    logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
+    return {
+      key: outputKey,
+      value: retrieveResponse.retrievalResults!.map((result, index) => `[${index}]${result.content?.text}\n`)
+    }
+  } catch (error) {
+    logger.error("Something happend", error as Error);
+    return [] as KnowledgeBaseRetrievalResult[];
+  }
+}
+
+export async function retrieveAndGenerate(knowledgeBaseId: string, retrieveQuery: string, errorDescription: string) {
+  logger.info("Start", {function: retrieveAndGenerate.name, input: {knowledgeBaseId, retrieveQuery, errorDescription}});
+
+  const client = new BedrockAgentRuntimeClient();
+  try {
+    const retrieveCommand = new RetrieveAndGenerateCommand({
+      input: {
+        text: retrieveQuery,
+      },
+      retrieveAndGenerateConfiguration: {
+        knowledgeBaseConfiguration: {
+          knowledgeBaseId: knowledgeBaseId,
+          modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.FAST_MODEL_ID!}`,
+          retrievalConfiguration: {
+            vectorSearchConfiguration: {
+              numberOfResults: 5,
+              overrideSearchType: 'SEMANTIC',
+              rerankingConfiguration: {
+                type: 'BEDROCK_RERANKING_MODEL',
+                bedrockRerankingConfiguration: {
+                  modelConfiguration: {
+                    modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${process.env.RERANKING_MODEL_ID!}`,
+                  },
+                  numberOfRerankedResults: 5,
+                }
+              }
+            },
+          },
+          generationConfiguration: {
+            promptTemplate: {
+              textPromptTemplate: `
+              あなたの仕事は、検索結果の情報のみを使用してユーザーの質問に答えることです。
+              以下のルールに必ず従ってください。
+              <rules>
+              * 検索結果に質問に回答できる情報が含まれていない場合は、「質問に対する正確な回答が見つかりませんでした」と回答してください。
+              * 回答の末尾には、% [1]%、% [2]%、% [3]% などのマーカーを使って引用を追加してください。対応する箇所が回答を裏付けるためです。
+              * 回答には必ず簡単な説明を追加してください。回答は簡潔かつ包括的にしてください。
+              </rules>
+
+              運用者から${errorDescription}という報告が上がっています。
+              以下に示す検索結果を元に、根本原因と解決策を推測してください。
+              $search_results$
+
+              $output_format_instructions$
+              `
+            }
+          }
+        },
+        type: "KNOWLEDGE_BASE",
+      },
+    });
+    const retrieveResponse = await client.send(retrieveCommand);
+    logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
+    return {
+      output: retrieveResponse.output,
+      citations: retrieveResponse.citations
+    };
+  } catch (error) {
+    logger.error("Something happened", error as Error);
+    return {};
+  }
 }

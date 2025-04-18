@@ -1,59 +1,58 @@
 import { Handler } from "aws-lambda";
-import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
+import { sub } from "date-fns";
 import { listMetrics, queryToCWMetrics, generateMetricDataQuery, converse } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
-import { Language } from "../../../parameter.js";
+import { Language } from "../../../parameter.ts_old";
 import logger from "../../lib/logger.js"; 
 
 export const handler: Handler = async (event: {
   query: string;
-  startDate: string;
-  endDate: string;
-  channelId?: string;
+  duration: number;
 }) => {
   // Event parameters
   logger.info("Request started", event);
   const {
     query,
-    startDate,
-    endDate,
-    channelId
+    duration
   } = event;
 
   // Environment variables
-  const modelId = process.env.MODEL_ID;
+  const modelId = process.env.QUALITY_MODEL_ID;
   const lang: Language = process.env.LANG
     ? (process.env.LANG as Language)
     : "en";
-  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
   const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const region = process.env.AWS_REGION;
-  const token = await getSecret(slackAppTokenKey);
-  const messageClient = new MessageClient(token!.toString(), lang);
+  const topicArn = process.env.TOPIC_ARN;
+
+  const messageClient = new MessageClient(topicArn!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
 
   // Check required variables.
-  if (!modelId || !region || !channelId ) {
-    logger.error(`Not found any environment variables. Please check them.`, {environments: {modelId, region, channelId}});
-    if (channelId) {
-      messageClient.sendMessage(
-        lang && lang === "ja"
-          ? "エラーが発生しました: 環境変数が設定されていない、または渡されていない可能性があります。"
-          : "Error: Not found any environment variables.",
-        channelId,
-      );
-    }
+  if (!modelId || !region) {
+    logger.error(`Not found any environment variables. Please check them.`);
+    await messageClient.sendMessage(messageClient.createErrorMessage());
     return;
   }
+
+  logger.info("typeof duration", typeof duration);
+  if (duration > 14 || duration < 1){
+    logger.error("Duration is not correct", {duration});
+    await messageClient.sendMessage(lang === "ja" ? "メトリクス取得期間は1から14で入力してください。": "Duration must be from 1 to 14.");
+    return;
+  }
+  // Convert from duration to datetime
+  const now = new Date();
+  const pastTime = sub(now,{days: Number(duration)});
 
   try {
     // Generate a query for getMetricData API
     const metrics = await listMetrics();
-    const metricSelectionPrompt = prompt.createSelectMetricsForInsightPrompt(query, JSON.stringify(metrics), ((new Date(endDate)).getTime() - (new Date(startDate)).getTime())/(1000 * 60 * 60 * 24))
+    const metricSelectionPrompt = prompt.createSelectMetricsForInsightPrompt(query, JSON.stringify(metrics), duration)
     const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
 
-    const results = await queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics");
+    const results = await queryToCWMetrics(pastTime.toISOString(), now.toISOString(), metricDataQuery, "CWMetrics");
 
     const metricsInsightPrompt = 
         prompt.createMetricsInsightPrompt(query, JSON.stringify(results.value));
@@ -64,25 +63,12 @@ export const handler: Handler = async (event: {
 
     logger.info("Answer", answer);
 
-    if(answer.length < 3500){
-      // Send the answer to Slack directly.
-      await messageClient.sendMessage(
-        messageClient.createMessageBlock(answer),
-        channelId,
-      );
-    }else{
-      // Send the snippet of answer instead of message due to limitation of message size.
-      await messageClient.sendMarkdownSnippet("answer.md", answer, channelId)
-    }
+    await messageClient.sendMessage(messageClient.createMetricsInsightMessage(answer)); 
+
   } catch (error) {
     logger.error("Something happened", error as Error);
     // Send the form to retry when error was occured.
-    if(channelId){
-      await messageClient.sendMessage(
-        messageClient.createErrorMessageBlock(),
-        channelId
-      );
-    }
+    await messageClient.sendMessage(messageClient.createErrorMessage());
   }
   
   return;

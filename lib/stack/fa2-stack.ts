@@ -1,14 +1,21 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language, SlashCommands } from "../../parameter";
+import { Language, SlashCommands } from "../../parameter.ts_old";
 import { NagSuppressions } from "cdk-nag";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
 interface FA2StackProps extends StackProps {
   language: Language;
+<<<<<<< HEAD
   modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
+=======
+  qualityModelId: string;
+  fastModelId: string;
+  topicArn: string;
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
   architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
@@ -17,19 +24,33 @@ interface FA2StackProps extends StackProps {
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+<<<<<<< HEAD
+=======
+  insight: boolean;
+  findingsReport: boolean;
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
   detectorId?: string;
 }
 
 export class FA2Stack extends Stack {
+  public readonly fa2BackendFunction: NodejsFunction;
   constructor(scope: Construct, id: string, props: FA2StackProps) {
     super(scope, id, props);
 
+<<<<<<< HEAD
     // To deploy FA2 backend with Slack bot backend.
     const fa2 = new FA2(this, "FA2Slack", {
       language: props.language,
       modelId: props.modelId,
       slackAppTokenKey: props.slackAppTokenKey,
       slackSigningSecretKey: props.slackSigningSecretKey,
+=======
+    const fa2 = new FA2(this, "FA2Chatbot", {
+      language: props.language,
+      qualityModelId: props.qualityModelId,
+      fastModelId: props.fastModelId,
+      topicArn: props.topicArn,
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       architectureDescription: props.architectureDescription,
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
@@ -38,9 +59,15 @@ export class FA2Stack extends Stack {
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
+<<<<<<< HEAD
+=======
+      insight: props.insight,
+      findingsReport: props.findingsReport,
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       detectorId: props.detectorId,
     });
-    
+    this.fa2BackendFunction = fa2.backendFunction;
+
     // ----- CDK Nag Suppressions -----
     NagSuppressions.addResourceSuppressions(fa2.backendRole, [
       {
@@ -55,7 +82,11 @@ export class FA2Stack extends Stack {
       },
     ]);
 
+<<<<<<< HEAD
     if(props.slashCommands.insight){
+=======
+    if(props.insight){
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
         {
           id: "AwsSolutions-IAM4",
@@ -70,7 +101,11 @@ export class FA2Stack extends Stack {
       ]);
     }
     
+<<<<<<< HEAD
     if(props.slashCommands.findingsReport && props.detectorId){
+=======
+    if(props.findingsReport && props.detectorId){
+>>>>>>> cd9d6dc11c732095a1cf40119b7514881bb26be3
       NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
         {
           id: "AwsSolutions-IAM4",
@@ -99,64 +134,6 @@ export class FA2Stack extends Stack {
             id: "AwsSolutions-IAM5",
             reason:
               "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
-          },
-        ],
-      );
-    }
-
-    if (fa2.slackHandlerRole) {
-      NagSuppressions.addResourceSuppressions(fa2.slackHandlerRole, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason: "CloudWatch Logs need * resources to do these API actions.",
-        },
-      ]);
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackHandlerRole.node.id
-        }/DefaultPolicy/Resource`,
-        [
-          {
-            id: "AwsSolutions-IAM5",
-            reason:
-              "* resource is given by Grant method of CDK for Lambda function automatically.",
-          },
-        ],
-      );
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackRestApi.node.id
-        }/DeploymentStage.v1/Resource`,
-        [
-          {
-            id: "AwsSolutions-APIG3",
-            reason:
-              "This is sample. If you deploy to Production, please add WAF for endpoint protection.",
-          },
-        ],
-      );
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.slackRestApi.node.id
-        }/Default/slack/events/POST/Resource`,
-        [
-          {
-            id: "AwsSolutions-APIG4",
-            reason:
-              "Request verification is implemented to Bolt framework. ref: * Flag that determines whether Bolt should {@link https://api.slack.com/authentication/verifying-requests-from-slack|verify Slack's signature on incoming requests}..",
-          },
-          {
-            id: "AwsSolutions-COG4",
-            reason:
-              "This API keeps public for Slack services. We couldn't use Cognito user pool authorizer.",
           },
         ],
       );
