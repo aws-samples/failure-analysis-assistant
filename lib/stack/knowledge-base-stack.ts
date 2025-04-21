@@ -39,7 +39,6 @@ export class KnowledgeBaseStack extends Stack {
     props.fa2BackendFunction.addToRolePolicy(
       new PolicyStatement({
         actions: [
-          'bedrock:RetrieveAndGenerate',
           'bedrock:Rerank',
         ],
         resources: ['*'],
