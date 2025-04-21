@@ -123,6 +123,11 @@ async function executeSqlCommands(
       USING hnsw (${vectorField} vector_cosine_ops);`
     );
 
+    await connection.query(
+      `CREATE INDEX IF NOT EXISTS ${textField}_gin_idx ON ${schemaName}.${tableName} 
+      USING gin (to_tsvector('simple', ${textField}));`
+    )
+
   } catch (error) {
     throw new Error("Error executing SQL commands: " + JSON.stringify(error));
   } finally {
