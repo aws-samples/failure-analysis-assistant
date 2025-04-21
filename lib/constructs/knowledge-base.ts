@@ -10,7 +10,7 @@ import { NagSuppressions } from "cdk-nag/lib";
 
 interface KnowledgeBaseProps {
   envName: string;
-  embeddingsModelId: string;
+  embeddingModelId: string;
   dimensions: number;
   cluster: DatabaseCluster;
   credentialSecretArn: string;
@@ -40,7 +40,7 @@ export class KnowledgeBase extends Construct {
           statements: [
             new iam.PolicyStatement({
               actions: ['bedrock:InvokeModel'],
-              resources: [`arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.embeddingsModelId}`],
+              resources: [`arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.embeddingModelId}`],
             })
           ]
         }),
@@ -78,7 +78,7 @@ export class KnowledgeBase extends Construct {
       knowledgeBaseConfiguration: {
         type: 'VECTOR',
         vectorKnowledgeBaseConfiguration: {
-          embeddingModelArn: `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.embeddingsModelId}`,
+          embeddingModelArn: `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.embeddingModelId}`,
         },
       },
       name: `${props.envName.slice(0,3)}-fa2-knowledge-base`,
