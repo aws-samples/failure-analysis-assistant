@@ -53,6 +53,7 @@ import {
   RetrieveAndGenerateCommand,
   RetrieveCommand,
   RetrieveCommandOutput,
+  SearchType
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import {
   LambdaClient,
@@ -474,7 +475,7 @@ export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, r
         retrievalConfiguration: {
           vectorSearchConfiguration: {
             numberOfResults: 5,
-            overrideSearchType: 'SEMANTIC',
+            overrideSearchType: SearchType.HYBRID,
             rerankingConfiguration: {
               type: 'BEDROCK_RERANKING_MODEL',
               bedrockRerankingConfiguration: {
@@ -492,6 +493,12 @@ export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, r
         retrievalQuery: {
           text: retrieveQuery,
         },
+        retrievalConfiguration: {
+          vectorSearchConfiguration: {
+            numberOfResults: 5,
+            overrideSearchType: SearchType.HYBRID,
+          }
+        }
       })
     const retrieveResponse: RetrieveCommandOutput = await client.send(retrieveCommand);
     logger.info("End", {function: retrieveAndGenerate.name, output: {retrieveResponse}});
