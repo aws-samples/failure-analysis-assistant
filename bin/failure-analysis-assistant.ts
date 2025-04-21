@@ -43,6 +43,7 @@ if(devParameter.knowledgeBase){
     },
     envName: devParameter.envName,
     fa2BackendFunction: fa2Stack.fa2BackendFunction,
+    embeddingModelId: devParameter.embeddingModelId,
     rerankModelId: devParameter.rerankModelId,
   });
 }

@@ -9,6 +9,7 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 interface KnowledgeBaseStackProps extends StackProps {
   envName: string;
   fa2BackendFunction: NodejsFunction;
+  embeddingModelId?: string;
   rerankModelId?: string;
 }
 
@@ -26,7 +27,7 @@ export class KnowledgeBaseStack extends Stack {
     // knowledge base with Aurora Serverless
     const knowledgeBase = new KnowledgeBase(this, 'KnowledgeBase', {
       envName: props.envName,
-      embeddingsModelId: 'amazon.titan-embed-text-v1',
+      embeddingModelId: props.embeddingModelId ? props.embeddingModelId : 'amazon.titan-embed-text-v2:0',
       dimensions: 1536,
       cluster: auroraServerless.cluster,
       credentialSecretArn: auroraServerless.secretArn,
