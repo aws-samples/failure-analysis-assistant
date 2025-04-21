@@ -2,6 +2,7 @@ import { format, parse } from "date-fns";
 import { publish } from "./aws-modules.js";
 import logger from "./logger.js";
 import { Language } from "../../parameter.js";
+import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 function convertDateFormat(dateString: string): string {
   // Parse dateString from specific format
