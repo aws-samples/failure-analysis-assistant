@@ -205,6 +205,10 @@ export const handler: Handler = async (event: {
     // Send the explanation how to get logs, metrics, and traces.
     await messageClient.sendMessage(howToGetLogs);
 
+    if (knowledgeBaseId) {
+      await messageClient.sendMessage(messageClient.createRetrieveResultMessage(JSON.parse(Prompt.getStringValueFromQueryResult(results, "RetrieveRawData")!)))
+    }
+
     // CustomAction ver is not able to upload files via SNS and AWS Chatbot due to the specification of them.
     // It doesn't allow to call fileUpload API of Slack via them.
     // So, we upload an image via S3.

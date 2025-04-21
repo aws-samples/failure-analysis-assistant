@@ -473,7 +473,7 @@ export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, r
         },
         retrievalConfiguration: {
           vectorSearchConfiguration: {
-            numberOfResults: 5,
+            numberOfResults: 3,
             overrideSearchType: SearchType.HYBRID,
             rerankingConfiguration: {
               type: 'BEDROCK_RERANKING_MODEL',
@@ -494,17 +494,27 @@ export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, r
         },
         retrievalConfiguration: {
           vectorSearchConfiguration: {
-            numberOfResults: 5,
+            numberOfResults: 3,
             overrideSearchType: SearchType.HYBRID,
           }
         }
       })
     const retrieveResponse: RetrieveCommandOutput = await client.send(retrieveCommand);
     logger.info("End", {function: retrieve.name, output: {retrieveResponse}});
-    return {
+    return [{
       key: outputKey,
       value: retrieveResponse.retrievalResults!.map((result, index) => `[${index}]${result.content?.text}\n`)
-    }
+    },{
+      key: `${outputKey}RawData`,
+      value: retrieveResponse.retrievalResults!.map((result, index) => {
+        return {
+          index: index,
+          text: result.content?.text,
+          source: result.location?.s3Location?.uri,
+          score: result.score
+        }
+      })
+    }]
   } catch (error) {
     logger.error("Something happend", error as Error);
     return [] as KnowledgeBaseRetrievalResult[];
