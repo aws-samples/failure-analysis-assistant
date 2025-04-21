@@ -1,10 +1,6 @@
 import { Environment } from "aws-cdk-lib";
 
 export type Language = "ja" | "en";
-export type SlashCommands = {
-  insight: boolean;
-  findingsReport: boolean;
-};
 
 export interface AppParameter {
   env?: Environment;
@@ -23,8 +19,7 @@ export interface AppParameter {
   insight: boolean;
   findingsReport: boolean;
   detectorId?: string;
-  knowledgeBase?: boolean;
-  reranking: boolean;
+  knowledgeBase: boolean;
   rerankModelId?: string;
 }
 
@@ -54,5 +49,5 @@ export const devParameter: AppParameter = {
   findingsReport: true,
   detectorId: "ccc7636809ab9ef126976785ad0df79e",
   knowledgeBase: true,
-  reranking: false,
+  rerankModelId: "amazon.rerank-v1:0",
 };
