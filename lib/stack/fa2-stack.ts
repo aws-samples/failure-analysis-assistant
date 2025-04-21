@@ -3,10 +3,12 @@ import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
 import { Language } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
 interface FA2StackProps extends StackProps {
   language: Language;
-  modelId: string;
+  qualityModelId: string;
+  fastModelId: string;
   topicArn: string;
   architectureDescription: string;
   cwLogLogGroups: string[];
@@ -21,12 +23,14 @@ interface FA2StackProps extends StackProps {
 }
 
 export class FA2Stack extends Stack {
+  public readonly fa2BackendFunction: NodejsFunction;
   constructor(scope: Construct, id: string, props: FA2StackProps) {
     super(scope, id, props);
 
     const fa2 = new FA2(this, "FA2Chatbot", {
       language: props.language,
-      modelId: props.modelId,
+      qualityModelId: props.qualityModelId,
+      fastModelId: props.fastModelId,
       topicArn: props.topicArn,
       architectureDescription: props.architectureDescription,
       cwLogLogGroups: props.cwLogLogGroups,
@@ -39,6 +43,7 @@ export class FA2Stack extends Stack {
       findingsReport: props.findingsReport,
       detectorId: props.detectorId,
     });
+    this.fa2BackendFunction = fa2.backendFunction;
 
     // ----- CDK Nag Suppressions -----
     NagSuppressions.addResourceSuppressions(fa2.backendRole, [
@@ -53,6 +58,19 @@ export class FA2Stack extends Stack {
           "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
       },
     ]);
+    NagSuppressions.addResourceSuppressionsByPath(
+      Stack.of(this),
+      `/${Stack.of(this).stackName}/${fa2.node.id}/${
+        fa2.backendRole.node.id
+      }/DefaultPolicy/Resource`,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
+        },
+      ],
+    );
 
     if(props.insight){
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
@@ -82,25 +100,6 @@ export class FA2Stack extends Stack {
             "CloudWatch need * resources to do these API actions.",
         },
       ]);
-    }
-
-    if (
-      props.databaseName &&
-      (props.albAccessLogTableName || props.cloudTrailLogTableName)
-    ) {
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.backendRole.node.id
-        }/DefaultPolicy/Resource`,
-        [
-          {
-            id: "AwsSolutions-IAM5",
-            reason:
-              "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
-          },
-        ],
-      );
     }
 
   }

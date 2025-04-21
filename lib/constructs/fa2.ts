@@ -5,7 +5,7 @@ import {
   aws_lambda_nodejs as lambdaNodejs,
   aws_sns as sns,
   Duration,
-  Stack,
+  Stack
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
@@ -14,7 +14,8 @@ import { Language } from "../../parameter";
 
 interface FA2Props {
   language: Language;
-  modelId: string;
+  qualityModelId: string;
+  fastModelId: string;
   topicArn: string;
   architectureDescription: string;
   cwLogLogGroups: string[];
@@ -30,10 +31,9 @@ interface FA2Props {
 
 export class FA2 extends Construct {
   backendRole: iam.Role;
+  backendFunction: lambdaNodejs.NodejsFunction;
   metricsInsightRole: iam.Role;
   findingsReportRole: iam.Role;
-  slackHandlerRole: iam.Role;
-  slackRestApi: apigateway.RestApi;
   constructor(scope: Construct, id: string, props: FA2Props) {
     super(scope, id);
 
@@ -105,9 +105,8 @@ export class FA2 extends Construct {
               effect: iam.Effect.ALLOW,
               actions: ["bedrock:InvokeModel"],
               resources: [
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                  props.modelId
-                }`,
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.qualityModelId}`,
+                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.fastModelId}`,
                 `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`
               ],
             }),
@@ -143,7 +142,8 @@ export class FA2 extends Construct {
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
-        MODEL_ID: props.modelId,
+        QUALITY_MODEL_ID: props.qualityModelId,
+        FAST_MODEL_ID: props.fastModelId,
         LANG: props.language,
         TOPIC_ARN: props.topicArn,
         ARCHITECTURE_DESCRIPTION: props.architectureDescription,
@@ -151,7 +151,7 @@ export class FA2 extends Construct {
           loggroups: props.cwLogLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
-        OUTPUT_BUCKET: outputBucket.bucket.bucketName
+        OUTPUT_BUCKET: outputBucket.bucket.bucketName,
       },
       layers: [converterLayer],
       bundling: {
@@ -166,6 +166,7 @@ export class FA2 extends Construct {
       },
       role: fa2BackendRole,
     });
+    this.backendFunction = fa2Function;
 
     // Existed workload has athena database and tables
     if (
@@ -312,6 +313,7 @@ export class FA2 extends Construct {
       );
       fa2Function.addEnvironment("XRAY_TRACE", "true");
     }
+
     // For the command of metrics insight
     if(props.insight){
       const metricsInsightRole = new iam.Role(this, "MetricsInsightRole", {
@@ -349,7 +351,7 @@ export class FA2 extends Construct {
                 actions: ["bedrock:InvokeModel"],
                 resources: [
                   `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
+                    props.qualityModelId
                   }`
                 ],
               }),
@@ -376,7 +378,7 @@ export class FA2 extends Construct {
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
           TOPIC_ARN: props.topicArn,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription,
@@ -420,7 +422,7 @@ export class FA2 extends Construct {
                 actions: ["bedrock:InvokeModel"],
                 resources: [
                   `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
+                    props.qualityModelId
                   }`
                 ],
               }),
@@ -457,7 +459,7 @@ export class FA2 extends Construct {
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/findings-report/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
           TOPIC_ARN: props.topicArn,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription,

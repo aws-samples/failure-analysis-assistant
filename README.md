@@ -71,7 +71,8 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   topicArn:
     "arn:aws:sns:us-east-1:123456789012:ExampleTopic",
   architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
@@ -85,7 +86,9 @@ export const devParameter: AppParameter = {
   xrayTrace: true,
   insight: true,
   findingsReport: true,
-  detectorId: "xxxxxxxxxxxxxxx"
+  detectorId: "xxxxxxxxxxxxxxx",
+  knowledgeBase: true,
+  rerankModelId: "amazon.rerank-v1:0"
 };
 ```
 
@@ -97,7 +100,8 @@ export const devParameter: AppParameter = {
 | `env.region`             | `"us-east-1"`                                                             | デプロイ先リージョン                                                                                                                                                       |
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                        |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                    |
-| `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                      |
+| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください。特にアウトプットの質を重視したモデルを指定してください。障害原因の推論などに用います。                                                                      |
+| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください。こちらは生成の速さを重視したモデルを指定してください。クエリの拡張などに用います。                                                                      |
 | `topicArn`               | `"arn:aws:sns:us-east-1:123456789012:ExampleTopic"`                       | AWS Chatbot にイベントを渡している Amazon SNS の Topic の ARN。ClientType が `AWSCHATBOT` の場合必須です                                                                   |
 | `architectureDescription`  | `"あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
 | `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                             |
@@ -109,6 +113,8 @@ export const devParameter: AppParameter = {
 | `insight`              | `true`                                                                    | メトリクス分析支援を利用する場合には、 `true` を設定してください                                                                                                       |
 | `findingsReport`              | `true`                                                                    |  Findings レポートを利用するには、 `true` を設定してください                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
+| `knowledgeBase`              | `true`                                                                    | 障害分析時に KnowledgeBase を利用する場合には `true` を設定してください。                                                                                                      |
+| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | Knowledge Base を利用する場合には必須です。 Rerank Model を設定してください。                                                                                                      |
 
 #### プロンプトの変更
 
@@ -134,6 +140,12 @@ npx cdk deploy --all --profile {your_profile} --require-approval never
 > [!NOTE]
 > `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` の、`// Additional process.`の記載から始まる箇所が、障害原因の仮説の図を生成する処理になります。
 > 図の生成が不要の場合、この部分はコメントアウトまたは削除してください。
+
+### [オプション] Knowledge Base へのデータ同期
+
+`knowledgeBase` を有効にした場合、デプロイが終わると、Knowledge Base や データソース がプロビジョニングされています。
+必要なドキュメント（AWSの公式ドキュメントのPDFやワークロードに関するドキュメント）をデータソースである S3 にアップロードし、データソースの同期を行なってください。
+デフォルトでは、データは何も登録されていません。
 
 ### Custom Action の設定
 
@@ -288,6 +300,29 @@ AWS Chatbot が導入されているチャンネルのチャット欄に、以�
 ダウンロード URL は、デフォルトでは 1 時間です。ダウンロードし、レポートの中身をご確認ください。
 
 ![fa2-findings-report-result-message](./docs/images/ja/fa2-customaction-findingsreport-result.png)
+
+#### [オプション]メトリクス分析支援
+
+Slack のチャット欄に、`/insight` と入力、送信すると、モーダルが表示されます。
+モーダルのフォームに、[メトリクスを元に回答してほしい質問]と[メトリクスを取得したい期間]を入力してください。
+1-2分ほどで、回答が得られます。
+メトリクスの `Period` は、`3600 + floor(取得日数 / 5) * 3600` で計算しています。式を変更したい場合は、`lambda/lib/prompts.ts` の `createSelectMetricsForInsightPrompt()` を参照ください。
+
+次の例では、ECSのパフォーマンスに対して、質問を送っています。
+
+![insight-form](./docs/images/ja/fa2-insight-form.png)
+
+![query-about-ecs-performance](./docs/images/ja/fa2-query-about-ecs-performance.png)
+
+#### [オプション]Findings レポート機能
+
+Slack のチャット欄に、`/findings-report` と入力、送信すると、リクエストを受け付けたメッセージが表示されます。
+1-2分ほどで、 Findings のレポートの PDF がアップロードされます。
+
+![findings-report](./docs/images/ja/fa2-findings-report.png)
+
+レポートで出力する Findings は、`lambda/lib/aws-modules.ts` の `listGuardDutyFindings()` と `listSecurityHubFindings()` の関数で取得されています。
+Findings の取得対象を変更したい場合は、これら関数を修正ください。
 
 ## リソースの削除
 

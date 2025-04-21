@@ -2,6 +2,7 @@ import { format, parse } from "date-fns";
 import { publish } from "./aws-modules.js";
 import logger from "./logger.js";
 import { Language } from "../../parameter.js";
+import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 function convertDateFormat(dateString: string): string {
   // Parse dateString from specific format
@@ -243,6 +244,39 @@ ${answer} `;
 Findings report was created. This URL expires in 1 hour.\n
 <${signedUrl}|Download URL> 
 `
+    }
+  }
+
+  // Message template for retrieve result.
+  public createRetrieveResultMessage(
+    retrieveResult: {
+      index: number;
+      text: string;
+      source: string;
+      score: number; 
+    }[]
+  ) {
+    if(this.language === "ja"){
+      return `
+過去ドキュメントを検索した結果、以下の情報が得られました。\n
+${retrieveResult.map((result, index) => { return `
+*[${index+1}]*\n
+*検索で該当した参考ドキュメントの抜粋: *\n
+${result.text} \n
+ファイルURL: ${result.source}\n
+スコア: ${result.score}\n
+`})}`;
+    }else{
+      return `
+Earned the information by retrieving the docs in Knowledge Base.\n
+${retrieveResult.map((result, index) => { return `
+*[${index+1}]*\n
+*Reference document text: *\n
+${result.text} \n
+URL: ${result.source}\n
+Score: ${result.score}\n
+`})}
+`;
     }
   }
 
