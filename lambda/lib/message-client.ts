@@ -823,6 +823,36 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     }
   }
 
+  // Message template for reference docs that are retrieved by Knolwedgebase
+  public createRetrieveResultMessage(
+    retreieveResult: {
+      index: number;
+      text: string;
+      source: string;
+      score: number;
+    }[]
+  ) {
+    if(this.language === "ja"){
+      return `
+    *以下のドキュメントを参照しました:*\n
+    ${retreieveResult.map((result) => {
+      return `[${result.index+1}]${result.text}\n
+      source: ${result.source}\n
+      score:  (${result.score})\n`;
+    })}
+    `;
+    }else{
+      return `
+    *The following documents are retrieved:*\n
+    ${retreieveResult.map((result) => {
+      return `[${result.index+1}]${result.text}\n
+      source: ${result.source}\n
+      score:  (${result.score})\n`;
+    })}
+    `;
+    }
+  }
+
   // To send message via Slack directly.
   public async sendMessage(
     message: KnownBlock[] | string,

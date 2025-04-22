@@ -12,6 +12,7 @@ import {
   generateMetricDataQuery,
   converse,
   listMetrics,
+  retrieve,
 } from "../../lib/aws-modules.js";
 import { Prompt } from "../../lib/prompts.js";
 import { MessageClient } from "../../lib/message-client.js";
@@ -37,7 +38,8 @@ export const handler: Handler = async (event: {
   } = event;
 
   // Environment variables
-  const modelId = process.env.MODEL_ID;
+  const qualityModelId = process.env.QUALITY_MODEL_ID;
+  const fastModelId = process.env.FAST_MODEL_ID;
   const lang: Language = process.env.LANG
     ? (process.env.LANG as Language)
     : "en";
@@ -54,14 +56,16 @@ export const handler: Handler = async (event: {
   const region = process.env.AWS_REGION;
   const athenaDatabaseName = process.env.ATHENA_DATABASE_NAME;
   const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
+  const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID !== "" ? process.env.KNOWLEDGEBASE_ID : undefined;
+  const rerankModelId = process.env.RERANK_MODEL_ID !== "" ? process.env.RERANK_MODEL_ID : undefined;
 
   const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
 
   // Check required variables.
-  if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
-    logger.error(`Not found any environment variables. Please check.`, {environemnts: {modelId, cwLogsQuery, logGroups, region, channelId, threadTs}});
+  if (!qualityModelId || !fastModelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
+    logger.error(`Not found any environment variables. Please check.`, {environemnts: {qualityModelId, fastModelId, cwLogsQuery, logGroups, region, channelId, threadTs}});
     if (channelId && threadTs) {
       messageClient.sendMessage(
         lang && lang === "ja"
@@ -79,6 +83,13 @@ export const handler: Handler = async (event: {
     const metrics = await listMetrics();
     const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(errorDescription, JSON.stringify(metrics));
     const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
+
+    // If Knowledge Base is enabled, generate retrieve query
+    let retrieveQuery: string = '';
+    if(knowledgeBaseId) {
+      const promptToRetrieveDocs: string = knowledgeBaseId ? prompt.createPromptToRetrieveDocs(errorDescription) : '';
+      retrieveQuery = split(split((await converse(promptToRetrieveDocs, fastModelId)), '<retrieveQuery>')[1], '</retrieveQuery>')[0]
+    }
 
     // Send query to each AWS APIs in parallel.
     const limit = pLimit(5);
@@ -142,6 +153,12 @@ export const handler: Handler = async (event: {
       );
     }
 
+    if (knowledgeBaseId) {
+      input.push(
+        limit(() => retrieve(knowledgeBaseId, retrieveQuery, rerankModelId, "Retrieve"))
+      )
+    }
+
     const results = await Promise.all(input);
 
     // Prompt
@@ -164,7 +181,8 @@ export const handler: Handler = async (event: {
           results,
           "CloudTrailLogs",
         ),
-        Prompt.getStringValueFromQueryResult(results, "XrayTraces")
+        Prompt.getStringValueFromQueryResult(results, "XrayTraces"),
+        Prompt.getStringValueFromQueryResult(results, "Retrieve")
       );
 
     logger.info("Made prompt", {prompt: failureAnalysisPrompt});
@@ -209,6 +227,10 @@ export const handler: Handler = async (event: {
       channelId,
       threadTs
     );
+
+    if (knowledgeBaseId) {
+      await messageClient.sendMessage(messageClient.createRetrieveResultMessage(JSON.parse(Prompt.getStringValueFromQueryResult(results, "RetrieveRawData")!)), channelId, threadTs);
+    }
 
     /* ****** */
     // Additional process. It shows the root cause on the image.

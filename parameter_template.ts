@@ -10,7 +10,8 @@ export interface AppParameter {
   env?: Environment;
   language: Language;
   envName: string;
-  modelId: string;
+  qualityModelId: string;
+  fastModelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
@@ -22,6 +23,9 @@ export interface AppParameter {
   xrayTrace: boolean;
   slashCommands: SlashCommands;
   detectorId?: string;
+  knowledgeBase: boolean;
+  embeddingModelId?: string;
+  rerankModelId?: string;
 }
 
 // Parameters for Dev Account
@@ -32,7 +36,8 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecret",
   architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
@@ -50,5 +55,6 @@ export const devParameter: AppParameter = {
     insight: false,
     findingsReport: false,
   },
-  detectorId: "ccc7636809ab9ef126976785ad0df79e"
+  detectorId: "ccc7636809ab9ef126976785ad0df79e",
+  knowledgeBase: false,
 };
