@@ -427,7 +427,7 @@ export async function retrieve(knowledgeBaseId: string, retrieveQuery: string, r
                 modelConfiguration: {
                   modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${rerankModelId}`,
                 },
-                numberOfRerankedResults: 5,
+                numberOfRerankedResults: 3,
               }
             }
           },
