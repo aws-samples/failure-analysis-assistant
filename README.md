@@ -127,7 +127,6 @@ export const devParameter: AppParameter = {
   },
   detectorId: "xxxxxxxxxxxxxxx",
   knowledgeBase: true,
-  embeddingModelId: "amazon.titan-embed-text-v2:0"
 };
 ```
 
@@ -153,7 +152,7 @@ export const devParameter: AppParameter = {
 | `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | `insight` や `findings-report` コマンドに関連するリソースのデプロイを有効にします                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
 | `knowledgeBase`              | `true`                                                                    | ナレッジベースを利用する場合は `true` を設定ください。利用しない場合は、`false` です。                                                                                                      |
-| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | ナレッジベースを利用する場合に任意で埋め込みモデルが利用できます。何も設定しない場合は、 `amazon.titan-embed-text-v2:0` が設定されます。変更する場合は、合わせて ` ` の `Dimenssion` も変更してください                                                                                                      |
+| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | ナレッジベースを利用する場合に任意で埋め込みモデルが設定できます。何も設定しない場合は、 `amazon.titan-embed-text-v2:0` が設定されます。変更する場合は、`lib/constructs/aurora-serverless.ts` の 120 行目の `VectorDimensions` も併せて変更してください                                                                                                      |
 | `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | ナレッジベースを利用する場合に任意でリランクモデルを設定できます。リランクモデルは利用できるリージョンが制限されているため、利用できないリージョンではデプロイ時にエラーになります。利用できないリージョンでは、設定しないでください  |
 
 #### プロンプトの変更

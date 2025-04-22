@@ -127,7 +127,6 @@ export const devParameter: AppParameter = {
   },
   detectorId: "xxxxxxxxxxxxxxx",
   knowledgeBase: true,
-  embeddingModelId: "amazon.titan-embed-text-v2:0"
 };
 ```
 
@@ -153,7 +152,7 @@ export const devParameter: AppParameter = {
 | `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
 | `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
-| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model.                                                                                                      |
+| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
 | `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | Optional. If you want to use the rerank feature of bedrock when using the Knowledge Base. Set up the Rerank Model.                                                                                                      |
 
 #### Modify prompts
