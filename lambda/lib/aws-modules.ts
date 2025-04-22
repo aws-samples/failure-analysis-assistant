@@ -290,7 +290,7 @@ export async function listGuardDutyFindings(detectorId: string, outputKey: strin
     FindingCriteria: {
       Criterion: {
         severity: {
-          GreaterThanOrEqual: 4.0,
+          GreaterThanOrEqual: 7.0,
         },
       },
     },
