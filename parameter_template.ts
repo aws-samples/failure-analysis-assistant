@@ -55,6 +55,6 @@ export const devParameter: AppParameter = {
     insight: false,
     findingsReport: false,
   },
-  detectorId: "ccc7636809ab9ef126976785ad0df79e",
+  detectorId: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   knowledgeBase: false,
 };
