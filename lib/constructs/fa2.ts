@@ -15,7 +15,8 @@ import { Language, SlashCommands } from "../../parameter";
 
 interface FA2Props {
   language: Language;
-  modelId: string;
+  qualityModelId: string;
+  fastModelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
@@ -31,6 +32,7 @@ interface FA2Props {
 
 export class FA2 extends Construct {
   backendRole: iam.Role;
+  backendFunction: lambdaNodejs.NodejsFunction;
   metricsInsightRole: iam.Role;
   findingsReportRole: iam.Role;
   slackHandlerRole: iam.Role;
@@ -111,12 +113,7 @@ export class FA2 extends Construct {
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: ["bedrock:InvokeModel"],
-              resources: [
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                  props.modelId
-                }`,
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`
-              ],
+              resources: ["*"],
             }),
           ],
         }),
@@ -138,7 +135,8 @@ export class FA2 extends Construct {
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
-        MODEL_ID: props.modelId,
+        QUALITY_MODEL_ID: props.qualityModelId,
+        FAST_MODEL_ID: props.fastModelId,
         LANG: props.language,
         SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
         ARCHITECTURE_DESCRIPTION: props.architectureDescription,
@@ -160,6 +158,7 @@ export class FA2 extends Construct {
       },
       role: fa2BackendRole,
     });
+    this.backendFunction = fa2Function;
     token.grantRead(fa2Function);
 
     // Existed workload has athena database and tables
@@ -415,11 +414,7 @@ export class FA2 extends Construct {
               new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
                 actions: ["bedrock:InvokeModel"],
-                resources: [
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
-                  }`
-                ],
+                resources: ["*"],
               }),
             ],
           }),
@@ -433,7 +428,7 @@ export class FA2 extends Construct {
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
           SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription
@@ -481,11 +476,7 @@ export class FA2 extends Construct {
               new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
                 actions: ["bedrock:InvokeModel"],
-                resources: [
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.modelId
-                  }`
-                ],
+                resources: ["*"],
               }),
             ],
           }),
@@ -499,7 +490,7 @@ export class FA2 extends Construct {
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/findings-report/main.mts"),
         environment: {
-          MODEL_ID: props.modelId,
+          QUALITY_MODEL_ID: props.qualityModelId,
           LANG: props.language,
           SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription,

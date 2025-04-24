@@ -2,7 +2,7 @@
 
 [日本語で読む](./README.md)
 
-This is a sample implementation that responds to alarms sent to Slack by AWS Chatbot and helps analyze the root cause of the failure.
+This is a sample implementation that responds to alarms sent to Slack by Amazon Q Developer in chat applications and helps analyze the root cause of the failure.
 This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
 This sample code provide two features as below,
 
@@ -26,7 +26,7 @@ For example of the function in action, see [[OPTIONAL]Findings Report](#optional
 ## Branches
 
 - [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App. This was exhibited at the AWS Summit Japan 2024.
-- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Instead of the Slack App, this is a version that implements an input form using a `Custom Action` of AWS Chatbot. If you don't have an environment where you can't use the Slack App, or if you don't want to manage the Slack App, use this.
+- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Instead of the Slack App, this is a version that implements an input form using a `Custom Action` of Amazon Q Developer in chat applications. If you don't have an environment where you can't use the Slack App, or if you don't want to manage the Slack App, use this.
 
 ## Background
 
@@ -56,7 +56,7 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 
 ![slackapp-architecture](./docs/images/en/fa2-architecture-slack.png)
 
-1. Alarms are triggered on the target system, and notifications are sent to Slack via Amazon SNS and AWS Chatbot
+1. Alarms are triggered on the target system, and notifications are sent to Slack via Amazon SNS and Amazon Q Developer in chat applications
 2. Show the input form of Slack App when it received an alarm.
 3. Enter `log retrieval time range` and `event information understood from alarms`, and submit a request
 4. FA2 runs on AWS Lambda and accesses you defined log search targets and collects information from the log retrieval time range included in the request
@@ -75,7 +75,7 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
   - If AWS X-Ray trace information is also used, an AWS X-Ray trace for the relevant system must have been obtained
 - Claude 3 Sonnet and Claude 3.5 Sonnet access has been granted from model access on Amazon Bedrock
   - Claude 3.5 Sonnet is used for generation of the image written by Mermaid syntax.
-- Confirm that an alarm notification will be sent to Slack from the AWS Chatbot set up in the existing workload
+- Confirm that an alarm notification will be sent to Slack from the Amazon Q Developer in chat applications set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
 - You must have the permission to register the Slack App to the Slack workspace you want to use.
 - Turn on execution logging and access logging.
@@ -108,7 +108,8 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecretKey",
   architectureDescription: "The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."
@@ -124,7 +125,8 @@ export const devParameter: AppParameter = {
     insight: true,
     findingsReport: true,
   },
-  detectorId: "xxxxxxxxxxxxxxx"
+  detectorId: "xxxxxxxxxxxxxxx",
+  knowledgeBase: true,
 };
 ```
 
@@ -136,7 +138,8 @@ export const devParameter: AppParameter = {
 | `env.region`             | `"us-east-1"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
 | `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
 | `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
-| `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Put the model ID of Amazon Bedrock you want to use. Please check access grants of chosen model.                                                                                             |
+| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc.                                                                      |
+| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what model access allows. Here, please specify a model that emphasizes the speed of generation. It is used for query expansion, etc.                                                                      |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | The key name is to get `SlackAppToken` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                               |
 | `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                          |
 | `architectureDescription`  | `"The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
@@ -148,6 +151,9 @@ export const devParameter: AppParameter = {
 | `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
 | `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
+| `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
+| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
+| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | Optional. If you want to use the rerank feature of bedrock when using the Knowledge Base. Set up the Rerank Model.                                                                                                      |
 
 #### Modify prompts
 
@@ -173,6 +179,12 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 > [!NOTE]
 > The part that begins with the description of `// Additional process` in `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` that is the process of generating a hypothetical diagram of the cause of the fault.
 > If you don't need to generate a diagram, comment out or delete this part.
+
+### [Optional] Sync datasource of Knowledge Base
+
+When you enabled `knowledgeBase` property, a knowledge base and a datasource are provisioned.
+After checking the status of them, you need to upload the related documents to S3 that is a datasource of knowledge base.
+By default, there is no data in the Knowledge Base.
 
 #### Configuration of Slack App
 
@@ -233,7 +245,7 @@ When a notification of the alarm is received, FA2 responds and displays a form l
 
 The alarm displayed earlier is confirmed, and the contents of the alarm and the time range for which the log is to be acquired are inputted to the displayed form.
 
-\*The datapoints shown by AWS Chatbot are expressed in GMT, so please enter the form after converting it to your local time zone.
+\*The datapoints shown by Amazon Q Developer in chat applications are expressed in GMT, so please enter the form after converting it to your local time zone.
 
 ![fa2-form-input-sample](./docs/images/en/fa2-slackapp-put-value.png)
 

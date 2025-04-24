@@ -20,7 +20,8 @@ export class Prompt {
     metrics?: string,
     albAccessLogs?: string,
     cloudTrailLogs?: string,
-    xrayTraces?: string
+    xrayTraces?: string,
+    retrieveResults?: string
     ) {
     logger.info("Start", {
       function: this.createFailureAnalysisPrompt.name,
@@ -38,7 +39,8 @@ export class Prompt {
       prompt = `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。必ず日本語で回答してください。
         あなたが担当するワークロードのアーキテクチャは、${this.architectureDescription}です。
         現在、運用管理者から ${query} という事象が発生したとの連絡がありました。
-        あなたは、<logs>タグに与えられたログと<metrics>タグに与えられたメトリクス、<trace>タグに与えられたトレースを確認し、発生した事象の根本原因を推測してください。
+        あなたは、<logs>タグに与えられたログと<metrics>タグに与えられたメトリクス、<trace>タグに与えられたトレースを元に発生した事象の根本原因を推測してください。
+        必要に応じて、<documents>タグに与えられた過去の類似事象や公式ドキュメントなどを参考にしてください。
         根本原因を記述する際に、参考にしたログやメトリクスの内容についても記載し、運用管理者が実際のログやメトリクスを確認しやすくしてください。
         <logs>
           <ApplicationLogs>${applicationLogs}</ApplicationLogs>
@@ -62,6 +64,8 @@ export class Prompt {
         ` : "";
 
       prompt += xrayTraces ? `<traces>${xrayTraces}</traces>` : "";
+
+      prompt += retrieveResults ? `<documents>${retrieveResults}</documents>` : "";
 
       prompt += "発生した事象の根本原因 : ";
     }else{
@@ -363,6 +367,23 @@ export class Prompt {
 
     アーキテクチャ図: 
     `  
+  }
+
+  // To retrieve system manuals and tickets data from knowledge base
+  public createPromptToRetrieveDocs(
+    errorDescription: string
+  ) {
+    logger.info("Start", {function: this.createPromptToRetrieveDocs.name, input: {errorDescription}});
+    return `
+    Amazon Bedrock Knowledge Baseに構築されたドキュメントの検索システムには、ワークロードのマニュアルや過去の障害のチケット情報が格納されています。
+    運用管理者から、${errorDescription} という報告を受けました。報告を受けた事象の根本原因や解決策に関連した情報を、検索システムで探したいです。
+    この検索システムに与える検索クエリとして最適なクエリを生成してください。
+    <rules>
+    * クエリは、<retrieveQuery></retrieveQuery>タグの中に出力してください。例外は認めません。
+    * クエリ以外の出力はしないでください。例外は認めません。
+    </rules> 
+    クエリ：
+    `
   }
 
   static getStringValueFromQueryResult(
