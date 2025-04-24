@@ -60,9 +60,7 @@ export class KnowledgeBaseStack extends Stack {
           actions: [
             'bedrock:InvokeModel'
           ],
-          resources: [
-            `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.rerankModelId}`,
-          ],
+          resources: ['*'],
         })
       )
     }

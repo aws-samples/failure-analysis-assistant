@@ -113,15 +113,7 @@ export class FA2 extends Construct {
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: ["bedrock:InvokeModel"],
-              resources: [
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                  props.qualityModelId
-                }`,
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                  props.fastModelId
-                }`,
-                `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`
-              ],
+              resources: ["*"],
             }),
           ],
         }),
@@ -422,14 +414,7 @@ export class FA2 extends Construct {
               new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
                 actions: ["bedrock:InvokeModel"],
-                resources: [
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.qualityModelId
-                  }`,
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.fastModelId
-                  }`
-                ],
+                resources: ["*"],
               }),
             ],
           }),
@@ -491,14 +476,7 @@ export class FA2 extends Construct {
               new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
                 actions: ["bedrock:InvokeModel"],
-                resources: [
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.qualityModelId
-                  }`,
-                  `arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${
-                    props.fastModelId
-                  }`
-                ],
+                resources: ["*"],
               }),
             ],
           }),

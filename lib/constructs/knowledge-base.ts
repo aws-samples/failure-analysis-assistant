@@ -39,8 +39,8 @@ export class KnowledgeBase extends Construct {
         invokeModel: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({
-              actions: ['bedrock:InvokeModel'],
-              resources: [`arn:aws:bedrock:${Stack.of(this).region}::foundation-model/${props.embeddingModelId}`],
+              actions: ['bedrock:InvokeModel', 'bedrock:Rerank'],
+              resources: ['*'],
             })
           ]
         }),
@@ -143,7 +143,14 @@ export class KnowledgeBase extends Construct {
         appliesTo: [
           'Resource::arn:aws:secretsmanager:*:*:secret:aurora-secret/*',
         ]
-      } 
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Dont restrict to access to specific model to use inference profile',
+        appliesTo: [
+          'Resource::*',
+        ]
+      }
     ])
   }
 }

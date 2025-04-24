@@ -229,7 +229,14 @@ export const handler: Handler = async (event: {
     );
 
     if (knowledgeBaseId) {
-      await messageClient.sendMessage(messageClient.createRetrieveResultMessage(JSON.parse(Prompt.getStringValueFromQueryResult(results, "RetrieveRawData")!)), channelId, threadTs);
+      const message = messageClient.createRetrieveResultMessage(
+        JSON.parse(Prompt.getStringValueFromQueryResult(results, "RetrieveRawData")!)
+      );
+      await messageClient.sendMessage(
+        message,
+        channelId,
+        threadTs
+      );
     }
 
     /* ****** */

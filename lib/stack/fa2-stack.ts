@@ -59,6 +59,19 @@ export class FA2Stack extends Stack {
           "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
       },
     ]);
+    NagSuppressions.addResourceSuppressionsByPath(
+      Stack.of(this),
+      `/${Stack.of(this).stackName}/${fa2.node.id}/${
+        fa2.backendRole.node.id
+      }/DefaultPolicy/Resource`,
+      [
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
+        },
+      ],
+    );
 
     if(props.slashCommands.insight){
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
@@ -88,25 +101,6 @@ export class FA2Stack extends Stack {
             "CloudWatch need * resources to do these API actions.",
         },
       ]);
-    }
-
-    if (
-      props.databaseName &&
-      (props.albAccessLogTableName || props.cloudTrailLogTableName)
-    ) {
-      NagSuppressions.addResourceSuppressionsByPath(
-        Stack.of(this),
-        `/${Stack.of(this).stackName}/${fa2.node.id}/${
-          fa2.backendRole.node.id
-        }/DefaultPolicy/Resource`,
-        [
-          {
-            id: "AwsSolutions-IAM5",
-            reason:
-              "CloudWatch Logs, Athena, X-Ray need * resources to do these API actions.",
-          },
-        ],
-      );
     }
 
     if (fa2.slackHandlerRole) {
