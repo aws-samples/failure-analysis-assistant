@@ -795,31 +795,45 @@ X-ray's management console, please set data range like from \`${startDate}\` to 
     }
   }
 
-  // Message template for answer.
-  public createAnswerMessage(
-    alarmName: string,
-    alarmTimestamp: string,
-    answer: string,
-    howToGetLogs: string,
-  ) {
+  // Message template for reference docs that are retrieved by Knolwedgebase
+  public createRetrieveResultMessage(
+    retreieveResult: {
+      index: number;
+      text: string;
+      source: string;
+      score: number;
+    }[]
+  ): KnownBlock[] {
     if(this.language === "ja"){
-      return `
-    *発生したAlarm:* ${alarmName}\n
-    *発生時刻:* ${convertDateFormat(alarmTimestamp)}\n
-    *FA2によるエラー原因の仮説:*\n  ${answer}\n
-    この後画像に根本原因が図示されます。\n
-    -----\n
-    *ログの取得方法:*\n ${howToGetLogs}
-    `;
+      return [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*以下のドキュメントを参照しました:*\n
+${retreieveResult.map((result) => {
+  return `[${result.index+1}]${result.text}\n
+  source: ${result.source}\n
+  score:  (${result.score})\n`;
+})}`
+          },
+        },
+      ];
     }else{
-      return `
-    *Alarm name:* ${alarmName}\n
-    *Alarm timestamp:* ${convertDateFormat(alarmTimestamp)}\n
-    *Assumption of root cause analysis by FA2:*\n  ${answer}\n
-    Next, it shows the root cause on the image.\n
-    -----\n
-    *How to get Logs:*\n ${howToGetLogs}
-    `;
+      return [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*The following documents are retrieved:*\n
+${retreieveResult.map((result) => {
+  return `[${result.index+1}]${result.text}\n
+  source: ${result.source}\n
+  score:  (${result.score})\n`;
+})}`
+          },
+        },
+      ]
     }
   }
 

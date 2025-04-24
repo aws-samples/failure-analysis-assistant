@@ -15,6 +15,7 @@
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.1.0",
     "@aws-sdk/client-athena": "^3.569.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.787.0",
     "@aws-sdk/client-bedrock-runtime": "^3.602.0",
     "@aws-sdk/client-cloudwatch": "^3.632.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.523.0",

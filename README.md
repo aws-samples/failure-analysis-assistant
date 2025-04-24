@@ -2,9 +2,9 @@
 
 [View this page in English](./README_en.md)
 
-AWS Chatbot が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
-AWS Summit Japan 2024 のブースで公開したデモのサンプルコードとなります。
-[AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
+Amazon Q Developer in chat applications が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
+参考： [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
+
 本サンプルで試せることは以下の通りです。
 
 **障害分析支援**
@@ -27,7 +27,7 @@ Security Hub と GuardDuty の Findings を生成 AI が解説するレポート
 ## Branches
 
 - [`main`](https://github.com/aws-samples/failure-analysis-assistant) - 本ブランチです。Slack App を利用したバージョンです。AWS Summit Japan 2024 ではこちらを展示しました。
-- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Slack App の代わりに、AWS Chatbot の Custom Action という機能を利用して、入力フォームを実装したバージョンです。Slack App が利用できない環境や、Slack App を管理したくない場合は、こちらをご利用ください。
+- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Slack App の代わりに、Amazon Q Developer in chat applications の Custom Action という機能を利用して、入力フォームを実装したバージョンです。Slack App が利用できない環境や、Slack App を管理したくない場合は、こちらをご利用ください。
 
 ## Background
 
@@ -57,7 +57,7 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 
 ![slackapp-architecture](./docs/images/ja/fa2-architecture-slack.png)
 
-1. 対象システムで、メトリクスなどに設定したアラームが発火し、Amazon SNS と AWS Chatbot を通じ Slack に通知が届きます
+1. 対象システムで、メトリクスなどに設定したアラームが発火し、Amazon SNS と Amazon Q Developer in chat applications を通じ Slack に通知が届きます
 2. FA2 が通知をトリガーに入力フォームを表示します
 3. 表示されたフォームに`ログの取得時間範囲`と`アラームからわかるイベント情報`を入力し、障害分析をリクエストします
 4. FA2 は Lambda 上で実行され、リクエストに含まれたログの取得時間範囲から、定義されたログ検索対象にアクセスし、情報を収集します
@@ -75,7 +75,7 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
 - Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet, Claude 3.5 Sonnet のアクセス許可をしていること
   - Claude 3.5 Sonnet は、Mermaid記法で画像による障害原因の仮説を図示するために利用します
-- 既存ワークロードで設定した AWS Chatbot から Slack にアラームの通知が来ることを確認していること
+- 既存ワークロードで設定した Amazon Q Developer in chat applications から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
 - Amazon API Gateway のコンソールで、CloudWatch ログ記録を有効にしていること
@@ -108,7 +108,8 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecretKey",
   architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
@@ -124,7 +125,8 @@ export const devParameter: AppParameter = {
     insight: true,
     findingsReport: true,
   },
-  detectorId: "xxxxxxxxxxxxxxx"
+  detectorId: "xxxxxxxxxxxxxxx",
+  knowledgeBase: true,
 };
 ```
 
@@ -136,7 +138,8 @@ export const devParameter: AppParameter = {
 | `env.region`             | `"us-east-1"`                                                             | デプロイ先リージョン                                                                                                                                                             |
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                              |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                          |
-| `modelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
+| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | 推論品質が高いモデルを指定します。Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
+| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | 推論速度が速いモデルを指定します。Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | AWS Secrets Manager から SlackAppToken を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
 | `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | AWS Secrets Manager から SlackSigningSecret を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
 | `architectureDescription`  | `"あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
@@ -148,6 +151,9 @@ export const devParameter: AppParameter = {
 | `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
 | `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | `insight` や `findings-report` コマンドに関連するリソースのデプロイを有効にします                                                                                                       |
 | `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
+| `knowledgeBase`              | `true`                                                                    | ナレッジベースを利用する場合は `true` を設定ください。利用しない場合は、`false` です。                                                                                                      |
+| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | ナレッジベースを利用する場合に任意で埋め込みモデルが設定できます。何も設定しない場合は、 `amazon.titan-embed-text-v2:0` が設定されます。変更する場合は、`lib/constructs/aurora-serverless.ts` の 120 行目の `VectorDimensions` も併せて変更してください                                                                                                      |
+| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | ナレッジベースを利用する場合に任意でリランクモデルを設定できます。リランクモデルは利用できるリージョンが制限されているため、利用できないリージョンではデプロイ時にエラーになります。利用できないリージョンでは、設定しないでください  |
 
 #### プロンプトの変更
 
@@ -173,6 +179,9 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 > [!NOTE]
 > `failure-analysis-assistant/lambda/functions/fa2-lambda/main.mts` の、`// Additional process.`の記載から始まる箇所が、障害原因の仮説の図を生成する処理になります。
 > 図の生成が不要の場合、この部分はコメントアウトまたは削除してください。
+
+### [オプション] ナレッジベースへのデータ同期
+Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わると、ナレッジベースやデータソースがプロビジョニングされています。 必要なドキュメント（AWSの公式ドキュメントのPDFやワークロードに関するドキュメント）をデータソースである S3 にアップロードし、データソースの同期を行なってください。 デフォルトでは、データは何も登録されていません。
 
 #### Slack App の設定
 
@@ -234,7 +243,7 @@ $ npx cdk deploy --all --profile {your_profile} --require-approval never
 
 先程表示されたアラームを確認し、アラームの内容と、ログを取得したい時間範囲を表示されたフォームへ入力します。
 
-※AWS Chatbot の示す datapoints は GMT で表記されているため、フォームには JST に変換した上で入力してください。
+※Amazon Q Developer in chat applications の示す datapoints は GMT で表記されているため、フォームには JST に変換した上で入力してください。
 
 ![fa2-form-input-sample](./docs/images/ja/fa2-slackapp-put-value.png)
 
