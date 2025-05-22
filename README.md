@@ -194,6 +194,25 @@ Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わ�
    1. または、[OAuth & Permissions]を開き、[Reinstall to {あなたのワークスペース名}]をクリックし、再インストールします
 6. 対象のチャンネルへ Slack App を参加させます。追加するには、対象のチャンネルを開き、チャンネル名をクリックします。[インテグレーション]を選択し、[アプリを追加する]をクリックします。FA2（またはご自身が登録したアプリ名）を探し、[追加]ボタンをクリックします。表示される指示に従ってアプリをインストールします
 
+#### [オプション]障害分析支援機能を slash command で動かすための Slack App の設定
+
+障害分析支援機能は、デフォルトでは、アラームが発生したタイミングでフォームが表示されます。
+ただ、好きなタイミングで実行したい場合もあるかと思います。
+以下の設定を入れることで、お好きなタイミングで障害分析支援機能を実行するためのフォームを表示することができます。
+
+1. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
+   1. 以下の表のように値を入力し、すべて入力したら、[Save]をクリックします
+
+      | 項目名             | 値                            |
+      | ----------------- | ----------------------------- |
+      | Command           | /fa2                      |
+      | Request URL       | Request URL と同じ URL         |
+      | Short Description | Invoke FA2 interactively |
+
+2. 左メニューの [App Home] をクリックし、[Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます
+   1. これで、Slack App の DM 欄でメトリクス分析支援の実行・結果受領がしやすくなります
+3. 左メニューの [OAuth & Permissions] をクリックし、[Scopes]で、`commands` を追加します
+
 #### [オプション]メトリクス分析支援機能のための Slack App の設定
 
 1. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします

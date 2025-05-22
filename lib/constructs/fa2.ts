@@ -323,7 +323,7 @@ export class FA2 extends Construct {
       this,
       "SlackHandler",
       {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         timeout: Duration.seconds(600),
         entry: path.join(
           __dirname,
@@ -423,7 +423,7 @@ export class FA2 extends Construct {
       this.metricsInsightRole = metricsInsightRole;
 
       const metricsInsightFunction = new lambdaNodejs.NodejsFunction(this, "MetricsInsight", {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         memorySize: 512,
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),

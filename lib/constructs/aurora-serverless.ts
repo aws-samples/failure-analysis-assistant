@@ -78,7 +78,7 @@ export class AuroraServerless extends Construct {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
       },
       timeout: Duration.seconds(60),
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_22_X,
       entry: path.join(__dirname, "../../lambda/functions/custom-resource-for-pgvector/index.ts"),
       handler: "handler",
       initialPolicy: [

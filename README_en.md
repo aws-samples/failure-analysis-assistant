@@ -197,6 +197,24 @@ By default, there is no data in the Knowledge Base.
    1. Or open [OAuth & Permissions], and click [Reinstall to {your workspace name}] to re-install your app.
 6. Join the Slack App to the target channel. To add, open the desired channel and click on the channel name. Select [Integrations] and then click [Add an app]. Find FA2 (or the name of the app you have registered) and click the [Add] button. Follow the instructions that appear to install the app.
 
+#### [Optional]Configuration of Slack App for Failure Analysis Assist
+
+By default, failure analysis assist feature is invoked when alarm notification was received.
+However, operators may want to use it anytime.
+If this is the case, please make the following settings. The fault analysis assist form can now be used with slash commands.
+
+1. Click [Slash Commands] on the left menu, then click [Create New Command]
+   1. Enter the values as shown in the table below, and then click Save when you have entered them all
+
+      | item name         | value                         |
+      | ----------------- | ----------------------------- |
+      | Command           | /fa2                      |
+      | Request URL       | same URL                      |
+      | Short Description | Invoke FA2 interactively |
+
+2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
+3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
+
 #### [Optional]Configuration of Slack App for Metrics Insight Assist
 
 1. Click [Slash Commands] on the left menu, then click [Create New Command]
