@@ -73,6 +73,13 @@ export class FA2Stack extends Stack {
       ],
     );
 
+    NagSuppressions.addStackSuppressions(this, [
+      {
+        id: "AwsSolutions-L1",
+        reason: "Puppetter didn't work on lambda of the runtime of Node.js v22."
+      }
+    ])
+
     if(props.slashCommands.insight){
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
         {

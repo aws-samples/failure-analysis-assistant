@@ -126,11 +126,11 @@ export class FA2 extends Construct {
         code: lambda.Code.fromAsset(
         path.join(`${__dirname}/../..`, "lambda/layers"),
       ),
-      compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
+      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
       description: "A layer of headless chromium and font",
     });
     const fa2Function = new lambdaNodejs.NodejsFunction(this, "FA2Backend", {
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 2048,
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
@@ -485,7 +485,7 @@ export class FA2 extends Construct {
       this.findingsReportRole = findingsReportRole;
 
       const findingsReportFunction = new lambdaNodejs.NodejsFunction(this, "FindingsReport", {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         memorySize: 2048,
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/findings-report/main.mts"),
