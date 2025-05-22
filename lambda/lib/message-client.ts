@@ -1,22 +1,7 @@
-import { format, parse } from "date-fns";
 import { KnownBlock, View } from "@slack/types";
 import { WebClient } from "@slack/web-api";
 import logger from "./logger.js";
 import { Language } from "../../parameter.js";
-
-function convertDateFormat(dateString: string): string {
-  // Parse dateString from specific format
-  const parsedDate = parse(
-    dateString,
-    "EEE, dd MMM yyyy HH:mm:ss 'UTC'",
-    new Date(),
-  );
-
-  // Modify format.
-  const formattedDate = format(parsedDate, "yyyy-MM-dd HH:mm:ss");
-
-  return formattedDate;
-};
 
 export class MessageClient {
   slackClient: WebClient;
