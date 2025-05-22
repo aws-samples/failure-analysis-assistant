@@ -69,6 +69,19 @@ app.message("", async ({ event, body, payload, say }) => {
   }
 });
 
+app.command('/fa2', async ({ body, ack, say }) => {
+  // Ack the request of insight command
+  await ack();
+  logger.info("/fa2 command", {body})
+
+  const now = toZonedTime(new Date(), "Asia/Tokyo");
+  const res = await say({
+    blocks: messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
+    reply_broadcast: true
+  } as SayArguments);
+  logger.info('response', {response: res});
+});
+
 // When app receive input data from FA2 form, invoke FA2 backend lambda.
 app.action("submit_button", async ({ body, ack, respond }) => {
   await ack();
