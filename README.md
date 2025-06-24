@@ -1,9 +1,11 @@
 # Failure Analysis Assistant (FA2)
 
+> **注意**: このバージョンのFA2は、ReACTアルゴリズムを採用したエージェント版であり、現在検証中です。ソースコードの内容や実装が大きく変更される可能性があります。
+
 [View this page in English](./README_en.md)
 
 Amazon Q Developer in chat applications が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
-参考： [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
+参考： [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
 
 本サンプルで試せることは以下の通りです。
 
@@ -11,18 +13,6 @@ Amazon Q Developer in chat applications が Slack に送ったアラームに反
 
 あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
 機能の動作イメージは、[障害分析支援](#障害分析支援) を参照ください。
-
-**メトリクス分析支援**
-
-ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
-機能の動作イメージは、[[オプション]メトリクス分析支援](#オプションメトリクス分析支援) を参照ください。
-**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]メトリクス分析支援機能のための Slack App の設定](#オプションメトリクス分析支援機能のための-slack-app-の設定)をご確認ください。
-
-**Findings レポート**
-
-Security Hub と GuardDuty の Findings を生成 AI が解説するレポートを作成する機能を追加しました。
-機能の動作イメージは、[[オプション]Findings レポート機能](#オプションfindings-レポート機能) を参照ください。
-**こちらの機能はオプション**となりますので、有効にする場合は、[パラメータ設定](#パラメータ設定)や[[オプション]Findings レポート機能のための Slack App の設定](#オプションfindings-レポート機能のための-slack-app-の設定)をご確認ください。
 
 ## Branches
 
@@ -60,11 +50,26 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 1. 対象システムで、メトリクスなどに設定したアラームが発火し、Amazon SNS と Amazon Q Developer in chat applications を通じ Slack に通知が届きます
 2. FA2 が通知をトリガーに入力フォームを表示します
 3. 表示されたフォームに`ログの取得時間範囲`と`アラームからわかるイベント情報`を入力し、障害分析をリクエストします
-4. FA2 は Lambda 上で実行され、リクエストに含まれたログの取得時間範囲から、定義されたログ検索対象にアクセスし、情報を収集します
-   1. 以降で設定するパラメータによって、検索対象が決まります。CloudWatch Logs のロググループが必須で、Amazon Athena や AWS X-Ray はオプションとなります
-   2. 検索対象を増やすことで、より精度の高い回答を得られる可能性があります
-5. FA2 に含まれるプロンプトテンプレートに、収集した情報をコンテキストとして加え、プロンプトを作ります。作成したプロンプトを Amazon Bedrock に送り、イベントに関連した情報の要約やイベントの原因分析に必要な情報抽出を行います
-6. LLM から得られた回答を Slack に送ります
+4. FA2 は Lambda 上で実行され、ReACT（Reasoning + Acting）アルゴリズムを採用したエージェントが障害分析を行います：
+   1. **思考ステップ（Thinking）**: エージェントは現在の状況を分析し、次に実行すべきアクションを決定します
+   2. **行動ステップ（Acting）**: 決定されたツールを実行します（例：CloudWatch Logsからのログ取得、メトリクスの分析など）
+   3. **観察ステップ（Observing）**: ツールの実行結果を観察し、新たな情報を収集します
+   4. **サイクル繰り返し**: 十分な情報が集まるまで、思考→行動→観察のサイクルを繰り返します
+   5. **完了ステップ（Completing）**: 十分な情報が集まったら、最終回答を生成します
+5. エージェントは以下のツールを使って情報を収集・分析します：
+   - **metrics_tool**: CloudWatchメトリクスを取得・分析
+   - **logs_tool**: CloudWatch Logsからログを取得・分析
+   - **audit_log_tool**: CloudTrailログから監査ログを取得・分析
+   - **xray_tool**: X-Rayからトレース情報を取得・分析
+   - **kb_tool**: Knowledge Baseからドキュメントを検索
+6. 分析が完了すると、エージェントは以下の情報を含む詳細な障害分析レポートを生成します：
+   - 障害概要
+   - 根本原因（重要度と確信度を含む）
+   - 参照したログ/メトリクス
+   - 時系列分析
+   - 推奨される対応策
+   - 再発防止策
+7. 生成されたレポートはSlackに送信され、ユーザーに提供されます
 
 ## 前提条件
 
@@ -100,33 +105,28 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 次の記載を参考に、`parameter_template.ts`をコピーし、`parameter.ts` を作成した上で、それぞれの値を変更してください。
 
 ```
-// 例: Slack App 版で、Claude 3 Sonnet を利用し、CloudWatch Logs、Athena、X-Ray、を検索対象とした場合の設定
+// 例: Slack App 版で、Claude 3.7 Sonnet を利用し、CloudWatch Logsを検索対象とした場合の設定
 export const devParameter: AppParameter = {
   env: {
-    account: "123456789012",
-    region: "us-east-1",
+    account: "148991357402",
+    region: "us-west-2",
   },
   language: "ja",
   envName: "Development",
-  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+  modelId: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
   slackAppTokenKey: "SlackAppToken",
-  slackSigningSecretKey: "SlackSigningSecretKey",
-  architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
+  slackSigningSecretKey: "SlackSigningSecret",
+  architectureDescription: `
+  あなたが担当するワークロードは、ALB, EC2, Aurora で構成されています。また、EC2 上に Spring アプリケーションがデプロイされています。`,
   cwLogsLogGroups: [
-    "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
+    "/ec2/demoapp",
+    "/ec2/messages",
+    "/aws/application-signals/data",
   ],
   cwLogsInsightQuery: "fields @message | limit 100",
-  databaseName: "athenadatacatalog",
-  albAccessLogTableName: "alb_access_logs",
-  cloudTrailLogTableName: "cloud_trail_logs",
-  xrayTrace: true,
-  slashCommands: {
-    insight: true,
-    findingsReport: true,
-  },
-  detectorId: "xxxxxxxxxxxxxxx",
+  xrayTrace: false,
   knowledgeBase: true,
+  embeddingModelId: "amazon.titan-embed-text-v2:0"
 };
 ```
 
@@ -134,26 +134,19 @@ export const devParameter: AppParameter = {
 
 | パラメータ               | 値の例                                                                    | 概要                                                                                                                                                                             |
 | ------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.account`            | `"123456789012"`                                                          | デプロイ先 AWS アカウントのアカウント ID                                                                                                                                         |
-| `env.region`             | `"us-east-1"`                                                             | デプロイ先リージョン                                                                                                                                                             |
+| `env.account`            | `"148991357402"`                                                          | デプロイ先 AWS アカウントのアカウント ID                                                                                                                                         |
+| `env.region`             | `"us-west-2"`                                                             | デプロイ先リージョン                                                                                                                                                             |
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                              |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                          |
-| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | 推論品質が高いモデルを指定します。Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
-| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | 推論速度が速いモデルを指定します。Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
+| `modelId`                | `"us.anthropic.claude-3-7-sonnet-20250219-v1:0"`                               | 推論品質が高いモデルを指定します。Amazon Bedrock で定義されたモデル ID を指定します。モデルアクセスで許可しているものを指定してください                                                                            |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | AWS Secrets Manager から SlackAppToken を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
-| `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | AWS Secrets Manager から SlackSigningSecret を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
-| `architectureDescription`  | `"あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
-| `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                                   |
+| `slackSingingSecretKey`  | `"SlackSigningSecret"`                                                     | AWS Secrets Manager から SlackSigningSecret を取得するためのキー名。[Slack App の登録](#slack-app-の登録)で利用したキー名を指定してください                                                                            |
+| `architectureDescription`  | `"あなたが担当するワークロードは、ALB, EC2, Aurora で構成されています。また、EC2 上に Spring アプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
+| `cwLogsLogGroups`        | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                                   |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | CloudWatch Logs Insight で利用したいクエリを指定します。コンテキストウィンドウとの兼ね合いから、デフォルトでは、100 件に制限しています（実際のプロンプトに応じて、調整ください） |
-| `databaseName`           | `"athenadatacatalog"`                                                     | Amazon Athena のデータベース名。Athena を使ってログ検索を行いたい場合は必須です                                                                                                  |
-| `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します                  |
-| `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します             |
-| `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
-| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | `insight` や `findings-report` コマンドに関連するリソースのデプロイを有効にします                                                                                                       |
-| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
+| `xrayTrace`              | `false`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
 | `knowledgeBase`              | `true`                                                                    | ナレッジベースを利用する場合は `true` を設定ください。利用しない場合は、`false` です。                                                                                                      |
 | `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | ナレッジベースを利用する場合に任意で埋め込みモデルが設定できます。何も設定しない場合は、 `amazon.titan-embed-text-v2:0` が設定されます。変更する場合は、`lib/constructs/aurora-serverless.ts` の 120 行目の `VectorDimensions` も併せて変更してください                                                                                                      |
-| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | ナレッジベースを利用する場合に任意でリランクモデルを設定できます。リランクモデルは利用できるリージョンが制限されているため、利用できないリージョンではデプロイ時にエラーになります。利用できないリージョンでは、設定しないでください  |
 
 #### プロンプトの変更
 
@@ -213,38 +206,6 @@ Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わ�
    1. これで、Slack App の DM 欄でメトリクス分析支援の実行・結果受領がしやすくなります
 3. 左メニューの [OAuth & Permissions] をクリックし、[Scopes]で、`commands` を追加します
 
-#### [オプション]メトリクス分析支援機能のための Slack App の設定
-
-1. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
-   1. 以下の表のように値を入力し、すべて入力したら、[Save]をクリックします
-
-      | 項目名             | 値                            |
-      | ----------------- | ----------------------------- |
-      | Command           | /insight                      |
-      | Request URL       | Request URL と同じ URL         |
-      | Short Description | Get insight for your workload |
-
-2. 左メニューの [App Home] をクリックし、[Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます
-   1. これで、Slack App の DM 欄でメトリクス分析支援の実行・結果受領がしやすくなります
-3. 左メニューの [OAuth & Permissions] をクリックし、[Scopes]で、`commands` を追加します
-
-#### [オプション]Findings レポート機能のための Slack App の設定
-
-1. 左メニューの[Slash Commands]をクリックし、[Create New Command]をクリックします
-   1. 以下の表のように値を入力し、すべて入力したら、[Save]をクリックします
-
-      | 項目名             | 値                            |
-      | ----------------- | ----------------------------- |
-      | Command           | /findings-report                      |
-      | Request URL       | Request URL と同じ URL         |
-      | Short Description | Create report about findings of Security Hub and GuardDuty |
-
-> NOTE
-> メトリクス分析支援機能を有効にしている場合、以下の手順は実施不要です
-
-2. 左メニューの [App Home] をクリックし、[Message Tab] にある [Allow users to send Slash commands and messages from the messages tab] にチェックを入れます
-3. 左メニューの [OAuth & Permissions] をクリックし、[Scopes]で、`commands` を追加します
-
 ### テスト
 
 #### 障害分析支援
@@ -272,30 +233,8 @@ Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わ�
 
 少し待つと、回答が Slack に表示されます。
 
+<!-- ここにテスト実行結果の画像を配置してください -->
 ![fa2-answer](./docs/images/ja/fa2-slackapp-answer.png)
-
-#### [オプション]メトリクス分析支援
-
-Slack のチャット欄に、`/insight` と入力、送信すると、モーダルが表示されます。
-モーダルのフォームに、[メトリクスを元に回答してほしい質問]と[メトリクスを取得したい期間]を入力してください。
-1-2分ほどで、回答が得られます。
-メトリクスの `Period` は、`3600 + floor(取得日数 / 5) * 3600` で計算しています。式を変更したい場合は、`lambda/lib/prompts.ts` の `createSelectMetricsForInsightPrompt()` を参照ください。
-
-次の例では、ECSのパフォーマンスに対して、質問を送っています。
-
-![insight-form](./docs/images/ja/fa2-insight-form.png)
-
-![query-about-ecs-performance](./docs/images/ja/fa2-query-about-ecs-performance.png)
-
-#### [オプション]Findings レポート機能
-
-Slack のチャット欄に、`/findings-report` と入力、送信すると、リクエストを受け付けたメッセージが表示されます。
-1-2分ほどで、 Findings のレポートの PDF がアップロードされます。
-
-![findings-report](./docs/images/ja/fa2-findings-report.png)
-
-レポートで出力する Findings は、`lambda/lib/aws-modules.ts` の `listGuardDutyFindings()` と `listSecurityHubFindings()` の関数で取得されています。
-Findings の取得対象を変更したい場合は、これら関数を修正ください。
 
 ## リソースの削除
 
