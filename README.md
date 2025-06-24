@@ -2,6 +2,10 @@
 
 [View this page in English](./README_en.md)
 
+> [!NOTE]
+> AIエージェントを利用した障害分析を実装中です。ご興味ある方は、以下のブランチをご参照ください。
+> https://github.com/aws-samples/failure-analysis-assistant/pull/21
+
 Amazon Q Developer in chat applications が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
 参考： [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
 
