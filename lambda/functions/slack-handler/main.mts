@@ -7,10 +7,10 @@ import { App, AwsLambdaReceiver, BlockAction, RespondArguments, SayArguments } f
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import { format, sub } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { MessageClient } from "../../lib/message-client.js";
-import { invokeAsyncLambdaFunc } from "../../lib/aws-modules.js";
+import { MessageClient } from "../../lib/messaging/message-client.js";
+import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { Language } from "../../../parameter.js";
-import logger from "../../lib/logger.js";
+import { logger } from "../../lib/logger.js";
 
 // Environment variables
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
@@ -19,6 +19,7 @@ const metricsInsightFunction = process.env.METRICS_INSIGHT_NAME!;
 const findingsReportFunction = process.env.FINDINGS_REPORT_NAME!;
 const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const slackSigningSecretKey = process.env.SLACK_SIGNING_SECRET_KEY!;
+const lambdaService = AWSServiceFactory.getLambdaService();
 
 // Utility method
 const convertJSTToUTC = (date: string, time: string): string => {
@@ -50,7 +51,7 @@ const app = new App({
   receiver: awsLambdaReceiver
 });
 
-const messageClient = new MessageClient(token, lang); 
+const messageClient = new MessageClient(token, lang, 'slack'); 
 
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
@@ -106,7 +107,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
     }
 
     // Invoke backend lambda
-    const res = await invokeAsyncLambdaFunc(
+    const res = await lambdaService.invokeAsyncLambdaFunc(
       JSON.stringify({
         errorDescription,
         startDate: convertJSTToUTC(startDate, startTime),
@@ -171,7 +172,7 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
   const pastItnTime = fromZonedTime(sub(now,{days: Number(duration)}), "Asia/Tokyo");
   try{
     // Invoke backend lambda
-    const res = await invokeAsyncLambdaFunc(
+    const res = await lambdaService.invokeAsyncLambdaFunc(
       JSON.stringify({
         query: query,
         startDate: pastItnTime.toISOString(),
@@ -211,7 +212,7 @@ app.command('/findings-report', async ({ client, body, ack }) => {
   logger.info("/findings-report command", {body})
 
   try {
-    const res = await invokeAsyncLambdaFunc(
+    const res = await lambdaService.invokeAsyncLambdaFunc(
       JSON.stringify({
         channelId: body.channel_id 
       }),

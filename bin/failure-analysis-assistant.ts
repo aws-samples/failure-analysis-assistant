@@ -18,17 +18,15 @@ const fa2Stack = new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
     Environment: devParameter.envName,
   },
   description:
-    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:chatbot-customaction).",
+    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:agent).",
   language: devParameter.language,
-  qualityModelId: devParameter.qualityModelId,
-  fastModelId: devParameter.fastModelId,
+  modelId: devParameter.modelId,
   slackAppTokenKey: devParameter.slackAppTokenKey,
   slackSigningSecretKey: devParameter.slackSigningSecretKey,
   architectureDescription: devParameter.architectureDescription,
   cwLogLogGroups: devParameter.cwLogsLogGroups,
   cwLogsInsightQuery: devParameter.cwLogsInsightQuery,
   xrayTrace: devParameter.xrayTrace,
-  slashCommands: devParameter.slashCommands,
   databaseName: devParameter.databaseName,
   albAccessLogTableName: devParameter.albAccessLogTableName,
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
@@ -43,6 +41,7 @@ if(devParameter.knowledgeBase){
     },
     envName: devParameter.envName,
     fa2BackendFunction: fa2Stack.fa2BackendFunction,
+    fa2ReactLambda: fa2Stack.fa2ReactLambda, // ReACT版FA2のLambda関数を追加
     embeddingModelId: devParameter.embeddingModelId,
     rerankModelId: devParameter.rerankModelId,
   });

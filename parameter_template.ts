@@ -1,17 +1,12 @@
 import { Environment } from "aws-cdk-lib";
 
 export type Language = "ja" | "en";
-export type SlashCommands = {
-  insight: boolean;
-  findingsReport: boolean;
-};
 
 export interface AppParameter {
   env?: Environment;
   language: Language;
   envName: string;
-  qualityModelId: string;
-  fastModelId: string;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
@@ -21,7 +16,6 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
   detectorId?: string;
   knowledgeBase: boolean;
   embeddingModelId?: string;
@@ -32,29 +26,22 @@ export interface AppParameter {
 export const devParameter: AppParameter = {
   env: {
     account: "123456789012",
-    region: "us-east-1",
+    region: "us-west-2",
   },
   language: "ja",
   envName: "Development",
-  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  fastModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  modelId: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecret",
-  architectureDescription: "あなたが担当するワークロードは、CloudFront、ALB、ECS on EC2、DynamoDBで構成されており、ECS on EC2上にSpringアプリケーションがデプロイされています。",
+  architectureDescription: `
+  あなたが担当するワークロードは、ALB, EC2, Aurora で構成されています。また、EC2 上に Spring アプリケーションがデプロイされています。`,
   cwLogsLogGroups: [
-    "EcsAppApiLogGroupXXXXXXXX-xxxxxxxxxxxx",
-    "/aws/ecs/containerinsights/EcsAppClusterXXXXXXXX-xxxxxxxxxxxx/performance",
+    "/ec2/demoapp",
+    "/ec2/messages",
+    "/aws/application-signals/data",
   ],
-  // It's just sample query. Please you optimize to your situation.
   cwLogsInsightQuery: "fields @message | limit 100",
-  databaseName: "athenadatacatalog1111111",
-  albAccessLogTableName: "alb_access_logs",
-  cloudTrailLogTableName: "cloud_trail_logs",
-  xrayTrace: true,
-  slashCommands: {
-    insight: false,
-    findingsReport: false,
-  },
-  detectorId: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  knowledgeBase: false,
+  xrayTrace: false,
+  knowledgeBase: true,
+  embeddingModelId: "amazon.titan-embed-text-v2:0"
 };
