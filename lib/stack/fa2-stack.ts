@@ -1,44 +1,43 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language, SlashCommands } from "../../parameter";
+import { Language } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
 interface FA2StackProps extends StackProps {
   language: Language;
-  qualityModelId: string;
-  fastModelId: string;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
   cwLogLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   detectorId?: string;
+  knowledgeBaseId?: string;
+  rerankModelId?: string;
 }
 
 export class FA2Stack extends Stack {
   public readonly fa2BackendFunction: NodejsFunction;
+  public readonly fa2ReactLambda: NodejsFunction;
   constructor(scope: Construct, id: string, props: FA2StackProps) {
     super(scope, id, props);
 
     // To deploy FA2 backend with Slack bot backend.
     const fa2 = new FA2(this, "FA2Slack", {
       language: props.language,
-      qualityModelId: props.qualityModelId,
-      fastModelId: props.fastModelId,
+      modelId: props.modelId,
       slackAppTokenKey: props.slackAppTokenKey,
       slackSigningSecretKey: props.slackSigningSecretKey,
       architectureDescription: props.architectureDescription,
       cwLogLogGroups: props.cwLogLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,
-      slashCommands: props.slashCommands,
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
@@ -72,6 +71,16 @@ export class FA2Stack extends Stack {
         },
       ],
     );
+    NagSuppressions.addResourceSuppressionsByPath(
+      Stack.of(this),
+      `${Stack.of(this).stackName}/${fa2.node.id}/SlackHandlerEndpoint/CloudWatchRole/Resource`,
+      [
+        {
+          id: "AwsSolutions-IAM4",
+          reason: "Make it simple by using Managed Policy/Role"
+        }
+      ]
+    )
 
     NagSuppressions.addStackSuppressions(this, [
       {
@@ -79,36 +88,6 @@ export class FA2Stack extends Stack {
         reason: "Puppetter didn't work on lambda of the runtime of Node.js v22."
       }
     ])
-
-    if(props.slashCommands.insight){
-      NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "CloudWatch need * resources to do these API actions.",
-        },
-      ]);
-    }
-    
-    if(props.slashCommands.findingsReport && props.detectorId){
-      NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
-        {
-          id: "AwsSolutions-IAM4",
-          reason:
-            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
-        },
-        {
-          id: "AwsSolutions-IAM5",
-          reason:
-            "CloudWatch need * resources to do these API actions.",
-        },
-      ]);
-    }
 
     if (fa2.slackHandlerRole) {
       NagSuppressions.addResourceSuppressions(fa2.slackHandlerRole, [

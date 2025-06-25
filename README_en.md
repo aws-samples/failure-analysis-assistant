@@ -1,27 +1,17 @@
 # Failure Analysis Assistant (FA2) Slack App Version
 
+> **Note**: This version of FA2 uses an agent based on the ReACT algorithm and is currently under validation. The source code and implementation may undergo significant changes.
+
 [日本語で読む](./README.md)
 
 This is a sample implementation that responds to alarms sent to Slack by Amazon Q Developer in chat applications and helps analyze the root cause of the failure.
 This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
-This sample code provide two features as below,
+This sample code provides the following feature:
 
 **Failure analysis assist**
 
 Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
 For an example of how the function works, see [Failure Analysis Assist](#failure-analysis-assist).
-
-**Metrics analysis support**
-
-In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
-For example of the operation of the function, see [[Optional]Metric Analysis Assist](#optionalmetrics-analysis-assist).
-**This feature is optional.** If you want to use it, please see [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Metrics Insight Assist](#optionalconfiguration-of-slack-app-for-metrics-insight-assist).
-
-**Findings Report**
-
-We've added the feature to create a report explaining Security Hub and GuardDuty Findings by LLM.
-For example of the function in action, see [[OPTIONAL]Findings Report](#optionalfindings-report).
-**This feature is optional**, so if you want to enable it, check [Setting parameters](#setting-parameters) and [[Optional]Configuration of Slack App for Findings Report](#optionalconfiguration-of-slack-app-for-findings-report).
 
 ## Branches
 
@@ -57,13 +47,28 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 ![slackapp-architecture](./docs/images/en/fa2-architecture-slack.png)
 
 1. Alarms are triggered on the target system, and notifications are sent to Slack via Amazon SNS and Amazon Q Developer in chat applications
-2. Show the input form of Slack App when it received an alarm.
+2. Show the input form of Slack App when it received an alarm
 3. Enter `log retrieval time range` and `event information understood from alarms`, and submit a request
-4. FA2 runs on AWS Lambda and accesses you defined log search targets and collects information from the log retrieval time range included in the request
-   1. The parameters you set determine what to search for. A log group of Amazon CloudWatch Logs is required; database of Amazon Athena, and the parameter of AWS X-Ray are optional
-   2. By increasing the number of search targets, there is a possibility that more accurate answers can be obtained
-5. The collected information is added as context to the prompt template included in FA2 and sent to Amazon Bedrock to summarize information related to the event and extract information necessary for event cause analysis
-6. Send the answers obtained from LLM to Slack.
+4. FA2 runs on AWS Lambda and uses an agent based on the ReACT (Reasoning + Acting) algorithm to perform failure analysis:
+   1. **Thinking Step**: The agent analyzes the current situation and decides what action to take next
+   2. **Acting Step**: The agent executes the decided tool (e.g., retrieving logs from CloudWatch Logs, analyzing metrics)
+   3. **Observing Step**: The agent observes the results of the tool execution and collects new information
+   4. **Cycle Repetition**: The agent repeats the thinking→acting→observing cycle until sufficient information is gathered
+   5. **Completing Step**: Once sufficient information is gathered, the agent generates a final answer
+5. The agent uses the following tools to collect and analyze information:
+   - **metrics_tool**: Retrieves and analyzes CloudWatch metrics
+   - **logs_tool**: Retrieves and analyzes logs from CloudWatch Logs
+   - **audit_log_tool**: Retrieves and analyzes audit logs from CloudTrail
+   - **xray_tool**: Retrieves and analyzes trace information from X-Ray
+   - **kb_tool**: Searches documents from Knowledge Base
+6. When the analysis is complete, the agent generates a detailed failure analysis report that includes:
+   - Issue summary
+   - Root cause (with severity and confidence levels)
+   - Referenced logs/metrics
+   - Timeline analysis
+   - Recommended actions
+   - Prevention measures
+7. The generated report is sent to Slack and provided to the user
 
 ## Requirements
 
@@ -100,33 +105,27 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 Refer to the following description, copy `parameter_template.ts`, create `parameter.ts`, and then change each value.
 
 ```
-// Example: Settings for the Slack App version when using Claude 3 Sonnet and using CloudWatch Logs, Athena, and X-Ray as search targets
+// Example: Settings for the Slack App version when using Claude 3.7 Sonnet and using CloudWatch Logs as search targets
 export const devParameter: AppParameter = {
   env: {
-    account: "123456789012",
-    region: "us-east-1",
+    account: "148991357402",
+    region: "us-west-2",
   },
   language: "ja",
   envName: "Development",
-  qualityModelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-  fastModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+  modelId: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
   slackAppTokenKey: "SlackAppToken",
-  slackSigningSecretKey: "SlackSigningSecretKey",
-  architectureDescription: "The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."
+  slackSigningSecretKey: "SlackSigningSecret",
+  architectureDescription: "The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2."
   cwLogsLogGroups: [
-    "ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"
+    "/ec2/demoapp",
+    "/ec2/messages",
+    "/aws/application-signals/data",
   ],
   cwLogsInsightQuery: "fields @message | limit 100",
-  databaseName: "athenadatacatalog",
-  albAccessLogTableName: "alb_access_logs",
-  cloudTrailLogTableName: "cloud_trail_logs",
-  xrayTrace: true,
-  slashCommands: {
-    insight: true,
-    findingsReport: true,
-  },
-  detectorId: "xxxxxxxxxxxxxxx",
+  xrayTrace: false,
   knowledgeBase: true,
+  embeddingModelId: "amazon.titan-embed-text-v2:0"
 };
 ```
 
@@ -134,26 +133,19 @@ export const devParameter: AppParameter = {
 
 | Parameters               | Example value                                                             | Description                                                                                                                                                                                 |
 | ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.account`            | `"123456789012"`                                                          | AWS Account ID to deploy this sample                                                                                                                                                        |
-| `env.region`             | `"us-east-1"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
+| `env.account`            | `"148991357402"`                                                          | AWS Account ID to deploy this sample                                                                                                                                                        |
+| `env.region`             | `"us-west-2"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
 | `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
 | `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
-| `qualityModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc.                                                                      |
-| `fastModelId`                | `"anthropic.claude-3-sonnet-20240229-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what model access allows. Here, please specify a model that emphasizes the speed of generation. It is used for query expansion, etc.                                                                      |
+| `modelId`                | `"us.anthropic.claude-3-7-sonnet-20250219-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc.                                                                      |
 | `slackAppTokenKey`       | `"SlackAppToken"`                                                         | The key name is to get `SlackAppToken` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                               |
-| `slackSingingSecretKey`  | `"SlackSigingSecret"`                                                     | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                          |
-| `architectureDescription`  | `"The workload you are responsible for consists of CloudFront, ALB, ECS on EC2, and DynamoDB, and Spring applications are deployed on ECS on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
-| `cwLogsLogGroups`        | `["ApiLogGroup", "/aws/ecs/containerinsights/EcsAppCluster/performance"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
+| `slackSingingSecretKey`  | `"SlackSigningSecret"`                                                     | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                          |
+| `architectureDescription`  | `"The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
+| `cwLogsLogGroups`        | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
-| `databaseName`           | `"athenadatacatalog"`                                                     | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                  |
-| `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
-| `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
-| `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
-| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
-| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
+| `xrayTrace`              | `false`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
 | `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
 | `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
-| `rerankModelId`              | `"amazon.rerank-v1:0"`                                                                    | Optional. If you want to use the rerank feature of bedrock when using the Knowledge Base. Set up the Rerank Model.                                                                                                      |
 
 #### Modify prompts
 
@@ -215,37 +207,6 @@ If this is the case, please make the following settings. The fault analysis assi
 2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
 3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
 
-#### [Optional]Configuration of Slack App for Metrics Insight Assist
-
-1. Click [Slash Commands] on the left menu, then click [Create New Command]
-   1. Enter the values as shown in the table below, and then click Save when you have entered them all
-
-      | item name         | value                         |
-      | ----------------- | ----------------------------- |
-      | Command           | /insight                      |
-      | Request URL       | same URL                      |
-      | Short Description | Get insight for your workload |
-
-2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
-3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
-
-#### [Optional]Configuration of Slack App for Findings Report
-
-1. Click [Slash Commands] on the left menu, then click [Create New Command]
-   1. Enter the values as shown in the table below, and then click Save when you have entered them all
-
-      | item name            | value                            |
-      | ----------------- | ----------------------------- |
-      | Command           | /findings-report                      |
-      | Request URL       | same URL         |
-      | Short Description | Create report about findings of Security Hub and GuardDuty |
-
-> NOTE
-> If you enabled Metrics Insight Assist, you don't need to do below steps.
-
-2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].
-3. Click [OAuth & Permissions] on the left menu, Add `commands` scope in [Scopes] section.
-
 ### Testing
 
 #### Failure Analysis Assist
@@ -273,31 +234,8 @@ Clicked the button, requests are accepted.
 
 Wait a few minutes, and the answers will appear in Slack.
 
+<!-- Please place the test execution result image here -->
 ![fa2-answer](./docs/images/en/fa2-slackapp-answer.png)
-
-#### [Optional]Metrics Analysis Assist
-
-You type `/insight` in the Slack chat form and send, a modal will be displayed.
-In the modal form, enter [the question you want answered based on the metrics] and [the period you want to obtain the metrics].
-In about 1-2 minutes, you'll get an answer.
-The metric `Period` is calculated by `3600 + floor(number of days acquired / 5) * 3600`.
-If you want to change the expression, see `createSelectMetricsForInsightPrompt()` in `lambda/lib/prompts.ts`.
-
-The following example asks questions about ECS performance.
-
-![insight-form](./docs/images/en/fa2-insight-form.png)
-
-![query-about-ecs-performance](./docs/images/en/fa2-query-about-ecs-performance.png)
-
-#### [Optional]Findings Report
-
-You type `/findings-report` in the Slack chat section and send it, a message indicating that the request has been accepted will be displayed.
-In about 1-2 minutes, a PDF of the Findings report will be uploaded.
-
-![findings-report](./docs/images/en/fa2-findings-report.png)
-
-The findings are gotten from `listGuardDutyFindings()` and `listSecurityHubFindings()` functions in `lambda/lib/aws-modules.ts`.
-Please modify these functions if you want to change the scope of these findings.
 
 ## Delete deployed resources
 

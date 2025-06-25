@@ -1,0 +1,19 @@
+{
+  "name": "fa2-react-lambda",
+  "version": "1.0.0",
+  "description": "FA2 ReACT Lambda Function",
+  "main": "main.ts",
+  "type": "module",
+  "dependencies": {
+    "@aws-lambda-powertools/parameters": "^1.12.1",
+    "@aws-sdk/client-dynamodb": "^3.350.0",
+    "@aws-sdk/client-lambda": "^3.350.0",
+    "@aws-sdk/lib-dynamodb": "^3.350.0",
+    "aws-lambda": "^1.0.7",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.150",
+    "@types/uuid": "^10.0.0"
+  }
+}

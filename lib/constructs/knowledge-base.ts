@@ -152,5 +152,11 @@ export class KnowledgeBase extends Construct {
         ]
       }
     ])
+    NagSuppressions.addResourceSuppressionsByPath(Stack.of(this), '/Dev-KnowledgeBase/AuroraServerless/CustomResourceProvider/framework-onEvent/Resource', [
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'The S3 bucket is used for storing the Athena query result.'
+      }
+    ])
   }
 }

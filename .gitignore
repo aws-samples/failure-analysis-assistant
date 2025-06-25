@@ -12,4 +12,5 @@ cdk.out
 # CDK context
 cdk.context.json
 
-parameter.ts
+parameter*.ts
+!parameter_template.ts
