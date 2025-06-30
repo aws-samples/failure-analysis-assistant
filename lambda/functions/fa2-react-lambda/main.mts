@@ -13,6 +13,9 @@ import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
 import { OrchestratorState, OrchestratorStepResult } from "../../lib/orchestrator.js";
 
+const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
+const token = await getSecret(slackAppTokenKey);
+
 /**
  * 進捗状況メッセージを構築する関数
  * @param i18n I18nProviderのインスタンス
@@ -103,7 +106,6 @@ function buildProgressMessage(
   return progressMessage;
 }
 
-
 export const handler: Handler = async (event: {
   errorDescription: string;
   startDate: string;
@@ -128,7 +130,6 @@ export const handler: Handler = async (event: {
     ? (process.env.LANG as Language)
     : "en";
   const i18n = new I18nProvider(lang)
-  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
   const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
   const logGroups = (
@@ -139,7 +140,6 @@ export const handler: Handler = async (event: {
     ? parseInt(process.env.MAX_HYPOTHESES, 10) 
     : 5;
 
-  const token = await getSecret(slackAppTokenKey);
   const messageClient = new MessageClient(token!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
 
