@@ -33,10 +33,20 @@ export interface ToolExecutionRecord {
   dataAvailable: boolean;
 }
 
-export interface SessionState {
+/**
+ * 基本セッション状態を表すインターフェース
+ */
+export interface BaseState {
   context: string;
-  history: HistoryItem[];
   finalAnswer: string | null;
+  toolExecutions: ToolExecutionRecord[];
+}
+
+/**
+ * ReActエージェントのセッション状態
+ */
+export interface ReactSessionState extends BaseState {
+  history: HistoryItem[];
   state: ReactionState;
   cycleCount: number;
   dataCollectionStatus: {
@@ -50,8 +60,10 @@ export interface SessionState {
   lastAction?: ToolAction;
   lastObservation?: string;
   missingData?: string[];
-  toolExecutions: ToolExecutionRecord[];
 }
+
+// 後方互換性のために残す
+export type SessionState = ReactSessionState;
 
 export interface StepResult {
   isDone: boolean;
@@ -59,9 +71,9 @@ export interface StepResult {
   currentState?: SessionState;
 }
 
-export class ReactEngine {
+export class ReActAgent {
   private sessionId: string;
-  private sessionState: SessionState;
+  private sessionState: ReactSessionState;
   private toolRegistry: ToolRegistry;
   private prompt: Prompt;
   private bedrockService: BedrockService;
@@ -135,7 +147,7 @@ export class ReactEngine {
   /**
    * セッション状態を設定する
    */
-  setSessionState(state: SessionState): void {
+  setSessionState(state: ReactSessionState): void {
     this.sessionState = state;
   }
   
@@ -539,7 +551,7 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
     });
   }
   
-  getSessionState(): SessionState {
+  getSessionState(): ReactSessionState {
     return this.sessionState;
   }
 }

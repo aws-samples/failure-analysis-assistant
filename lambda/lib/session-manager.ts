@@ -6,13 +6,16 @@ import {
   UpdateCommand, 
   DeleteCommand 
 } from "@aws-sdk/lib-dynamodb";
-import { SessionState, ToolExecutionRecord } from "./react-engine.js";
+import { ToolExecutionRecord } from "./react-agent.js";
+import { OrchestratorState } from "./orchestrator.js";
 import { logger } from "./logger.js";
 
 const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
+const docClient = DynamoDBDocumentClient.from(client, { 
+  marshallOptions: { removeUndefinedValues: true } 
+});
 
-export async function getSessionState(sessionId: string): Promise<SessionState | null> {
+export async function getSessionState(sessionId: string): Promise<OrchestratorState | null> {
   logger.info("Getting session state", { sessionId });
   
   try {
@@ -34,7 +37,7 @@ export async function getSessionState(sessionId: string): Promise<SessionState |
     }
     
     // セッション状態を取得
-    const state = response.Item.state as SessionState;
+    const state = response.Item.state as OrchestratorState;
     
     // ツール実行記録があれば追加
     if (response.Item.toolExecutions) {
@@ -55,7 +58,7 @@ export async function getSessionState(sessionId: string): Promise<SessionState |
   }
 }
 
-export async function saveSessionState(sessionId: string, state: SessionState): Promise<void> {
+export async function saveSessionState(sessionId: string, state: OrchestratorState): Promise<void> {
   logger.info("Saving session state", { sessionId });
   
   try {
@@ -90,7 +93,7 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
   }
 }
 
-export async function updateSessionState(sessionId: string, state: SessionState): Promise<void> {
+export async function updateSessionState(sessionId: string, state: OrchestratorState): Promise<void> {
   logger.info("Updating session state", { sessionId });
   
   try {
@@ -139,9 +142,16 @@ export async function completeSession(sessionId: string): Promise<void> {
     // セッション状態を取得
     const currentState = await getSessionState(sessionId);
     if (currentState) {
-      // 状態をCOMPLETEDに更新
-      const { ReactionState } = await import("./react-engine.js");
-      currentState.state = ReactionState.COMPLETED;
+      // 最終回答が設定されていない場合は設定
+      if (!currentState.finalAnswer) {
+        currentState.finalAnswer = "分析が完了しました。";
+      }
+      
+      // ReactSessionStateがある場合は状態を更新
+      if (currentState.reactSessionState) {
+        const { ReactionState } = await import("./react-agent.js");
+        currentState.reactSessionState.state = ReactionState.COMPLETED;
+      }
       
       // 更新したセッション状態を保存
       await saveSessionState(sessionId, currentState);

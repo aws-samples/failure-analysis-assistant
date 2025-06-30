@@ -188,7 +188,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       }
     ],
     execute: async (params: Record<string, unknown>) => {
-      // このツールは実際には何も実行せず、ReactEngineによって特別に処理される
+      // このツールは実際には何も実行せず、AgentEngineによって特別に処理される
       const typedParams = params as {
         content: string;
       };

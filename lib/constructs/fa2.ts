@@ -28,6 +28,7 @@ interface FA2Props {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   detectorId?: string;
+  maxHypotheses?: number;
 }
 
 export class FA2 extends Construct {
@@ -73,6 +74,7 @@ export class FA2 extends Construct {
     });
 
     // Function of Failure Analysis
+    const applicationSignalLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'ApplicationSignalsLayer', "arn:aws:lambda:us-west-2:615299751070:layer:AWSOpenTelemetryDistroJs:8");
     const fa2BackendRole = new iam.Role(this, "FA2BackendRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       managedPolicies: [
@@ -80,6 +82,9 @@ export class FA2 extends Construct {
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AWSLambdaBasicExecutionRole",
         ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
+        )
       ],
       inlinePolicies: {
         // To run query in CloudWatch Logs Insight
@@ -136,6 +141,7 @@ export class FA2 extends Construct {
               actions: ["lambda:InvokeFunction"],
               resources: [`arn:aws:lambda:${Stack.of(this).region}:${Stack.of(this).account}:function:*`],
             }),
+            // })
           ],
         }),
       },
@@ -157,7 +163,10 @@ export class FA2 extends Construct {
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
         SESSION_TABLE_NAME: this.sessionTable.tableName,
+        MAX_HYPOTHESES: props.maxHypotheses?.toString() || "5",
+        AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-instrument', // For Application Signals
       },
+      layers: [applicationSignalLayer],
       bundling: {
         minify: true,
         keepNames: true,

@@ -20,6 +20,7 @@ interface FA2StackProps extends StackProps {
   detectorId?: string;
   knowledgeBaseId?: string;
   rerankModelId?: string;
+  maxHypotheses?: number;
 }
 
 export class FA2Stack extends Stack {
@@ -42,6 +43,7 @@ export class FA2Stack extends Stack {
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
       detectorId: props.detectorId,
+      maxHypotheses: props.maxHypotheses,
     });
     this.fa2BackendFunction = fa2.backendFunction;
     
