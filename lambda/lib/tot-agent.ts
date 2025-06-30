@@ -11,7 +11,7 @@ import { BedrockThrottlingError } from "./aws/errors/aws-error.js";
 export interface Hypothesis {
   id: string;
   description: string;
-  confidence: number;
+  confidenceLevel: 'high' | 'medium' | 'low';
   reasoning: string;
   source: 'knowledge_base' | 'llm';
 }
@@ -39,7 +39,7 @@ export class ToTAgent {
     sessionId: string, 
     toolRegistry: ToolRegistry, 
     prompt: Prompt,
-    maxHypotheses: number = 5
+    maxHypotheses: number = 3
   ) {
     this.sessionId = sessionId;
     this.toolRegistry = toolRegistry;
@@ -125,7 +125,7 @@ export class ToTAgent {
         return [{
           id: "fallback-1",
           description: "APIレート制限により仮説生成が制限されました。一般的な障害原因として考えられるのは、リソース不足、設定ミス、外部依存関係の問題です。",
-          confidence: 0.5,
+          confidenceLevel: 'low',
           reasoning: "Bedrockのレート制限に達したため、詳細な分析ができませんでした。一般的な障害パターンに基づく仮説です。",
           source: "llm"
         }];
@@ -166,17 +166,15 @@ export class ToTAgent {
         const reasoning = this.extractField(hypothesisContent, "根拠", "Reasoning");
         const sourceStr = this.extractField(hypothesisContent, "情報源", "Source");
         
-        // 信頼度を数値に変換（0.0〜1.0）
-        let confidence = 0.5; // デフォルト値
+        // 信頼度を「高/中/低」に変換
+        let confidenceLevel: 'high' | 'medium' | 'low' = 'medium'; // デフォルト値
         if (confidenceStr) {
-          // 数値のみを抽出
-          const confidenceMatch = confidenceStr.match(/(\d+(\.\d+)?)/);
-          if (confidenceMatch) {
-            const parsedConfidence = parseFloat(confidenceMatch[1]);
-            // 0-100のスケールの場合は0-1に変換
-            confidence = parsedConfidence > 1 ? parsedConfidence / 100 : parsedConfidence;
-            // 範囲を0-1に制限
-            confidence = Math.max(0, Math.min(1, confidence));
+          if (confidenceStr.toLowerCase().includes('高') || 
+              confidenceStr.toLowerCase().includes('high')) {
+            confidenceLevel = 'high';
+          } else if (confidenceStr.toLowerCase().includes('低') || 
+                     confidenceStr.toLowerCase().includes('low')) {
+            confidenceLevel = 'low';
           }
         }
         
@@ -199,7 +197,7 @@ export class ToTAgent {
         hypotheses.push({
           id: `hypothesis-${hypothesisNumber}`,
           description: description || hypothesisContent,
-          confidence,
+          confidenceLevel,
           reasoning: reasoning || "",
           source
         });
@@ -215,14 +213,14 @@ export class ToTAgent {
         hypotheses.push({
           id: "fallback-1",
           description: "レスポンスから仮説を抽出できませんでした。障害の原因として考えられるのは、システムリソースの不足、設定ミス、または外部依存関係の問題です。",
-          confidence: 0.5,
+          confidenceLevel: 'low',
           reasoning: "LLMのレスポンスから構造化された仮説を抽出できませんでした。一般的な障害パターンに基づく仮説です。",
           source: "llm"
         });
       }
       
-      // 信頼度の高い順にソート
-      return hypotheses.sort((a, b) => b.confidence - a.confidence);
+      // LLMが返した順序をそのまま使用（ソートしない）
+      return hypotheses;
       
     } catch (error) {
       logger.error("Error extracting hypotheses", { error });
@@ -231,7 +229,7 @@ export class ToTAgent {
       return [{
         id: "error-1",
         description: "仮説の抽出中にエラーが発生しました。一般的な障害原因として、システムリソースの不足、設定ミス、外部依存関係の問題が考えられます。",
-        confidence: 0.5,
+        confidenceLevel: 'low',
         reasoning: "仮説抽出処理でエラーが発生しました。一般的な障害パターンに基づく仮説です。",
         source: "llm"
       }];

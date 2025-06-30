@@ -12,7 +12,7 @@ import { HistoryItem } from "./react-agent.js";
 export interface EvaluationResult {
   hypothesisId: string;
   status: 'confirmed' | 'rejected' | 'inconclusive';
-  confidence: number;
+  confidenceLevel: 'high' | 'medium' | 'low';
   reasoning: string;
 }
 
@@ -67,7 +67,7 @@ export class Evaluator {
         return {
           hypothesisId: hypothesis.id,
           status: 'inconclusive',
-          confidence: 0.3,
+          confidenceLevel: 'low',
           reasoning: "Bedrockのレート制限に達したため、評価を完了できませんでした。現在の情報では結論を出せません。"
         };
       }
@@ -77,7 +77,7 @@ export class Evaluator {
       return {
         hypothesisId: hypothesis.id,
         status: 'inconclusive',
-        confidence: 0.2,
+        confidenceLevel: 'low',
         reasoning: `評価中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`
       };
     }
@@ -125,17 +125,15 @@ export class Evaluator {
         }
       }
       
-      // 信頼度を数値に変換（0.0〜1.0）
-      let confidence = 0.5; // デフォルト値
+      // 信頼度を「高/中/低」に変換
+      let confidenceLevel: 'high' | 'medium' | 'low' = 'medium'; // デフォルト値
       if (confidenceStr) {
-        // 数値のみを抽出
-        const confidenceMatch = confidenceStr.match(/(\d+(\.\d+)?)/);
-        if (confidenceMatch) {
-          const parsedConfidence = parseFloat(confidenceMatch[1]);
-          // 0-100のスケールの場合は0-1に変換
-          confidence = parsedConfidence > 1 ? parsedConfidence / 100 : parsedConfidence;
-          // 範囲を0-1に制限
-          confidence = Math.max(0, Math.min(1, confidence));
+        if (confidenceStr.toLowerCase().includes('高') || 
+            confidenceStr.toLowerCase().includes('high')) {
+          confidenceLevel = 'high';
+        } else if (confidenceStr.toLowerCase().includes('低') || 
+                   confidenceStr.toLowerCase().includes('low')) {
+          confidenceLevel = 'low';
         }
       }
       
@@ -143,7 +141,7 @@ export class Evaluator {
       return {
         hypothesisId: hypothesis.id,
         status,
-        confidence,
+        confidenceLevel,
         reasoning: reasoning || evaluationContent
       };
     } catch (error) {
@@ -153,7 +151,7 @@ export class Evaluator {
       return {
         hypothesisId: hypothesis.id,
         status: 'inconclusive',
-        confidence: 0.3,
+        confidenceLevel: 'low',
         reasoning: "評価結果の抽出中にエラーが発生しました。現在の情報では結論を出せません。"
       };
     }

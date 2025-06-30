@@ -4,6 +4,7 @@ import { logger } from "./logger.js";
 import { ToTAgent, Hypothesis, ToTState } from "./tot-agent.js";
 import { ReActAgent, ReactSessionState, BaseState } from "./react-agent.js";
 import { Evaluator, EvaluationResult } from "./evaluator.js";
+import { AWSServiceFactory } from "./aws/aws-service-factory.js";
 
 /**
  * 仮説検証の状態を表すインターフェース
@@ -26,7 +27,7 @@ export interface OrchestratorState extends BaseState {
   finalResult?: {
     hypothesisId: string;
     status: 'confirmed' | 'best_effort';
-    confidence: number;
+    confidenceLevel: 'high' | 'medium' | 'low';
   };
 }
 
@@ -57,7 +58,7 @@ export class Orchestrator {
     sessionId: string,
     toolRegistry: ToolRegistry,
     prompt: Prompt,
-    maxHypotheses: number = 5
+    maxHypotheses: number = 3
   ) {
     this.sessionId = sessionId;
     this.toolRegistry = toolRegistry;
@@ -135,7 +136,7 @@ export class Orchestrator {
     
     // 現在の仮説が選択されていない場合
     if (this.state.currentHypothesisIndex === -1) {
-      return this.selectNextHypothesis();
+      return await this.selectNextHypothesis();
     }
     
     // 現在の仮説の検証状態を取得
@@ -149,7 +150,7 @@ export class Orchestrator {
       case 'in_progress':
         return await this.continueHypothesisVerification();
       case 'completed':
-        return this.processVerificationResult();
+        return await this.processVerificationResult();
       default:
         logger.error("Unknown verification state", { verificationState });
         return {
@@ -193,7 +194,7 @@ export class Orchestrator {
       const fallbackHypothesis: Hypothesis = {
         id: "fallback-1",
         description: "障害の原因として考えられるのは、システムリソースの不足、設定ミス、または外部依存関係の問題です。",
-        confidence: 0.5,
+        confidenceLevel: 'low',
         reasoning: "仮説生成中にエラーが発生しました。一般的な障害パターンに基づく仮説です。",
         source: "llm"
       };
@@ -216,7 +217,7 @@ export class Orchestrator {
    * 次の仮説を選択する
    * @returns 実行結果
    */
-  private selectNextHypothesis(): OrchestratorStepResult {
+  private async selectNextHypothesis(): Promise<OrchestratorStepResult> {
     logger.info("Selecting next hypothesis", { 
       sessionId: this.sessionId,
       currentIndex: this.state.currentHypothesisIndex,
@@ -236,7 +237,7 @@ export class Orchestrator {
       };
     } else {
       // すべての仮説が検証済みの場合
-      return this.generateFinalAnswer();
+      return await this.generateFinalAnswer();
     }
   }
   
@@ -294,7 +295,7 @@ export class Orchestrator {
   private async continueHypothesisVerification(): Promise<OrchestratorStepResult> {
     if (!this.reactAgent || !this.state.reactSessionState) {
       logger.error("ReActAgent not initialized", { sessionId: this.sessionId });
-      return this.selectNextHypothesis();
+      return await this.selectNextHypothesis();
     }
     
     // ReActAgentのステップを実行
@@ -329,7 +330,7 @@ export class Orchestrator {
     
     if (!this.state.reactSessionState) {
       logger.error("ReActAgent session state not available", { sessionId: this.sessionId });
-      return this.selectNextHypothesis();
+      return await this.selectNextHypothesis();
     }
     
     try {
@@ -344,18 +345,18 @@ export class Orchestrator {
       this.updateVerificationState(currentHypothesis.id, 'completed', evaluationResult);
       
       // 仮説が確定した場合は最終結果を設定
-      if (evaluationResult.status === 'confirmed' && evaluationResult.confidence > 0.7) {
+      if (evaluationResult.status === 'confirmed' && evaluationResult.confidenceLevel === 'high') {
         this.state.finalResult = {
           hypothesisId: currentHypothesis.id,
           status: 'confirmed',
-          confidence: evaluationResult.confidence
+          confidenceLevel: evaluationResult.confidenceLevel
         };
         
-        return this.generateFinalAnswer();
+        return await this.generateFinalAnswer();
       }
       
       // 次の仮説を選択
-      return this.selectNextHypothesis();
+      return await this.selectNextHypothesis();
     } catch (error) {
       logger.error("Failed to evaluate hypothesis", { error });
       
@@ -363,11 +364,11 @@ export class Orchestrator {
       this.updateVerificationState(currentHypothesis.id, 'completed', {
         hypothesisId: currentHypothesis.id,
         status: 'inconclusive',
-        confidence: 0.3,
+        confidenceLevel: 'low',
         reasoning: `評価中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`
       });
       
-      return this.selectNextHypothesis();
+      return await this.selectNextHypothesis();
     }
   }
   
@@ -375,22 +376,22 @@ export class Orchestrator {
    * 検証結果を処理する
    * @returns 実行結果
    */
-  private processVerificationResult(): OrchestratorStepResult {
+  private async processVerificationResult(): Promise<OrchestratorStepResult> {
     // 次の仮説を選択
-    return this.selectNextHypothesis();
+    return await this.selectNextHypothesis();
   }
   
   /**
    * 最終回答を生成する
    * @returns 実行結果
    */
-  private generateFinalAnswer(): OrchestratorStepResult {
+  private async generateFinalAnswer(): Promise<OrchestratorStepResult> {
     logger.info("Generating final answer", { sessionId: this.sessionId });
     
     // 確定された仮説があるか確認
     const confirmedVerification = this.state.verificationStates.find(vs => 
       vs.evaluationResult?.status === 'confirmed' && 
-      vs.evaluationResult.confidence > 0.7
+      vs.evaluationResult.confidenceLevel === 'high'
     );
     
     if (confirmedVerification) {
@@ -401,10 +402,10 @@ export class Orchestrator {
         this.state.finalResult = {
           hypothesisId: confirmedHypothesis.id,
           status: 'confirmed',
-          confidence: confirmedVerification.evaluationResult!.confidence
+          confidenceLevel: confirmedVerification.evaluationResult!.confidenceLevel
         };
         
-        const finalAnswer = this.createFinalAnswer(confirmedHypothesis, confirmedVerification.evaluationResult!);
+        const finalAnswer = await this.createFinalAnswer(confirmedHypothesis, confirmedVerification.evaluationResult!);
         
         return {
           isDone: true,
@@ -414,10 +415,9 @@ export class Orchestrator {
       }
     }
     
-    // 確定された仮説がない場合は、最も信頼度の高い仮説を選択
+    // 確定された仮説がない場合は、最初の仮説を選択（LLMが重要度順に並べているため）
     const bestVerification = this.state.verificationStates
-      .filter(vs => vs.evaluationResult)
-      .sort((a, b) => (b.evaluationResult?.confidence || 0) - (a.evaluationResult?.confidence || 0))[0];
+      .filter(vs => vs.evaluationResult)[0];
     
     if (bestVerification && bestVerification.evaluationResult) {
       const bestHypothesis = this.state.hypotheses.find(h => h.id === bestVerification.hypothesisId);
@@ -426,10 +426,10 @@ export class Orchestrator {
         this.state.finalResult = {
           hypothesisId: bestHypothesis.id,
           status: 'best_effort',
-          confidence: bestVerification.evaluationResult.confidence
+          confidenceLevel: bestVerification.evaluationResult.confidenceLevel
         };
         
-        const finalAnswer = this.createFinalAnswer(bestHypothesis, bestVerification.evaluationResult, true);
+        const finalAnswer = await this.createFinalAnswer(bestHypothesis, bestVerification.evaluationResult, true);
         
         return {
           isDone: true,
@@ -478,13 +478,21 @@ export class Orchestrator {
    * @param isBestEffort ベストエフォートかどうか
    * @returns 最終回答
    */
-  private createFinalAnswer(
+  private async createFinalAnswer(
     hypothesis: Hypothesis,
     evaluation: EvaluationResult,
     isBestEffort: boolean = false
-  ): string {
-    const confidenceLevel = evaluation.confidence > 0.7 ? "高" : evaluation.confidence > 0.4 ? "中" : "低";
+  ): Promise<string> {
+    // 信頼度レベルを日本語に変換
+    const confidenceLevelJa = evaluation.confidenceLevel === 'high' ? "高" : 
+                              evaluation.confidenceLevel === 'medium' ? "中" : "低";
     const statusPrefix = isBestEffort ? "## 注意: この分析は最も可能性の高い仮説に基づいていますが、確定的ではありません\n\n" : "";
+    
+    // 生成AIを使用して対応策と再発防止策を生成
+    const { actions, preventions } = await this.generateRecommendationsWithLLM(
+      hypothesis,
+      this.state.context
+    );
     
     return `${statusPrefix}
 ## 障害分析結果
@@ -496,7 +504,7 @@ ${this.state.context}
 ${hypothesis.description}
 
 - 重要度: 中～高
-- 確信度: ${confidenceLevel} (${Math.round(evaluation.confidence * 100)}%)
+- 確信度: ${confidenceLevelJa}
 
 ### 根拠
 ${hypothesis.reasoning}
@@ -504,16 +512,10 @@ ${hypothesis.reasoning}
 ${evaluation.reasoning ? `### 評価結果\n${evaluation.reasoning}\n` : ""}
 
 ### 推奨される対応策
-1. ${hypothesis.description.includes("リソース") ? "システムリソースの増強または最適化を行う" : ""}
-2. ${hypothesis.description.includes("設定") ? "設定の見直しと修正を行う" : ""}
-3. ${hypothesis.description.includes("依存") ? "外部依存関係の状態を確認し、必要に応じて代替手段を検討する" : ""}
-4. 同様の問題の早期検出のためのモニタリングを強化する
+${actions || "対応策を特定できませんでした。"}
 
 ### 再発防止策
-1. 自動スケーリングの設定を見直す
-2. 定期的な設定レビューを実施する
-3. 障害検知の閾値を調整する
-4. 依存関係の冗長化を検討する
+${preventions || "再発防止策を特定できませんでした。"}
 `;
   }
   
@@ -566,6 +568,70 @@ ${evaluation.reasoning ? `### 評価結果\n${evaluation.reasoning}\n` : ""}
         status,
         evaluationResult
       });
+    }
+  }
+  
+  /**
+   * 生成AIを使用して対応策と再発防止策を生成する
+   * @param hypothesis 仮説
+   * @param context 障害の説明
+   * @returns 対応策と再発防止策
+   */
+  private async generateRecommendationsWithLLM(
+    hypothesis: Hypothesis,
+    context: string
+  ): Promise<{ actions: string, preventions: string }> {
+    try {
+      // BedrockServiceのインスタンスを取得
+      const bedrockService = AWSServiceFactory.getBedrockService();
+      
+      // プロンプトを作成
+      const prompt = this.prompt.createRecommendationPrompt(hypothesis, context);
+      
+      // LLMに問い合わせ
+      const response = await bedrockService.converse(prompt);
+      
+      // レスポンスから対応策と再発防止策を抽出
+      return this.extractRecommendationsFromResponse(response || "");
+    } catch (error) {
+      logger.error("Failed to generate recommendations with LLM", { error });
+      
+      // エラー時のフォールバック
+      return {
+        actions: "1. システムの状態を詳細に確認し、問題の影響範囲を特定する\n2. 一時的な回避策を実施して、サービスの可用性を回復する\n3. 根本原因に対する恒久的な修正を計画する",
+        preventions: "1. 監視とアラートの強化\n2. 定期的なシステムレビューの実施\n3. 障害対応プロセスの改善"
+      };
+    }
+  }
+  
+  
+  /**
+   * LLMのレスポンスから対応策と再発防止策を抽出する
+   * @param response LLMのレスポンス
+   * @returns 対応策と再発防止策
+   */
+  private extractRecommendationsFromResponse(response: string): { actions: string, preventions: string } {
+    try {
+      // <Recommendations>タグで囲まれた部分を抽出
+      const recommendationsMatch = response.match(/<Recommendations>([\s\S]*?)<\/Recommendations>/);
+      const recommendationsContent = recommendationsMatch ? recommendationsMatch[1].trim() : response;
+      
+      // 対応策と再発防止策を抽出
+      const actionsMatch = recommendationsContent.match(/##\s*推奨される対応策|##\s*Recommended Actions([\s\S]*?)(?=##|$)/i);
+      const preventionsMatch = recommendationsContent.match(/##\s*再発防止策|##\s*Prevention Measures([\s\S]*?)(?=##|$)/i);
+      
+      const actions = actionsMatch ? actionsMatch[1].trim() : "";
+      const preventions = preventionsMatch ? preventionsMatch[1].trim() : "";
+      
+      return { actions, preventions };
+    } catch (error) {
+      logger.error("Error extracting recommendations", { error });
+      
+      // エラー時のフォールバック
+      return {
+        actions: "1. システムの状態を詳細に確認し、問題の影響範囲を特定する\n2. 一時的な回避策を実施して、サービスの可用性を回復する",
+        preventions: "1. 監視とアラートの強化\n2. 定期的なシステムレビューの実施"
+      };
     }
   }
 }

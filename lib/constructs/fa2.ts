@@ -163,7 +163,7 @@ export class FA2 extends Construct {
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
         SESSION_TABLE_NAME: this.sessionTable.tableName,
-        MAX_HYPOTHESES: props.maxHypotheses?.toString() || "5",
+        MAX_HYPOTHESES: props.maxHypotheses?.toString() || "3",
         AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-instrument', // For Application Signals
       },
       layers: [applicationSignalLayer],

@@ -39,13 +39,15 @@ function buildProgressMessage(
     // 仮説一覧のメッセージを構築
     progressMessage += `\n\n**${i18n.translate("generatedHypothesesTitle")}**:\n`;
     
-    // 仮説を信頼度の高い順にソート
-    const sortedHypotheses = [...currentState.hypotheses].sort((a, b) => b.confidence - a.confidence);
+    // 仮説はLLMが重要度順に並べているのでそのまま使用
+    const hypotheses = currentState.hypotheses;
     
     // 各仮説の情報を追加
-    sortedHypotheses.forEach((hypothesis, index) => {
-      const confidencePercent = Math.round(hypothesis.confidence * 100);
-      progressMessage += `\n${index + 1}. [${i18n.translate("confidenceLabel")}: ${confidencePercent}%] ${hypothesis.description}`;
+    hypotheses.forEach((hypothesis, index) => {
+      // 信頼度レベルを日本語に変換
+      const confidenceLevelJa = hypothesis.confidenceLevel === 'high' ? "高" : 
+                                hypothesis.confidenceLevel === 'medium' ? "中" : "低";
+      progressMessage += `\n${index + 1}. [${i18n.translate("confidenceLabel")}: ${confidenceLevelJa}] ${hypothesis.description}`;
       if (hypothesis.reasoning) {
         progressMessage += `\n   ${i18n.translate("reasoningLabel")}: ${hypothesis.reasoning}`;
       }

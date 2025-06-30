@@ -392,7 +392,7 @@ export class Prompt {
   public createToTPrompt(
     errorDescription: string,
     kbSearchResults: string,
-    maxHypotheses: number = 5
+    maxHypotheses: number = 3
   ): string {
     if (this.language === "ja") {
       return `あなたは、AWS上で稼働するワークロードを監視・運用するエージェントです。
@@ -419,10 +419,17 @@ export class Prompt {
       
       <Hypothesis 1>
       説明: [障害の原因と影響の簡潔な説明]
-      信頼度: [高/中/低] (0.0〜1.0のスケールで数値も含める)
+      信頼度: [高/中/低]
       根拠: [この仮説を支持する理由、観察された症状との関連性]
       情報源: [Knowledge Base / LLMの知識 / アーキテクチャ分析]
       </Hypothesis 1>
+      
+      信頼度の評価基準：
+      - 「高」: テレメトリデータが存在する、過去に類似の事象が発生している、または明確な技術的根拠がある場合
+      - 「中」: 部分的なテレメトリデータがある、または一般的な障害パターンと一致する場合
+      - 「低」: 直接的な証拠がなく、推測に基づいている場合
+      
+      重要: 仮説は重要度と信頼度の高い順に並べてください。最も可能性の高い仮説を最初に提示してください。
       
       <Hypothesis 2>
       ...
@@ -456,10 +463,17 @@ export class Prompt {
       
       <Hypothesis 1>
       Description: [Concise explanation of the cause and impact of the issue]
-      Confidence: [High/Medium/Low] (also include a numerical value on a scale of 0.0 to 1.0)
+      Confidence: [High/Medium/Low]
       Reasoning: [Why this hypothesis is supported, how it relates to the observed symptoms]
       Source: [Knowledge Base / LLM knowledge / Architecture analysis]
       </Hypothesis 1>
+      
+      Confidence level criteria:
+      - "High": When telemetry data exists, similar incidents have occurred in the past, or there is clear technical evidence
+      - "Medium": When partial telemetry data exists or the hypothesis matches common failure patterns
+      - "Low": When there is no direct evidence and the hypothesis is based on speculation
+      
+      Important: List hypotheses in order of importance and confidence level. Present the most likely hypothesis first.
       
       <Hypothesis 2>
       ...
@@ -479,7 +493,7 @@ export class Prompt {
    * @returns 評価用のプロンプト
    */
   public createEvaluationPrompt(
-    hypothesis: { id: string; description: string; confidence: number; reasoning: string; },
+    hypothesis: { id: string; description: string; confidenceLevel: 'high' | 'medium' | 'low'; reasoning: string; },
     context: string,
     history: HistoryItem[]
   ): string {
@@ -497,7 +511,7 @@ export class Prompt {
       <Hypothesis>
       ID: ${hypothesis.id}
       説明: ${hypothesis.description}
-      信頼度: ${hypothesis.confidence}
+      信頼度: ${hypothesis.confidenceLevel}
       根拠: ${hypothesis.reasoning}
       </Hypothesis>
       
@@ -518,9 +532,14 @@ export class Prompt {
       
       <Evaluation>
       状態: [確定/棄却/保留]
-      信頼度: [0.0〜1.0のスケール]
+      信頼度: [高/中/低]
       根拠: [この評価を支持する理由、収集されたデータとの関連性]
       </Evaluation>
+      
+      信頼度の評価基準：
+      - 「高」: 収集されたテレメトリデータが仮説を強く支持している、または過去の類似事象と一致している場合
+      - 「中」: 一部のデータが仮説を支持しているが、完全な証拠ではない場合
+      - 「低」: 限られたデータしかなく、仮説を十分に検証できない場合
       
       状態の定義：
       - 確定: 仮説が収集されたデータと一致し、障害の原因として確定できる
@@ -536,7 +555,7 @@ export class Prompt {
       <Hypothesis>
       ID: ${hypothesis.id}
       Description: ${hypothesis.description}
-      Confidence: ${hypothesis.confidence}
+      Confidence: ${hypothesis.confidenceLevel}
       Reasoning: ${hypothesis.reasoning}
       </Hypothesis>
       
@@ -557,14 +576,102 @@ export class Prompt {
       
       <Evaluation>
       Status: [Confirmed/Rejected/Inconclusive]
-      Confidence: [Scale of 0.0 to 1.0]
+      Confidence: [High/Medium/Low]
       Reasoning: [Why this evaluation is supported, how it relates to the collected data]
       </Evaluation>
+      
+      Confidence level criteria:
+      - "High": When collected telemetry data strongly supports the hypothesis or matches similar past incidents
+      - "Medium": When some data supports the hypothesis but doesn't provide complete evidence
+      - "Low": When limited data is available and the hypothesis cannot be fully verified
       
       Status definitions:
       - Confirmed: The hypothesis matches the collected data and can be confirmed as the cause of the issue
       - Rejected: The hypothesis contradicts the collected data and can be rejected as the cause of the issue
       - Inconclusive: There is insufficient data to confirm or reject the hypothesis`;
+    }
+  }
+
+  /**
+   * 対応策と再発防止策を生成するためのプロンプトを作成する
+   * @param hypothesis 仮説
+   * @param context 障害の説明
+   * @returns プロンプト
+   */
+  public createRecommendationPrompt(
+    hypothesis: { description: string; reasoning: string; },
+    context: string
+  ): string {
+    if (this.language === "ja") {
+      return `あなたはAWS環境の障害分析と対応策提案の専門家です。
+以下の障害情報と確定した根本原因に基づいて、具体的な対応策と再発防止策を提案してください。
+
+## 障害情報
+${context}
+
+## 確定した根本原因
+${hypothesis.description}
+
+## 根拠
+${hypothesis.reasoning}
+
+以下の形式で回答してください：
+
+<Recommendations>
+## 推奨される対応策
+1. [具体的な対応策1]
+2. [具体的な対応策2]
+3. [具体的な対応策3]
+...
+
+## 再発防止策
+1. [具体的な再発防止策1]
+2. [具体的な再発防止策2]
+3. [具体的な再発防止策3]
+...
+</Recommendations>
+
+対応策と再発防止策は、以下の条件を満たすようにしてください：
+- 根本原因に直接関連していること
+- 具体的かつ実行可能であること
+- AWS環境の特性を考慮していること
+- 優先順位が高いものから順に記載すること
+- 各項目は3～5個程度に収めること`;
+    } else {
+      return `You are an expert in AWS environment failure analysis and response recommendations.
+Based on the following incident information and confirmed root cause, please suggest specific countermeasures and prevention measures.
+
+## Incident Information
+${context}
+
+## Confirmed Root Cause
+${hypothesis.description}
+
+## Evidence
+${hypothesis.reasoning}
+
+Please answer in the following format:
+
+<Recommendations>
+## Recommended Actions
+1. [Specific action 1]
+2. [Specific action 2]
+3. [Specific action 3]
+...
+
+## Prevention Measures
+1. [Specific prevention measure 1]
+2. [Specific prevention measure 2]
+3. [Specific prevention measure 3]
+...
+</Recommendations>
+
+The actions and prevention measures should meet the following conditions:
+- Directly related to the root cause
+- Specific and actionable
+- Consider the characteristics of AWS environments
+- Listed in order of priority
+- Each section should contain about 3-5 items`;
     }
   }
 }
