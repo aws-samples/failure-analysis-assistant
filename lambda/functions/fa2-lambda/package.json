@@ -1,7 +1,7 @@
 {
-  "name": "fa2-react-lambda",
+  "name": "fa2-lambda",
   "version": "1.0.0",
-  "description": "FA2 ReACT Lambda Function",
+  "description": "FA2 Lambda Function",
   "main": "main.ts",
   "type": "module",
   "dependencies": {

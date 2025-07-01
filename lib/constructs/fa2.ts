@@ -152,7 +152,7 @@ export class FA2 extends Construct {
       runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 2048,
       timeout: Duration.seconds(600),
-      entry: path.join(__dirname, "../../lambda/functions/fa2-react-lambda/main.mts"),
+      entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
         MODEL_ID: props.modelId,
         LANG: props.language,

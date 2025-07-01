@@ -70,7 +70,7 @@ app.message("", async ({ event, body, payload, say }) => {
   }
 });
 
-app.command('/fa2-dev', async ({ body, ack, say }) => {
+app.command('/fa2', async ({ body, ack, say }) => {
   // Ack the request of insight command
   await ack();
   logger.info("/fa2 command", {body})
