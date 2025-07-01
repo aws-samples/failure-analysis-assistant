@@ -62,7 +62,7 @@ export class FA2 extends Construct {
       props.slackSigningSecretKey
     );
 
-    // セッション状態を保存するDynamoDBテーブル
+    // DynamoDB table to store session state
     this.sessionTable = new dynamodb.Table(this, "SessionTable", {
       partitionKey: {
         name: "sessionId",

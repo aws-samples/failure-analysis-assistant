@@ -1,45 +1,45 @@
 import { MessageDestination } from './message-destination.interface.js';
 
 /**
- * メッセージの内容を表す型
- * 文字列またはプラットフォーム固有のメッセージブロック
+ * Type representing message content
+ * String or platform-specific message blocks
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MessageContent = any;
 
 /**
- * ファイルの内容を表す型
+ * Type representing file content
  */
 export type FileContent = Uint8Array | Buffer | string;
 
 /**
- * メッセージクライアントの抽象インターフェース
- * 各メッセージングプラットフォーム向けの実装の基底インターフェース
+ * Abstract interface for message client
+ * Base interface for implementations targeting various messaging platforms
  */
 export interface IMessageClient {
   /**
-   * メッセージを送信する
-   * @param message メッセージの内容
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send message
+   * @param message Message content
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   sendMessage(message: MessageContent, destination: MessageDestination): Promise<void>;
   
   /**
-   * マークダウン形式のコンテンツを送信する
-   * @param filename ファイル名
-   * @param markdownText マークダウン形式のテキスト
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send markdown content
+   * @param filename Filename
+   * @param markdownText Markdown formatted text
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   sendMarkdownContent(filename: string, markdownText: string, destination: MessageDestination): Promise<void>;
   
   /**
-   * ファイルを送信する
-   * @param file ファイルの内容
-   * @param filename ファイル名
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send file
+   * @param file File content
+   * @param filename Filename
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   sendFile(file: FileContent, filename: string, destination: MessageDestination): Promise<void>;
 }

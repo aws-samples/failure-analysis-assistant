@@ -1,10 +1,10 @@
 /**
- * サポートされている言語の型定義
+ * Type definition for supported languages
  */
 export type Language = "en" | "ja";
 
 /**
- * 翻訳キーの型定義
+ * Type definition for translation keys
  */
 export type TranslationKey =
   | "errorMessage"
@@ -32,19 +32,19 @@ export type TranslationKey =
   | "executingTool";
 
 /**
- * 国際化（i18n）プロバイダークラス
- * 言語に応じた翻訳を提供する
+ * Internationalization (i18n) provider class
+ * Provides translations according to language settings
  */
 export class I18nProvider {
-  /** 現在の言語設定 */
+  /** Current language setting */
   private readonly language: Language;
   
-  /** 翻訳データ */
+  /** Translation data */
   private readonly translations: Record<Language, Record<TranslationKey, string>>;
   
   /**
-   * コンストラクタ
-   * @param language 言語設定（デフォルトは英語）
+   * Constructor
+   * @param language Language setting (default is English)
    */
   constructor(language: Language = "en") {
     this.language = language;
@@ -103,27 +103,27 @@ export class I18nProvider {
   }
   
   /**
-   * 指定されたキーに対応する翻訳を取得する
-   * @param key 翻訳キー
-   * @returns 翻訳されたテキスト
+   * Get translation for the specified key
+   * @param key Translation key
+   * @returns Translated text
    */
   translate(key: TranslationKey): string {
     return this.translations[this.language][key] || this.translations["en"][key] || key;
   }
   
   /**
-   * 現在の言語設定を取得する
-   * @returns 言語設定
+   * Get current language setting
+   * @returns Language setting
    */
   getLanguage(): Language {
     return this.language;
   }
   
   /**
-   * 言語に応じた条件分岐を行う
-   * @param jaValue 日本語の場合の値
-   * @param enValue 英語の場合の値
-   * @returns 現在の言語に応じた値
+   * Conditional branching based on language
+   * @param jaValue Value for Japanese
+   * @param enValue Value for English
+   * @returns Value according to current language
    */
   ifJaElseEn<T>(jaValue: T, enValue: T): T {
     return this.language === "ja" ? jaValue : enValue;

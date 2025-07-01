@@ -11,23 +11,23 @@ import { logger } from "../../logger.js";
 import { AWSError } from '../errors/aws-error.js';
 
 /**
- * CloudWatchサービスのラッパークラス
+ * Wrapper class for CloudWatch service
  */
 export class CloudWatchService {
   private client: CloudWatchClient;
   
   /**
-   * コンストラクタ
-   * @param client CloudWatchClient（テスト用にモックを注入可能）
+   * Constructor
+   * @param client CloudWatchClient 
    */
   constructor(client?: CloudWatchClient) {
     this.client = client || new CloudWatchClient();
   }
   
   /**
-   * 指定された名前空間のメトリクスを取得する
-   * @param namespace メトリクスの名前空間
-   * @returns メトリクスの配列
+   * Get metrics for the specified namespace
+   * @param namespace Metrics namespace
+   * @returns Array of metrics
    */
   async listMetrics(namespace: string): Promise<Metric[]> {
     logger.info("Start", {function: "listMetrics", input: {namespace}});
@@ -55,11 +55,11 @@ export class CloudWatchService {
   }
   
   /**
-   * メトリクスデータを取得する
-   * @param startDate 開始日時
-   * @param endDate 終了日時
-   * @param query メトリクスデータクエリ
-   * @returns キーと値のペア
+   * Get metrics data
+   * @param startDate Start date and time
+   * @param endDate End date and time
+   * @param query Metrics data query
+   * @returns Key-value pairs
    */
   async queryMetrics(
     startDate: string,
@@ -106,4 +106,3 @@ export class CloudWatchService {
     }
   }
 }
-  

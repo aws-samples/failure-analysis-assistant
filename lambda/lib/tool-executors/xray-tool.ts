@@ -9,7 +9,7 @@ export const xrayToolExecutor = async (params: {
 }): Promise<string> => {
   logger.info("Executing X-Ray tool", { params });
   
-  // X-Rayトレースが有効かどうかを確認
+  // Check if X-Ray trace is enabled
   const xrayTraceEnabled = process.env.XRAY_TRACE === "true";
   
   if (!xrayTraceEnabled) {
@@ -17,19 +17,19 @@ export const xrayToolExecutor = async (params: {
   }
   
   try {
-    // X-Rayトレースの取得
+    // Get X-Ray traces
     const xrayService = AWSServiceFactory.getXRayService();
     const traces = await xrayService.queryToXray(
       params.startDate,
       params.endDate
     );
     
-    // トレースが存在しない場合
+    // If no traces exist
     if (!traces || traces.length === 0) {
       return "指定された期間にX-Rayトレースが見つかりませんでした。";
     }
     
-    // 結果を読みやすい形式に整形
+    // Format results in a readable format
     return formatXrayResults(traces);
   } catch (error) {
     logger.error("Error in X-Ray tool", { error });
@@ -37,7 +37,7 @@ export const xrayToolExecutor = async (params: {
   }
 };
 
-// 独自のXrayTrace型を定義
+// Define custom XrayTrace type
 interface XrayTrace {
   Id?: string;
   Duration?: number;
@@ -68,20 +68,20 @@ function formatXrayResults(traces: TraceSummary[]): string {
     return "条件に一致するX-Rayトレースが見つかりませんでした。";
   }
   
-  // TraceSummaryをXrayTraceとして扱う
+  // Treat TraceSummary as XrayTrace
   const xrayTraces = traces as unknown as XrayTrace[];
   
   let output = "## X-Ray分析結果\n\n";
   output += `合計 ${xrayTraces.length} 件のトレースが見つかりました。\n\n`;
   
-  // エラーのあるトレース
+  // Traces with errors
   const errorTraces = xrayTraces.filter(trace => trace.ErrorRootCauses && trace.ErrorRootCauses.length > 0);
   
   if (errorTraces.length > 0) {
     output += `### エラーのあるトレース (${errorTraces.length}件)\n\n`;
     
     errorTraces.forEach((trace, index) => {
-      if (index < 10) { // 最初の10件のみ詳細表示
+      if (index < 10) { // Show details for only the first 10 items
         output += `#### トレースID: ${trace.Id || "不明"}\n`;
         output += `- 開始時刻: ${trace.StartTime ? new Date(trace.StartTime).toISOString() : "不明"}\n`;
         output += `- 応答時間: ${trace.ResponseTime || "不明"}ms\n`;
@@ -110,7 +110,7 @@ function formatXrayResults(traces: TraceSummary[]): string {
     }
   }
   
-  // 遅いトレース
+  // Slow traces
   const slowTraces = [...xrayTraces]
     .filter(trace => trace.ResponseTime !== undefined)
     .sort((a, b) => (b.ResponseTime || 0) - (a.ResponseTime || 0))
@@ -128,7 +128,7 @@ function formatXrayResults(traces: TraceSummary[]): string {
     });
   }
   
-  // サービス別の統計
+  // Statistics by service
   const serviceStats: Record<string, { count: number, errors: number, totalTime: number }> = {};
   
   xrayTraces.forEach(trace => {

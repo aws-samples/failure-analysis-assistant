@@ -4,24 +4,24 @@ import { I18nProvider } from '../providers/i18n-provider.js';
 import { ConfigProvider } from '../providers/config-provider.js';
 
 /**
- * 汎用テンプレートプロバイダークラス
- * プラットフォームに依存しない抽象的なテンプレートを生成する
+ * Generic template provider class
+ * Generates platform-independent abstract templates
  */
 export class GenericTemplateProvider extends AbstractTemplateProvider {
   /**
-   * コンストラクタ
-   * @param i18n 国際化プロバイダー
-   * @param config 設定プロバイダー
+   * Constructor
+   * @param i18n Internationalization provider
+   * @param config Configuration provider
    */
   constructor(i18n: I18nProvider, config: ConfigProvider) {
     super(i18n, config);
   }
   
   /**
-   * フォームテンプレートを生成する
-   * @param date 初期日付
-   * @param time 初期時刻
-   * @returns フォームテンプレート
+   * Generate form template
+   * @param date Initial date
+   * @param time Initial time
+   * @returns Form template
    */
   createFormTemplate(date: string, time: string): FormTemplate {
     const blocks: MessageBlock[] = [
@@ -102,8 +102,8 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   }
   
   /**
-   * コマンド実行フォームテンプレートを生成する
-   * @returns フォームテンプレート
+   * Generate command execution form template
+   * @returns Form template
    */
   createCommandFormTemplate(): FormTemplate {
     const language = this.i18n.getLanguage();
@@ -150,9 +150,9 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   }
   
   /**
-   * メッセージテンプレートを生成する
-   * @param message メッセージテキスト
-   * @returns メッセージテンプレート
+   * Generate message template
+   * @param message Message text
+   * @returns Message template
    */
   createMessageTemplate(message: string): MessageTemplate {
     return {
@@ -166,8 +166,8 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   }
   
   /**
-   * エラーメッセージテンプレートを生成する
-   * @returns エラーメッセージテンプレート
+   * Generate error message template
+   * @returns Error message template
    */
   createErrorMessageTemplate(): MessageTemplate {
     return {
@@ -202,11 +202,11 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   }
   
   /**
-   * 進捗状況メッセージテンプレートを生成する
-   * @param stepAction 次のアクション
-   * @param currentHypothesis 現在の仮説
-   * @param reactState ReActAgentの状態
-   * @returns 進捗状況メッセージテンプレート
+   * Generate progress message template
+   * @param stepAction Next action
+   * @param currentHypothesis Current hypothesis
+   * @param reactState ReActAgent state
+   * @returns Progress message template
    */
   createProgressMessageTemplate(
     stepAction: string | undefined,
@@ -358,9 +358,9 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   
   
   /**
-   * 検索結果メッセージテンプレートを生成する
-   * @param retrieveResults 検索結果アイテムの配列
-   * @returns 検索結果メッセージテンプレート
+   * Generate search result message template
+   * @param retrieveResults Array of search result items
+   * @returns Search result message template
    */
   createRetrieveResultTemplate(retrieveResults: RetrieveResultItem[]): MessageTemplate {
     const resultsText = retrieveResults.map(result => {
@@ -380,8 +380,8 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
   }
   
   /**
-   * 期間選択オプションを生成する
-   * @returns 期間選択オプションの配列
+   * Generate duration selection options
+   * @returns Array of duration selection options
    */
   private createDurationOptions(): Array<{ text: string; value: string }> {
     const language = this.i18n.getLanguage();

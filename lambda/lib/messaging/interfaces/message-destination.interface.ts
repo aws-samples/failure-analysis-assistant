@@ -1,11 +1,11 @@
 /**
- * メッセージの宛先を表す抽象インターフェース
- * 各メッセージングプラットフォーム固有の宛先情報を抽象化する
+ * Abstract interface representing message destination
+ * Abstracts destination information specific to each messaging platform
  */
 export interface MessageDestination {
   /**
-   * 宛先の一意の識別子を取得
-   * @returns 宛先を識別する文字列
+   * Get unique identifier for the destination
+   * @returns String identifying the destination
    */
   getIdentifier(): string;
 }

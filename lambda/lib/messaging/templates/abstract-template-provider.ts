@@ -3,20 +3,20 @@ import { I18nProvider } from '../providers/i18n-provider.js';
 import { ConfigProvider } from '../providers/config-provider.js';
 
 /**
- * 抽象テンプレートプロバイダークラス
- * テンプレート生成の基本実装を提供する
+ * Abstract template provider class
+ * Provides basic implementation for template generation
  */
 export abstract class AbstractTemplateProvider implements ITemplateProvider {
-  /** 国際化プロバイダー */
+  /** Internationalization provider */
   protected readonly i18n: I18nProvider;
   
-  /** 設定プロバイダー */
+  /** Configuration provider */
   protected readonly config: ConfigProvider;
   
   /**
-   * コンストラクタ
-   * @param i18n 国際化プロバイダー
-   * @param config 設定プロバイダー
+   * Constructor
+   * @param i18n Internationalization provider
+   * @param config Configuration provider
    */
   constructor(i18n: I18nProvider, config: ConfigProvider) {
     this.i18n = i18n;
@@ -24,9 +24,9 @@ export abstract class AbstractTemplateProvider implements ITemplateProvider {
   }
   
   /**
-   * ログ取得方法の説明テキストを生成する
-   * @param params ログパラメータ
-   * @returns マークダウン形式のテキスト
+   * Generate explanatory text for log retrieval method
+   * @param params Log parameters
+   * @returns Markdown formatted text
    */
   createHowToGetLogs(params: LogParams): string {
     // 基本構造を作成
@@ -55,43 +55,43 @@ export abstract class AbstractTemplateProvider implements ITemplateProvider {
   }
   
   /**
-   * フォームテンプレートを生成する
-   * @param date 初期日付
-   * @param time 初期時刻
-   * @returns フォームテンプレート
+   * Generate form template
+   * @param date Initial date
+   * @param time Initial time
+   * @returns Form template
    */
   abstract createFormTemplate(date: string, time: string): FormTemplate;
   
   /**
-   * コマンド実行フォームテンプレートを生成する
-   * @returns フォームテンプレート
+   * Generate command execution form template
+   * @returns Form template
    */
   abstract createCommandFormTemplate(): FormTemplate;
   
   /**
-   * メッセージテンプレートを生成する
-   * @param message メッセージテキスト
-   * @returns メッセージテンプレート
+   * Generate message template
+   * @param message Message text
+   * @returns Message template
    */
   abstract createMessageTemplate(message: string): MessageTemplate;
   
   /**
-   * エラーメッセージテンプレートを生成する
-   * @returns エラーメッセージテンプレート
+   * Generate error message template
+   * @returns Error message template
    */
   abstract createErrorMessageTemplate(): MessageTemplate;
   
   /**
-   * 検索結果メッセージテンプレートを生成する
-   * @param retrieveResults 検索結果アイテムの配列
-   * @returns 検索結果メッセージテンプレート
+   * Generate search result message template
+   * @param retrieveResults Array of search result items
+   * @returns Search result message template
    */
   abstract createRetrieveResultTemplate(retrieveResults: RetrieveResultItem[]): MessageTemplate;
   
   /**
-   * ログテンプレートの基本部分を生成する
-   * @param params ログパラメータ
-   * @returns マークダウン形式のテキスト
+   * Generate basic part of log template
+   * @param params Log parameters
+   * @returns Markdown formatted text
    */
   protected createBaseLogTemplate(params: LogParams): string {
     const language = this.i18n.getLanguage();
@@ -140,9 +140,9 @@ CloudWatch Logs Insight Console, you choose target log groups and set time range
   }
   
   /**
-   * ALBログセクションを生成する
-   * @param albQuery ALBクエリ
-   * @returns マークダウン形式のテキスト
+   * Generate ALB log section
+   * @param albQuery ALB query
+   * @returns Markdown formatted text
    */
   protected createAlbLogSection(albQuery: string): string {
     const language = this.i18n.getLanguage();
@@ -170,9 +170,9 @@ In Athena's management console, You run the query to \`${athenaDatabase}\` datab
   }
   
   /**
-   * CloudTrailログセクションを生成する
-   * @param trailQuery CloudTrailクエリ
-   * @returns マークダウン形式のテキスト
+   * Generate CloudTrail log section
+   * @param trailQuery CloudTrail query
+   * @returns Markdown formatted text
    */
   protected createTrailLogSection(trailQuery: string): string {
     const language = this.i18n.getLanguage();
@@ -200,11 +200,11 @@ In Athena's management console, You run the query to \`${athenaDatabase}\` datab
   }
   
   /**
-   * メトリクスセクションを生成する
-   * @param cwMetricQuery CloudWatchメトリクスクエリ
-   * @param startDate 開始日
-   * @param endDate 終了日
-   * @returns マークダウン形式のテキスト
+   * Generate metrics section
+   * @param cwMetricQuery CloudWatch metrics query
+   * @param startDate Start date
+   * @param endDate End date
+   * @returns Markdown formatted text
    */
   protected createMetricsSection(cwMetricQuery: string, startDate: string, endDate: string): string {
     const language = this.i18n.getLanguage();
@@ -239,10 +239,10 @@ You should save below query as JSON file to your local environment and run the c
   }
   
   /**
-   * X-rayセクションを生成する
-   * @param startDate 開始日
-   * @param endDate 終了日
-   * @returns マークダウン形式のテキスト
+   * Generate X-ray section
+   * @param startDate Start date
+   * @param endDate End date
+   * @returns Markdown formatted text
    */
   protected createXraySection(startDate: string, endDate: string): string {
     const language = this.i18n.getLanguage();

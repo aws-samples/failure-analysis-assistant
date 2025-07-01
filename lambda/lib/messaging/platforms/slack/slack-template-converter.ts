@@ -2,33 +2,33 @@ import { KnownBlock, View, RichTextBlock } from "@slack/types";
 import { MessageTemplate, FormTemplate, MessageBlock, RichTextElement } from '../../interfaces/template-provider.interface.js';
 
 /**
- * テンプレートコンバーターのインターフェース
+ * Interface for template converter
  */
 export interface ITemplateConverter<T> {
   /**
-   * メッセージテンプレートを変換する
-   * @param template メッセージテンプレート
-   * @returns 変換後のオブジェクト
+   * Convert message template
+   * @param template Message template
+   * @returns Converted object
    */
   convertMessageTemplate(template: MessageTemplate): T;
   
   /**
-   * フォームテンプレートを変換する
-   * @param template フォームテンプレート
-   * @returns 変換後のオブジェクト
+   * Convert form template
+   * @param template Form template
+   * @returns Converted object
    */
   convertFormTemplate(template: FormTemplate): T;
 }
 
 /**
- * Slack向けのテンプレートコンバーター
- * 抽象的なテンプレートをSlack固有の形式に変換する
+ * Template converter for Slack
+ * Converts abstract templates to Slack-specific format
  */
 export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] | View> {
   /**
-   * メッセージテンプレートをSlackのブロックに変換する
-   * @param template メッセージテンプレート
-   * @returns Slackブロックの配列
+   * Convert message template to Slack blocks
+   * @param template Message template
+   * @returns Array of Slack blocks
    */
   convertMessageTemplate(template: MessageTemplate): KnownBlock[] {
     // 抽象的なMessageTemplateをSlackのKnownBlock[]に変換
@@ -36,9 +36,9 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   }
   
   /**
-   * フォームテンプレートをSlackのビューに変換する
-   * @param template フォームテンプレート
-   * @returns Slackビュー
+   * Convert form template to Slack view
+   * @param template Form template
+   * @returns Slack view
    */
   convertFormTemplate(template: FormTemplate): View {
     // FormTemplateをSlackのViewに変換
@@ -58,9 +58,9 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   }
   
   /**
-   * 抽象的なブロックをSlackのブロックに変換する
-   * @param block 抽象的なメッセージブロック
-   * @returns Slackブロック
+   * Convert abstract block to Slack block
+   * @param block Abstract message block
+   * @returns Slack block
    */
   private convertBlock(block: MessageBlock): KnownBlock {
     // 抽象的なMessageBlockをSlackのKnownBlockに変換
@@ -112,9 +112,9 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   }
   
   /**
-   * リッチテキストブロックを変換する
-   * @param block リッチテキストブロック
-   * @returns Slackリッチテキストブロック
+   * Convert rich text block
+   * @param block Rich text block
+   * @returns Slack rich text block
    */
   private convertRichTextBlock(block: MessageBlock): RichTextBlock {
     return {
@@ -125,9 +125,9 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   }
   
   /**
-   * リッチテキスト要素を変換する
-   * @param element リッチテキスト要素
-   * @returns Slackリッチテキスト要素
+   * Convert rich text element
+   * @param element Rich text element
+   * @returns Slack rich text element
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertRichTextElement(element: RichTextElement): any {
@@ -171,9 +171,9 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   }
   
   /**
-   * 抽象的な要素をSlackの要素に変換する
-   * @param element 抽象的な要素
-   * @returns Slack要素
+   * Convert abstract element to Slack element
+   * @param element Abstract element
+   * @returns Slack element
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertElement(element: any): any {

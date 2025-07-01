@@ -15,7 +15,7 @@ import { AWSError, BedrockThrottlingError } from '../errors/aws-error.js';
 import { retryWithExponentialBackoff, isThrottlingError } from '../common/retry-utils.js';
 
 /**
- * Knowledge Base検索結果の型
+ * Type for Knowledge Base search results
  */
 export interface KBResult {
   index?: number;
@@ -25,22 +25,22 @@ export interface KBResult {
 }
 
 /**
- * Bedrockサービスのラッパークラス
+ * Wrapper class for Bedrock service
  */
 export class BedrockService {
   private runtimeClient: BedrockRuntimeClient;
   private agentRuntimeClient: BedrockAgentRuntimeClient;
   
-  // 固定値の設定
+  // Fixed value settings
   private readonly DEFAULT_MAX_TOKENS = 8192;
   private readonly DEFAULT_TEMPERATURE = 0.1;
   private readonly DEFAULT_TOP_P = 0.97;
   private readonly DEFAULT_KB_RESULTS = 3;
   
   /**
-   * コンストラクタ
-   * @param runtimeClient BedrockRuntimeClient（テスト用にモックを注入可能）
-   * @param agentRuntimeClient BedrockAgentRuntimeClient（テスト用にモックを注入可能）
+   * Constructor
+   * @param runtimeClient BedrockRuntimeClient 
+   * @param agentRuntimeClient BedrockAgentRuntimeClient 
    */
   constructor(
     runtimeClient?: BedrockRuntimeClient,
@@ -51,11 +51,11 @@ export class BedrockService {
   }
   
   /**
-   * Bedrockモデルと会話する
-   * @param prompt プロンプト
-   * @param modelId モデルID（省略時は環境変数から取得）
-   * @param inferenceConfig 推論設定
-   * @returns モデルからの応答テキスト
+   * Converse with Bedrock model
+   * @param prompt Prompt
+   * @param modelId Model ID (uses environment variable if omitted)
+   * @param inferenceConfig Inference configuration
+   * @returns Response text from the model
    */
   async converse(
     prompt: string, 
@@ -80,7 +80,7 @@ export class BedrockService {
         inferenceConfig,
       };
       
-      // エクスポネンシャルバックオフでリトライ
+      // Retry with exponential backoff
       const converseOutput = await retryWithExponentialBackoff(
         () => this.runtimeClient.send(new ConverseCommand(converseCommandInput))
       );
@@ -90,7 +90,7 @@ export class BedrockService {
     } catch (error) {
       logger.error("Error in converse", {error});
       
-      // スロットリングエラーかどうかを確認
+      // Check if it's a throttling error
       if (isThrottlingError(error)) {
         throw new BedrockThrottlingError(
           'Bedrock API rate limit exceeded. Please try again later.',
@@ -109,11 +109,11 @@ export class BedrockService {
   }
   
   /**
-   * Knowledge Baseから情報を検索する
+   * Search for information from Knowledge Base
    * @param knowledgeBaseId Knowledge Base ID
-   * @param retrieveQuery 検索クエリ
-   * @param rerankModelId 再ランク付けモデルID
-   * @returns 検索結果の配列
+   * @param retrieveQuery Search query
+   * @param rerankModelId Reranking model ID
+   * @returns Array of search results
    */
   async retrieve(
     knowledgeBaseId: string,
@@ -158,7 +158,7 @@ export class BedrockService {
           }
         });
       
-      // エクスポネンシャルバックオフでリトライ
+      // Retry with exponential backoff
       const retrieveResponse: RetrieveCommandOutput = await retryWithExponentialBackoff(
         () => this.agentRuntimeClient.send(retrieveCommand)
       );
@@ -169,7 +169,7 @@ export class BedrockService {
         return [];
       }
       
-      // 結果をKBResult型に変換
+      // Convert results to KBResult type
       return retrieveResponse.retrievalResults.map((result, index) => ({
         index,
         text: result.content?.text,
@@ -179,7 +179,7 @@ export class BedrockService {
     } catch (error) {
       logger.error("Error in retrieve", {error});
       
-      // スロットリングエラーかどうかを確認
+      // Check if it's a throttling error
       if (isThrottlingError(error)) {
         throw new BedrockThrottlingError(
           'Bedrock API rate limit exceeded. Please try again later.',

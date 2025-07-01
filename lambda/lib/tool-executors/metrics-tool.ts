@@ -17,7 +17,7 @@ export class MetricsTool {
     try {
       const cloudWatchService = AWSServiceFactory.getCloudWatchService();
       
-      // 名前空間のリストを取得（パラメータで指定されていない場合はデフォルト値を使用）
+      // Get the list of namespaces (use default values if not specified in parameters)
       const namespaces = params.namespaces || [
         "ApplicationSignals",
         "ApplicationELB",
@@ -27,7 +27,7 @@ export class MetricsTool {
       
       logger.info("Using namespaces", { namespaces });
       
-      // 複数のネームスペースからメトリクスを取得
+      // Get metrics from multiple namespaces
       let metrics = [];
       for (const namespace of namespaces) {
         try {
@@ -39,19 +39,19 @@ export class MetricsTool {
         }
       }
       
-      // さらにメトリクス名でフィルタリング
+      // Further filter by metric names
       if (params.metricNames && params.metricNames.length > 0) {
         metrics = metrics.filter(metric => 
           params.metricNames!.includes(metric.MetricName!)
         );
       }
       
-      // メトリクスが見つからない場合
+      // If no metrics are found
       if (metrics.length === 0) {
         return this.formatMetricsResults([]);
       }
       
-      // MetricDataQueryの作成
+      // Create MetricDataQuery
       const metricDataQuery = metrics.map((metric, index) => ({
         Id: `m${index}`,
         Label: `${metric.Namespace}:${metric.MetricName}${metric.Dimensions?.map(d => `${d.Name}=${d.Value}`).join(",")}`,
@@ -66,7 +66,7 @@ export class MetricsTool {
         }
       }));
       
-      // メトリクスデータの取得
+      // Get metric data
       const result = await cloudWatchService.queryMetrics(
         params.startDate,
         params.endDate,
@@ -74,7 +74,7 @@ export class MetricsTool {
         "MetricsToolResult"
       );
       
-      // 結果を読みやすい形式に整形
+      // Format results in a readable format
       return this.formatMetricsResults(result);
     } catch (error) {
       logger.error("Error in metrics tool", { error });
@@ -97,7 +97,7 @@ export class MetricsTool {
         return;
       }
       
-      // 基本統計情報の計算
+      // Calculate basic statistics
       const values: number[] = metric.Values || [];
       const min = values.length > 0 ? Math.min(...values) : 0;
       const max = values.length > 0 ? Math.max(...values) : 0;
@@ -108,7 +108,7 @@ export class MetricsTool {
       output += `- 最大値: ${max.toFixed(4)}\n`;
       output += `- 平均値: ${avg.toFixed(4)}\n`;
       
-      // 異常値の検出（平均から大きく外れた値）
+      // Detect anomalies (values that deviate significantly from the average)
       const stdDev = Math.sqrt(
         values.reduce((sum: number, val: number) => sum + Math.pow(val - avg, 2), 0) / values.length
       );
@@ -134,10 +134,10 @@ export class MetricsTool {
   }
 }
 
-// ツールエグゼキューターのインスタンスを作成
+// Create tool executor instance
 const metricsTool = new MetricsTool();
 
-// 外部から呼び出し可能な関数
+// Function that can be called externally
 export const metricsToolExecutor = async (params: {
   metricNames?: string[];
   dimensions?: Record<string, string>[];

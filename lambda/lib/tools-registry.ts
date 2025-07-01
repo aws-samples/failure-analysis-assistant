@@ -36,7 +36,6 @@ export class ToolRegistry {
       throw new Error(`Tool ${toolName} not found`);
     }
     
-    // パラメータのバリデーション
     this.validateParameters(tool, params);
     
     try {
@@ -50,7 +49,6 @@ export class ToolRegistry {
   }
   
   private validateParameters(tool: Tool, params: Record<string, unknown>): void {
-    // 必須パラメータのチェック
     for (const param of tool.parameters) {
       if (param.required && (params[param.name] === undefined || params[param.name] === null)) {
         throw new Error(`Required parameter '${param.name}' is missing for tool '${tool.name}'`);

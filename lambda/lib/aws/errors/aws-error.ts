@@ -1,5 +1,5 @@
 /**
- * AWS SDKのエラーをラップするカスタムエラークラス
+ * Custom error class that wraps AWS SDK errors
  */
 export class AWSError extends Error {
   constructor(
@@ -14,7 +14,7 @@ export class AWSError extends Error {
 }
 
 /**
- * AWS APIのスロットリングエラーをラップするカスタムエラークラス
+ * Custom error class that wraps AWS API throttling errors
  */
 export class AWSThrottlingError extends AWSError {
   constructor(
@@ -29,7 +29,7 @@ export class AWSThrottlingError extends AWSError {
 }
 
 /**
- * Bedrock APIのスロットリングエラーをラップするカスタムエラークラス
+ * Custom error class that wraps Bedrock API throttling errors
  */
 export class BedrockThrottlingError extends AWSThrottlingError {
   constructor(

@@ -8,24 +8,24 @@ import { logger } from "../../logger.js";
 import { AWSError } from '../errors/aws-error.js';
 
 /**
- * X-Rayサービスのラッパークラス
+ * Wrapper class for X-Ray service
  */
 export class XRayService {
   private client: XRayClient;
   
   /**
-   * コンストラクタ
-   * @param client XRayClient（テスト用にモックを注入可能）
+   * Constructor
+   * @param client XRayClient 
    */
   constructor(client?: XRayClient) {
     this.client = client || new XRayClient();
   }
   
   /**
-   * X-Rayのトレースサマリーを取得する
-   * @param startDate 開始日時
-   * @param endDate 終了日時
-   * @returns トレースサマリーの配列
+   * Get X-Ray trace summaries
+   * @param startDate Start date and time
+   * @param endDate End date and time
+   * @returns Array of trace summaries
    */
   async queryToXray(
     startDate: string,
@@ -45,7 +45,7 @@ export class XRayService {
       
       const traces = response.TraceSummaries || [] as TraceSummary[];
       
-      // 全てのトレースを取得
+      // Get all traces
       while (response.NextToken) {
         command = new GetTraceSummariesCommand({
           ...input,

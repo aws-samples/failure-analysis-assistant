@@ -95,17 +95,17 @@ export class ReActAgent {
     this.prompt = prompt;
     this.bedrockService = AWSServiceFactory.getBedrockService();
     
-    // デフォルト値は5、オプションで上書き可能
+    // Default value is 5, can be overridden with options
     this.maxAgentCycles = options?.maxAgentCycles ?? 5;
   }
   
   /**
-   * 初期思考を設定する
+   * Set initial thinking
    */
   initializeWithThinking(initialThinking: string): void {
     logger.info("Initializing with thinking", { sessionId: this.sessionId });
     
-    // 行動部分を抽出
+    // Extract action part
     const actionMatch = initialThinking.match(/<Action>([\s\S]*?)<\/Action>/);
     
     if (actionMatch) {
@@ -113,7 +113,7 @@ export class ReActAgent {
         const actionJson = actionMatch[1].trim();
         const action = JSON.parse(actionJson);
         
-        // 初期状態に思考を追加
+        // Add thinking to initial state
         this.sessionState.history.push({
           thinking: initialThinking,
           action: JSON.stringify(action, null, 2),
@@ -123,7 +123,7 @@ export class ReActAgent {
       } catch (error) {
         logger.error("Failed to parse initial action JSON", { error, initialThinking });
         
-        // エラーの場合でも思考は記録
+        // Record thinking even in case of error
         this.sessionState.history.push({
           thinking: initialThinking,
           action: "INITIAL_THINKING_ERROR",
@@ -132,7 +132,7 @@ export class ReActAgent {
         });
       }
     } else {
-      // 行動が見つからない場合も思考は記録
+      // Record thinking even if no action is found
       this.sessionState.history.push({
         thinking: initialThinking,
         action: "NO_INITIAL_ACTION",
@@ -143,7 +143,7 @@ export class ReActAgent {
   }
   
   /**
-   * セッション状態を設定する
+   * Set session state
    */
   setSessionState(state: SessionState): void {
     this.sessionState = state;
@@ -157,7 +157,7 @@ export class ReActAgent {
       cycleCount: this.sessionState.cycleCount
     });
     
-    // 現在の状態に応じて処理を分岐
+    // Branch processing according to current state
     switch (this.sessionState.state) {
       case ReactionState.THINKING:
         return await this.executeThinkingStep();
@@ -181,21 +181,21 @@ export class ReActAgent {
   
   private async executeThinkingStep(): Promise<StepResult> {
     logger.info("Executing thinking step", { sessionId: this.sessionId });
-    // 1. 思考ステップ - LLMに現在の状態を送信し、次のアクションを決定
+    // 1. Thinking step - Send current state to LLM and decide next action
     const thinking = await this.think();
     logger.info("Thinking completed", { thinking });
     
-    // 一定回数のサイクル後に最終回答を強制的に生成するかどうかを判断
+    // Determine whether to forcibly generate a final answer after a certain number of cycles
     const shouldForceCompletion = this.shouldForceCompletion();
     
-    // 最終回答が含まれているか確認
+    // Check if final answer is included
     const finalAnswerMatch = thinking.match(/<FinalAnswer>([\s\S]*?)<\/FinalAnswer>/);
     if (finalAnswerMatch || shouldForceCompletion) {
       logger.info("FinalAnswer or ForceCompletion", {finalAnswer: JSON.stringify(finalAnswerMatch), forceCompletiong: shouldForceCompletion})
-      // 最終回答が含まれている場合は、特別なアクション「final_answer」として処理
+      // If final answer is included, process it as a special action "final_answer"
       const finalAnswer = finalAnswerMatch ? finalAnswerMatch[1].trim() : "";
       
-      // 行動として「final_answer」を記録
+      // Record "final_answer" as an action
       const finalAnswerAction = {
         tool: "final_answer",
         parameters: {
@@ -205,7 +205,7 @@ export class ReActAgent {
         }
       };
       
-      // 状態を更新
+      // Update state
       const message = shouldForceCompletion && !finalAnswerMatch 
         ? "十分なデータが集まらないため、現在の情報に基づいて最終回答を生成します。" 
         : "最終回答を生成します。";
@@ -219,13 +219,13 @@ export class ReActAgent {
       };
     }
     
-    // 行動を決定
+    // Decide action
     const action = this.decideAction(thinking);
     logger.info("Action decided", { action });
     
     if (!action) {
       logger.warn("No action could be extracted from thinking");
-      // 行動が抽出できない場合は、再度思考を促す
+      // If action cannot be extracted, encourage thinking again
       this.updateSessionState(thinking, "NO_ACTION_EXTRACTED", "行動を正しいフォーマットで指定できませんでした。再度考えてください。");
       return {
         isDone: false,
@@ -233,7 +233,7 @@ export class ReActAgent {
       };
     }
     
-    // 行動を記録し、状態を更新
+    // Record action and update state
     this.sessionState.state = ReactionState.ACTING;
     this.sessionState.lastThinking = thinking;
     this.sessionState.lastAction = action;
@@ -246,7 +246,7 @@ export class ReActAgent {
   
   private async executeActingStep(): Promise<StepResult> {
     logger.info("Acting step", { sessionId: this.sessionId });
-    // 前のステップで決定されたアクションを実行
+    // Execute action decided in previous step
     const action = this.sessionState.lastAction;
     
     if (!action) {
@@ -258,11 +258,11 @@ export class ReActAgent {
       };
     }
     
-    // ツールを実行
+    // Execute tool
     const observation = await this.executeAction(action);
     logger.info("Action executed", { observation });
     
-    // 観察結果を記録し、状態を更新
+    // Record observation result and update state
     this.sessionState.lastObservation = observation;
     this.sessionState.state = ReactionState.OBSERVING;
     
@@ -274,7 +274,7 @@ export class ReActAgent {
   
   private async executeObservingStep(): Promise<StepResult> {
     logger.info("Observing step", { sessionId: this.sessionId });
-    // 前のステップの思考、行動、観察を記録
+    // Record thinking, action, and observation from previous step
     const thinking = this.sessionState.lastThinking;
     const action = this.sessionState.lastAction;
     const observation = this.sessionState.lastObservation;
@@ -288,16 +288,16 @@ export class ReActAgent {
       };
     }
     
-    // セッション状態を更新
+    // Update session state
     this.updateSessionState(thinking, JSON.stringify(action, null, 2), observation);
     
-    // サイクルカウントを増やす
+    // Increment cycle count
     this.sessionState.cycleCount++;
     
-    // 次のサイクルの思考ステップへ
+    // Go to thinking step of next cycle
     this.sessionState.state = ReactionState.THINKING;
     
-    // 一時データをクリア
+    // Clear temporary data
     delete this.sessionState.lastThinking;
     delete this.sessionState.lastAction;
     delete this.sessionState.lastObservation;
@@ -310,19 +310,19 @@ export class ReActAgent {
   
   private async executeCompletingStep(): Promise<StepResult> {
     logger.info("Completing step", { sessionId: this.sessionId });
-    // 最終回答を生成するためのプロンプトを作成
+    // Create prompt for generating final answer
     const finalAnswerPrompt = this.prompt.createReactFinalAnswerPrompt(
       this.sessionState.context,
       this.sessionState.history
     );
     
     try {
-      // 最終回答を生成
+      // Generate final answer
       const finalAnswerResponse = await this.bedrockService.converse(finalAnswerPrompt);
       const finalAnswer = finalAnswerResponse || "分析が完了しましたが、結果を生成できませんでした。";
       logger.info("Completing step - final answer", { finalAnswer: finalAnswer });
       
-      // 最終回答を記録
+      // Record final answer
       this.sessionState.finalAnswer = finalAnswer;
       this.sessionState.state = ReactionState.COMPLETED;
       
@@ -331,13 +331,13 @@ export class ReActAgent {
         finalAnswer
       };
     } catch (error) {
-      // スロットリングエラーの場合は、エラーメッセージを返す
+      // Return error message in case of throttling error
       if (error instanceof BedrockThrottlingError) {
         logger.warn("Bedrock API throttled during completing step", { error });
         
         const throttlingMessage = "Bedrockのレート制限に達したため、最終回答の生成に失敗しました。これまでに収集した情報に基づいて、簡易的な回答を生成します。";
         
-        // 簡易的な最終回答を生成
+        // Generate simplified final answer
         const simpleFinalAnswer = `
 ## レート制限による分析中断
 
@@ -352,7 +352,7 @@ ${this.generateDataSummary()}
 3. 特定のサービスやリソースに絞って分析を行うことも効果的です
 `;
         
-        // 最終回答を記録
+        // Record final answer
         this.sessionState.finalAnswer = simpleFinalAnswer;
         this.sessionState.state = ReactionState.COMPLETED;
         
@@ -362,13 +362,13 @@ ${this.generateDataSummary()}
         };
       }
       
-      // その他のエラーの場合は再スロー
+      // Rethrow other errors
       throw error;
     }
   }
   
   /**
-   * 収集済みデータの概要を生成する
+   * Generate summary of collected data
    */
   private generateDataSummary(): string {
     const { dataCollectionStatus } = this.sessionState;
@@ -388,16 +388,16 @@ ${this.generateDataSummary()}
   }
   
   /**
-   * 一定回数のサイクル後に最終回答を強制的に生成するかどうかを判断する
+   * Determine whether to forcibly generate a final answer after a certain number of cycles
    */
   private shouldForceCompletion(): boolean {
-    // 最大サイクル数以上のサイクルを実行した場合
+    // If more than the maximum number of cycles have been executed
     if (this.sessionState.cycleCount >= this.maxAgentCycles) {
-      // データ収集状況を確認
+      // Check data collection status
       const dataCollectionStatus = this.sessionState.dataCollectionStatus;
       const collectedDataCount = Object.values(dataCollectionStatus).filter(Boolean).length;
       
-      // 少なくとも1つのデータが収集されている場合は強制的に完了
+      // Force completion if at least one data has been collected
       return collectedDataCount > 0;
     }
     
@@ -416,7 +416,7 @@ ${this.generateDataSummary()}
       const response = await this.bedrockService.converse(thinkingPrompt);
       return response || "";
     } catch (error) {
-      // スロットリングエラーの場合は、エラーメッセージを返す
+      // Return error message in case of throttling error
       if (error instanceof BedrockThrottlingError) {
         logger.warn("Bedrock API throttled during thinking step", { error });
         return `<Thought>
@@ -434,13 +434,13 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
 </Action>`;
       }
       
-      // その他のエラーの場合は再スロー
+      // Rethrow other errors
       throw error;
     }
   }
   
   private decideAction(thinking: string): ToolAction | null {
-    // 行動部分を抽出
+    // Extract action part
     const actionMatch = thinking.match(/<Action>([\s\S]*?)<\/Action>/);
     if (!actionMatch) {
       return null;
@@ -460,13 +460,13 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
       const toolName = action.tool;
       const parameters = action.parameters || {};
       
-      // ツールを実行
+      // Execute tool
       const result = await this.toolRegistry.executeTool(toolName, parameters);
       
-      // データ収集状況を更新
+      // Update data collection status
       this.updateDataCollectionStatus(toolName, result);
       
-      // ツール実行記録を追加
+      // Add tool execution record
       this.recordToolExecution(toolName, parameters, result);
       
       return result;
@@ -477,10 +477,10 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
   }
   
   /**
-   * ツール名と実行結果に基づいてデータ収集状況を更新する
+   * Update data collection status based on tool name and execution result
    */
   private updateDataCollectionStatus(toolName: string, result: string): void {
-    // ツール名に基づいてステータスを更新
+    // Update status based on tool name
     switch (toolName) {
       case 'metrics_tool':
         this.sessionState.dataCollectionStatus.metrics = !result.includes("メトリクスデータが見つかりませんでした");
@@ -502,10 +502,10 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
   }
   
   /**
-   * ツール実行記録を追加する
+   * Add tool execution record
    */
   private recordToolExecution(toolName: string, parameters: Record<string, unknown>, result: string): void {
-    // ツール実行記録を作成
+    // Create tool execution record
     const toolExecution: ToolExecutionRecord = {
       toolName,
       parameters,
@@ -514,15 +514,15 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
       dataAvailable: this.checkDataAvailability(toolName, result)
     };
     
-    // 記録を追加
+    // Add record
     this.sessionState.toolExecutions.push(toolExecution);
   }
   
   /**
-   * ツール名と実行結果に基づいてデータの有無を判定する
+   * Determine data availability based on tool name and execution result
    */
   private checkDataAvailability(toolName: string, result: string): boolean {
-    // ツール名に基づいてデータの有無を判定
+    // Determine data availability based on tool name
     switch (toolName) {
       case 'metrics_tool':
         return !result.includes("メトリクスデータが見つかりませんでした");

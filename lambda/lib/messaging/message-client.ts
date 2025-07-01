@@ -11,28 +11,28 @@ import { logger as defaultLogger } from '../logger.js';
 import { Logger } from "@aws-lambda-powertools/logger";
 
 /**
- * メッセージクライアントのファサードクラス
- * 各種メッセージングプラットフォームへのアクセスを提供する
+ * Facade class for message client
+ * Provides access to various messaging platforms
  */
 export class MessageClient {
-  /** メッセージクライアント */
+  /** Message client */
   private readonly client: IMessageClient;
   
-  /** テンプレートプロバイダー */
+  /** Template provider */
   private readonly templateProvider: ITemplateProvider;
   
-  /** 国際化プロバイダー */
+  /** Internationalization provider */
   private readonly i18n: I18nProvider;
   
-  /** 設定プロバイダー */
+  /** Configuration provider */
   private readonly config: ConfigProvider;
   
   /**
-   * コンストラクタ
-   * @param token API トークン
-   * @param language 言語設定（デフォルトは英語）
-   * @param platform プラットフォーム（デフォルトはSlack）
-   * @param logger ロガー
+   * Constructor
+   * @param token API token
+   * @param language Language setting (default is English)
+   * @param platform Platform (default is Slack)
+   * @param logger Logger
    */
   constructor(
     token: string,
@@ -55,11 +55,11 @@ export class MessageClient {
   }
   
   /**
-   * メッセージを送信する
-   * @param message メッセージの内容
-   * @param channelId チャンネル ID
-   * @param threadTs スレッドタイムスタンプ（オプション）
-   * @returns 送信処理の結果を表すPromise
+   * Send message
+   * @param message Message content
+   * @param channelId Channel ID
+   * @param threadTs Thread timestamp (optional)
+   * @returns Promise representing the result of the send operation
    */
   async sendMessage(
     message: KnownBlock[] | string,
@@ -71,12 +71,12 @@ export class MessageClient {
   }
   
   /**
-   * マークダウン形式のスニペットを送信する
-   * @param filename ファイル名
-   * @param markdownText マークダウン形式のテキスト
-   * @param channelId チャンネル ID
-   * @param threadTs スレッドタイムスタンプ（オプション）
-   * @returns 送信処理の結果を表すPromise
+   * Send markdown snippet
+   * @param filename Filename
+   * @param markdownText Markdown formatted text
+   * @param channelId Channel ID
+   * @param threadTs Thread timestamp (optional)
+   * @returns Promise representing the result of the send operation
    */
   async sendMarkdownSnippet(
     filename: string,
@@ -89,12 +89,12 @@ export class MessageClient {
   }
   
   /**
-   * ファイルを送信する
-   * @param file ファイルの内容
-   * @param filename ファイル名
-   * @param channelId チャンネル ID
-   * @param threadTs スレッドタイムスタンプ（オプション）
-   * @returns 送信処理の結果を表すPromise
+   * Send file
+   * @param file File content
+   * @param filename Filename
+   * @param channelId Channel ID
+   * @param threadTs Thread timestamp (optional)
+   * @returns Promise representing the result of the send operation
    */
   async sendFile(
     file: FileContent,
@@ -107,16 +107,16 @@ export class MessageClient {
   }
   
   /**
-   * ログ取得方法の説明テキストを生成する
-   * @param startDate 開始日
-   * @param endDate 終了日
-   * @param logGroups ロググループの配列
-   * @param cwLogsQuery CloudWatchログクエリ
-   * @param cwMetricQuery CloudWatchメトリクスクエリ
-   * @param xrayTraces X-rayトレース情報を含めるかどうか
-   * @param albQuery ALBクエリ（オプション）
-   * @param trailQuery CloudTrailクエリ（オプション）
-   * @returns マークダウン形式のテキスト
+   * Generate explanatory text for log retrieval method
+   * @param startDate Start date
+   * @param endDate End date
+   * @param logGroups Array of log groups
+   * @param cwLogsQuery CloudWatch logs query
+   * @param cwMetricQuery CloudWatch metrics query
+   * @param xrayTraces Whether to include X-ray trace information
+   * @param albQuery ALB query (optional)
+   * @param trailQuery CloudTrail query (optional)
+   * @returns Markdown formatted text
    */
   createHowToGetLogs(
     startDate: string,
@@ -141,10 +141,10 @@ export class MessageClient {
   }
   
   /**
-   * フォームブロックを生成する
-   * @param date 初期日付
-   * @param time 初期時刻
-   * @returns ブロックの配列
+   * Generate form block
+   * @param date Initial date
+   * @param time Initial time
+   * @returns Array of blocks
    */
   createFormBlock(date: string, time: string): KnownBlock[] {
     if (this.client instanceof SlackMessageClient) {
@@ -154,8 +154,8 @@ export class MessageClient {
   }
   
   /**
-   * コマンド実行フォームビューを生成する
-   * @returns ビュー
+   * Generate command execution form view
+   * @returns View
    */
   createInsightCommandFormView(): View {
     if (this.client instanceof SlackMessageClient) {
@@ -165,9 +165,9 @@ export class MessageClient {
   }
   
   /**
-   * メッセージブロックを生成する
-   * @param message メッセージテキスト
-   * @returns ブロックの配列
+   * Generate message block
+   * @param message Message text
+   * @returns Array of blocks
    */
   createMessageBlock(message: string): KnownBlock[] {
     if (this.client instanceof SlackMessageClient) {
@@ -177,8 +177,8 @@ export class MessageClient {
   }
   
   /**
-   * エラーメッセージブロックを生成する
-   * @returns ブロックの配列
+   * Generate error message block
+   * @returns Array of blocks
    */
   createErrorMessageBlock(): KnownBlock[] {
     if (this.client instanceof SlackMessageClient) {
@@ -188,9 +188,9 @@ export class MessageClient {
   }
   
   /**
-   * 検索結果メッセージブロックを生成する
-   * @param retrieveResults 検索結果アイテムの配列
-   * @returns ブロックの配列
+   * Generate search result message block
+   * @param retrieveResults Array of search result items
+   * @returns Array of blocks
    */
   createRetrieveResultMessage(retrieveResults: RetrieveResultItem[]): KnownBlock[] {
     if (this.client instanceof SlackMessageClient) {
@@ -200,8 +200,8 @@ export class MessageClient {
   }
   
   /**
-   * 現在の言語設定を取得する
-   * @returns 言語設定
+   * Get current language setting
+   * @returns Language setting
    */
   getLanguage(): Language {
     return this.i18n.getLanguage();

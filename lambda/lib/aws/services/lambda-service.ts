@@ -7,7 +7,7 @@ import { logger } from "../../logger.js";
 import { AWSError } from '../errors/aws-error.js';
 
 /**
- * Lambda関数の呼び出し結果の型
+ * Type for Lambda function invocation result
  */
 export interface LambdaInvokeResult {
   StatusCode?: number;
@@ -18,24 +18,24 @@ export interface LambdaInvokeResult {
 }
 
 /**
- * Lambdaサービスのラッパークラス
+ * Wrapper class for Lambda service
  */
 export class LambdaService {
   private client: LambdaClient;
   
   /**
-   * コンストラクタ
-   * @param client LambdaClient（テスト用にモックを注入可能）
+   * Constructor
+   * @param client LambdaClient 
    */
   constructor(client?: LambdaClient) {
     this.client = client || new LambdaClient();
   }
   
   /**
-   * Lambda関数を非同期で呼び出す
-   * @param payload ペイロード
-   * @param functionName 関数名
-   * @returns 呼び出し結果
+   * Invoke Lambda function asynchronously
+   * @param payload Payload
+   * @param functionName Function name
+   * @returns Invocation result
    */
   async invokeAsyncLambdaFunc(
     payload: string,

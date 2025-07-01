@@ -9,7 +9,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
   startDate: string;
   endDate: string;
 }): void {
-  // メトリクスツール
+  // Metrics tool
   toolRegistry.registerTool({
     name: "metrics_tool",
     description: "CloudWatchメトリクスを取得して分析します。特定のメトリクス名や名前空間でフィルタリングできます。名前空間を指定しない場合は、一般的なAWSサービスの名前空間から自動的に取得します。",
@@ -53,7 +53,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
     }
   });
   
-  // ログツール
+  // Logs tool
   toolRegistry.registerTool({
     name: "logs_tool",
     description: `設定されたCloudWatch Logsからログを取得して分析します。フィルターパターンを指定できます。
@@ -111,7 +111,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
     }
   });
   
-  // 監査ログツール
+  // Audit log tool
   toolRegistry.registerTool({
     name: "audit_log_tool",
     description: "CloudTrailログからAuditログを取得して分析します。特定のサービスやイベント名でフィルタリングできます。",
@@ -149,7 +149,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
     }
   });
   
-  // X-Rayツール
+  // X-Ray tool
   toolRegistry.registerTool({
     name: "xray_tool",
     description: "X-Rayからトレース情報を取得して分析します。エラーのあるトレースや遅いトレースを特定します。X-Rayトレースが有効な場合のみ使用できます。",
@@ -172,7 +172,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
     }
   });
   
-  // Knowledge Baseツール
+  // Knowledge Base tool
   toolRegistry.registerTool({
     name: "kb_tool",
     description: "Knowledge Baseからドキュメントを検索します。障害対応のナレッジや過去の事例を参照できます。Knowledge Baseが有効な場合のみ使用できます。",
@@ -191,7 +191,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       }
     ],
     execute: async (params: Record<string, unknown>) => {
-      // 型アサーション
+      // Type assertion
       const typedParams = params as {
         query: string;
         maxResults?: number;
@@ -200,7 +200,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
     }
   });
   
-  // 最終回答ツール
+  // Final answer tool
   toolRegistry.registerTool({
     name: "final_answer",
     description: "障害分析の最終回答を生成します。十分な情報が集まり、根本原因と解決策が特定できた場合のみ使用してください。",
@@ -213,7 +213,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       }
     ],
     execute: async (params: Record<string, unknown>) => {
-      // このツールは実際には何も実行せず、AgentEngineによって特別に処理される
+      // This tool doesn't actually execute anything, it's specially handled by AgentEngine
       const typedParams = params as {
         content: string;
       };

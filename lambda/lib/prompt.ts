@@ -15,8 +15,8 @@ export class Prompt {
   }
 
   /**
-   * 履歴を最適化する
-   * サイクル数が多い場合は直近の履歴のみを詳細に含め、古い履歴は要約する
+   * Optimize history
+   * When there are many cycles, include only recent history in detail and summarize older history
    */
   private optimizeHistory(history: HistoryItem[], cycleCount: number): string {
     // 履歴が長い場合（例：5回以上）
@@ -45,8 +45,8 @@ export class Prompt {
   }
   
   /**
-   * サイクル数に応じたプロンプト強化
-   * サイクル数が多い場合は最終回答の生成を強く促す
+   * Enhance prompt based on cycle count
+   * Strongly encourage final answer generation when there are many cycles
    */
   private enhancePromptForHighCycleCount(basePrompt: string, cycleCount: number): string {
     if (cycleCount >= 4) {

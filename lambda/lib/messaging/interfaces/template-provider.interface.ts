@@ -1,5 +1,5 @@
 /**
- * リッチテキスト要素のスタイル
+ * Style for rich text elements
  */
 export interface RichTextStyle {
   bold?: boolean;
@@ -9,7 +9,7 @@ export interface RichTextStyle {
 }
 
 /**
- * リッチテキスト要素の基本構造
+ * Basic structure for rich text elements
  */
 export interface RichTextElement {
   type: string;
@@ -23,7 +23,7 @@ export interface RichTextElement {
 }
 
 /**
- * メッセージブロックの基本構造
+ * Basic structure for message blocks
  */
 export interface MessageBlock {
   type: string;
@@ -34,14 +34,14 @@ export interface MessageBlock {
 }
 
 /**
- * メッセージテンプレートの基本構造
+ * Basic structure for message templates
  */
 export interface MessageTemplate {
   blocks: MessageBlock[];
 }
 
 /**
- * フォームテンプレートの構造
+ * Structure for form templates
  */
 export interface FormTemplate extends MessageTemplate {
   title?: string;
@@ -50,7 +50,7 @@ export interface FormTemplate extends MessageTemplate {
 }
 
 /**
- * 検索結果アイテムの構造
+ * Structure for search result items
  */
 export interface RetrieveResultItem {
   index: number;
@@ -60,7 +60,7 @@ export interface RetrieveResultItem {
 }
 
 /**
- * ログパラメータの構造
+ * Structure for log parameters
  */
 export interface LogParams {
   startDate: string;
@@ -74,48 +74,48 @@ export interface LogParams {
 }
 
 /**
- * テンプレートプロバイダーの抽象インターフェース
- * 各種メッセージテンプレートを生成する
+ * Abstract interface for template provider
+ * Generates various message templates
  */
 export interface ITemplateProvider {
   /**
-   * ログ取得方法の説明テキストを生成する
-   * @param params ログパラメータ
-   * @returns マークダウン形式のテキスト
+   * Generate explanatory text for log retrieval method
+   * @param params Log parameters
+   * @returns Markdown formatted text
    */
   createHowToGetLogs(params: LogParams): string;
   
   /**
-   * フォームテンプレートを生成する
-   * @param date 初期日付
-   * @param time 初期時刻
-   * @returns フォームテンプレート
+   * Generate form template
+   * @param date Initial date
+   * @param time Initial time
+   * @returns Form template
    */
   createFormTemplate(date: string, time: string): FormTemplate;
   
   /**
-   * コマンド実行フォームテンプレートを生成する
-   * @returns フォームテンプレート
+   * Generate command execution form template
+   * @returns Form template
    */
   createCommandFormTemplate(): FormTemplate;
   
   /**
-   * メッセージテンプレートを生成する
-   * @param message メッセージテキスト
-   * @returns メッセージテンプレート
+   * Generate message template
+   * @param message Message text
+   * @returns Message template
    */
   createMessageTemplate(message: string): MessageTemplate;
   
   /**
-   * エラーメッセージテンプレートを生成する
-   * @returns エラーメッセージテンプレート
+   * Generate error message template
+   * @returns Error message template
    */
   createErrorMessageTemplate(): MessageTemplate;
   
   /**
-   * 検索結果メッセージテンプレートを生成する
-   * @param retrieveResults 検索結果アイテムの配列
-   * @returns 検索結果メッセージテンプレート
+   * Generate search result message template
+   * @param retrieveResults Array of search result items
+   * @returns Search result message template
    */
   createRetrieveResultTemplate(retrieveResults: RetrieveResultItem[]): MessageTemplate;
 }

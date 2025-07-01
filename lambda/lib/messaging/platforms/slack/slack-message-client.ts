@@ -12,31 +12,31 @@ import { Logger } from "@aws-lambda-powertools/logger";
 import { logger as defaultLogger } from '../../../logger.js';
 
 /**
- * Slack向けのメッセージクライアント
- * Slack APIを使用してメッセージを送信する
+ * Message client for Slack
+ * Sends messages using Slack API
  */
 export class SlackMessageClient implements IMessageClient {
-  /** Slack Web API クライアント */
+  /** Slack Web API client */
   private readonly slackClient: WebClient;
   
-  /** 国際化プロバイダー */
+  /** Internationalization provider */
   private readonly i18n: I18nProvider;
   
-  /** ロガー */
+  /** Logger */
   private readonly logger: Logger;
   
-  /** テンプレートプロバイダー */
+  /** Template provider */
   private readonly templateProvider: ITemplateProvider;
   
-  /** テンプレートコンバーター */
+  /** Template converter */
   private readonly templateConverter: SlackTemplateConverter;
   
   /**
-   * コンストラクタ
-   * @param token Slack API トークン
-   * @param i18n 国際化プロバイダー
-   * @param logger ロガー
-   * @param config 設定プロバイダー
+   * Constructor
+   * @param token Slack API token
+   * @param i18n Internationalization provider
+   * @param logger Logger
+   * @param config Configuration provider
    */
   constructor(
     token: string,
@@ -52,10 +52,10 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * メッセージを送信する
-   * @param message メッセージの内容
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send message
+   * @param message Message content
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   async sendMessage(message: MessageContent, destination: MessageDestination): Promise<void> {
     if (!(destination instanceof SlackDestination)) {
@@ -95,11 +95,11 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * マークダウン形式のコンテンツを送信する
-   * @param filename ファイル名
-   * @param markdownText マークダウン形式のテキスト
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send markdown content
+   * @param filename Filename
+   * @param markdownText Markdown formatted text
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   async sendMarkdownContent(filename: string, markdownText: string, destination: MessageDestination): Promise<void> {
     if (!(destination instanceof SlackDestination)) {
@@ -126,11 +126,11 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * ファイルを送信する
-   * @param file ファイルの内容
-   * @param filename ファイル名
-   * @param destination メッセージの宛先
-   * @returns 送信処理の結果を表すPromise
+   * Send file
+   * @param file File content
+   * @param filename Filename
+   * @param destination Message destination
+   * @returns Promise representing the result of the send operation
    */
   async sendFile(file: FileContent, filename: string, destination: MessageDestination): Promise<void> {
     if (!(destination instanceof SlackDestination)) {
@@ -158,10 +158,10 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * フォームブロックを生成する
-   * @param date 初期日付
-   * @param time 初期時刻
-   * @returns Slackブロックの配列
+   * Generate form block
+   * @param date Initial date
+   * @param time Initial time
+   * @returns Array of Slack blocks
    */
   createFormBlock(date: string, time: string): KnownBlock[] {
     const template = this.templateProvider.createFormTemplate(date, time);
@@ -169,8 +169,8 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * コマンド実行フォームビューを生成する
-   * @returns Slackビュー
+   * Generate command execution form view
+   * @returns Slack view
    */
   createInsightCommandFormView(): View {
     const template = this.templateProvider.createCommandFormTemplate();
@@ -178,9 +178,9 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * メッセージブロックを生成する
-   * @param message メッセージテキスト
-   * @returns Slackブロックの配列
+   * Generate message block
+   * @param message Message text
+   * @returns Array of Slack blocks
    */
   createMessageBlock(message: string): KnownBlock[] {
     const template = this.templateProvider.createMessageTemplate(message);
@@ -188,8 +188,8 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * エラーメッセージブロックを生成する
-   * @returns Slackブロックの配列
+   * Generate error message block
+   * @returns Array of Slack blocks
    */
   createErrorMessageBlock(): KnownBlock[] {
     const template = this.templateProvider.createErrorMessageTemplate();
@@ -197,9 +197,9 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * 検索結果メッセージブロックを生成する
-   * @param retrieveResults 検索結果アイテムの配列
-   * @returns Slackブロックの配列
+   * Generate search result message block
+   * @param retrieveResults Array of search result items
+   * @returns Array of Slack blocks
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createRetrieveResultMessage(retrieveResults: any[]): KnownBlock[] {
@@ -208,11 +208,11 @@ export class SlackMessageClient implements IMessageClient {
   }
   
   /**
-   * エラーを処理する
-   * @param error エラーオブジェクト
-   * @param channelId Slackチャンネル ID
-   * @param threadTs スレッドタイムスタンプ（オプション）
-   * @returns エラー処理の結果を表すPromise
+   * Handle error
+   * @param error Error object
+   * @param channelId Slack channel ID
+   * @param threadTs Thread timestamp (optional)
+   * @returns Promise representing the result of error handling
    */
   private async handleError(error: unknown, channelId: string, threadTs?: string): Promise<void> {
     this.logger.error("Slack API call failed", error instanceof Error ? error : new Error(String(error)));
@@ -225,7 +225,7 @@ export class SlackMessageClient implements IMessageClient {
     } catch (secondaryError) {
       this.logger.error("Failed to send error message", 
         secondaryError instanceof Error ? secondaryError : new Error(String(secondaryError)));
-      // これ以上の再帰を防ぐ
+      // Prevent further recursion
     }
   }
 }

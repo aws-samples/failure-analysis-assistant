@@ -9,14 +9,14 @@ export const kbToolExecutor = async (params: {
   logger.info("Executing Knowledge Base tool", { params });
   
   try {
-    // Knowledge Baseが有効かどうかを確認
+    // Check if Knowledge Base is enabled
     const knowledgeBaseEnabled = process.env.KNOWLEDGEBASE_ENABLED === "true" || process.env.KNOWLEDGEBASE_ID !== undefined;
     
     if (!knowledgeBaseEnabled) {
       return "Knowledge Baseは現在無効になっています。parameter.tsのknowledgeBaseをtrueに設定してください。";
     }
     
-    // 環境変数の取得
+    // Get environment variables
     const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID;
     const rerankModelId = process.env.RERANK_MODEL_ID;
     
@@ -24,7 +24,7 @@ export const kbToolExecutor = async (params: {
       return "Knowledge Base IDが設定されていません。KnowledgeBaseStackが正しくデプロイされているか確認してください。";
     }
     
-    // Knowledge Baseからの検索
+    // Search from Knowledge Base
     let results;
     try {
       const bedrockService = AWSServiceFactory.getBedrockService();
@@ -34,7 +34,7 @@ export const kbToolExecutor = async (params: {
         rerankModelId
       );
     } catch (retrieveError) {
-      // Knowledge Baseが存在しない場合や、アクセス権限がない場合
+      // If Knowledge Base doesn't exist or there's no access permission
       if (retrieveError instanceof Error) {
         if (retrieveError.message.includes("ResourceNotFoundException")) {
           return `指定されたKnowledge Base (${knowledgeBaseId}) が見つかりません。KnowledgeBaseStackが正しくデプロイされているか確認してください。`;
@@ -42,10 +42,10 @@ export const kbToolExecutor = async (params: {
           return `Knowledge Base (${knowledgeBaseId}) へのアクセス権限がありません。IAMポリシーを確認してください。`;
         }
       }
-      throw retrieveError; // その他のエラーは上位でハンドリング
+      throw retrieveError; // Handle other errors at a higher level
     }
     
-    // 結果を読みやすい形式に整形
+    // Format results in a readable format
     if (!results || results.length === 0) {
       return `"${params.query}" に一致するドキュメントが見つかりませんでした。`;
     }

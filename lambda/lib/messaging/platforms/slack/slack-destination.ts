@@ -1,20 +1,20 @@
 import { MessageDestination } from '../../interfaces/message-destination.interface.js';
 
 /**
- * Slack向けのメッセージ宛先クラス
- * チャンネルIDとスレッドタイムスタンプを管理する
+ * Message destination class for Slack
+ * Manages channel ID and thread timestamp
  */
 export class SlackDestination implements MessageDestination {
-  /** Slackチャンネル ID */
+  /** Slack channel ID */
   private readonly channelId: string;
   
-  /** スレッドタイムスタンプ（オプション） */
+  /** Thread timestamp (optional) */
   private readonly threadTs?: string;
   
   /**
-   * コンストラクタ
-   * @param channelId Slackチャンネル ID
-   * @param threadTs スレッドタイムスタンプ（オプション）
+   * Constructor
+   * @param channelId Slack channel ID
+   * @param threadTs Thread timestamp (optional)
    */
   constructor(channelId: string, threadTs?: string) {
     this.channelId = channelId;
@@ -22,8 +22,8 @@ export class SlackDestination implements MessageDestination {
   }
   
   /**
-   * 宛先の一意の識別子を取得する
-   * @returns 宛先を識別する文字列
+   * Get unique identifier for the destination
+   * @returns String identifying the destination
    */
   getIdentifier(): string {
     return this.threadTs 
@@ -32,16 +32,16 @@ export class SlackDestination implements MessageDestination {
   }
   
   /**
-   * Slackチャンネル IDを取得する
-   * @returns Slackチャンネル ID
+   * Get Slack channel ID
+   * @returns Slack channel ID
    */
   getChannelId(): string {
     return this.channelId;
   }
   
   /**
-   * スレッドタイムスタンプを取得する
-   * @returns スレッドタイムスタンプ（存在する場合）
+   * Get thread timestamp
+   * @returns Thread timestamp (if exists)
    */
   getThreadTs(): string | undefined {
     return this.threadTs;

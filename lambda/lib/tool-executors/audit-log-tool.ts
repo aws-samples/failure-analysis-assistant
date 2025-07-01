@@ -12,7 +12,7 @@ export const auditLogToolExecutor = async (params: {
   logger.info("Executing audit log tool", { params });
   
   try {
-    // 環境変数の取得
+    // Get environment variables
     const databaseName = process.env.ATHENA_DATABASE_NAME;
     const cloudTrailLogTableName = process.env.CLOUD_TRAIL_LOG_TABLE_NAME;
     const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
@@ -22,14 +22,14 @@ export const auditLogToolExecutor = async (params: {
       return "CloudTrailログテーブルが設定されていません。parameter.tsのcloudTrailLogTableNameを確認してください。";
     }
     
-    // クエリの構築
+    // Build the query
     let query = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage 
                 FROM ${cloudTrailLogTableName} 
                 WHERE eventtime BETWEEN ? AND ?`;
     
     const queryParams = [params.startDate, params.endDate];
     
-    // フィルタの追加
+    // Add filters
     if (region) {
       query += " AND awsregion = ?";
       queryParams.push(region);
@@ -55,7 +55,7 @@ export const auditLogToolExecutor = async (params: {
     
     query += " ORDER BY eventtime DESC LIMIT 100";
     
-    // Athenaへのクエリ実行
+    // Execute query to Athena
     const athenaService = AWSServiceFactory.getAthenaService();
     const res = await athenaService.queryToAthena(
       query,
@@ -64,7 +64,7 @@ export const auditLogToolExecutor = async (params: {
       athenaQueryOutputLocation,
     );
     
-    // 結果を読みやすい形式に整形
+    // Format results in a readable format
     return formatAuditLogHistoryResults(res.result);
   } catch (error) {
     logger.error("Error in change history tool", { error });
@@ -79,7 +79,7 @@ function formatAuditLogHistoryResults(csvResults: string): string {
   
   let output = "## 監査ログ分析結果\n\n";
   
-  // CSVをパース
+  // Parse CSV
   const lines = csvResults.trim().split("\n");
   if (lines.length <= 1) {
     return output + "監査ログが見つかりませんでした。";
@@ -96,7 +96,7 @@ function formatAuditLogHistoryResults(csvResults: string): string {
   
   output += `合計 ${rows.length} 件の監査ログが見つかりました。\n\n`;
   
-  // サービス別の監査ログ数
+  // Audit log count by service
   const serviceAuditLogs: Record<string, number> = {};
   rows.forEach(row => {
     const service = row.eventsource || "unknown";
@@ -112,7 +112,7 @@ function formatAuditLogHistoryResults(csvResults: string): string {
   
   output += "\n";
   
-  // エラーのあった監査ログ
+  // Audit logs with errors
   const errorAuditLogs = rows.filter(row => row.errorcode && row.errorcode !== "null" && row.errorcode !== "");
   
   if (errorAuditLogs.length > 0) {
@@ -123,8 +123,8 @@ function formatAuditLogHistoryResults(csvResults: string): string {
     });
   }
   
-  // 重要な監査ログ
-  // TODO: 重要な監査ログをパラメータ化して外に出す
+  // Important audit logs
+  // TODO: Parameterize important audit logs and move them outside
   const importantEvents = [
     "RunInstances", "TerminateInstances",
     "CreateCluster", "DeleteCluster", "ModifyCluster",
@@ -144,12 +144,12 @@ function formatAuditLogHistoryResults(csvResults: string): string {
     });
   }
   
-  // 時系列分析
+  // Timeline analysis
   output += "### 時系列分布\n\n";
   
   if (rows.length > 0) {
-    const firstAuditLog = rows[rows.length - 1]; // 最も古い監査ログ（逆順でソートされているため）
-    const lastAuditLog = rows[0]; // 最も新しい監査ログ
+    const firstAuditLog = rows[rows.length - 1]; // Oldest audit log (because they are sorted in reverse order)
+    const lastAuditLog = rows[0]; // Newest audit log
     
     output += `- 最初の監査ログ: ${firstAuditLog.eventtime} (${firstAuditLog.eventsource} - ${firstAuditLog.eventname})\n`;
     output += `- 最後の監査ログ: ${lastAuditLog.eventtime} (${lastAuditLog.eventsource} - ${lastAuditLog.eventname})\n`;

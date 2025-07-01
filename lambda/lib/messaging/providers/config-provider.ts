@@ -1,15 +1,15 @@
 /**
- * 設定プロバイダークラス
- * 環境変数やアプリケーション設定へのアクセスを抽象化する
+ * Configuration provider class
+ * Abstracts access to environment variables and application settings
  */
 export class ConfigProvider {
-  /** 設定データ */
+  /** Configuration data */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly config: Record<string, any>;
   
   /**
-   * コンストラクタ
-   * @param config 初期設定（オプション）
+   * Constructor
+   * @param config Initial configuration (optional)
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(config?: Record<string, any>) {
@@ -17,12 +17,12 @@ export class ConfigProvider {
   }
   
   /**
-   * 指定されたキーに対応する設定値を取得する
-   * 環境変数 > 設定オブジェクト > デフォルト値 の優先順位で値を取得
+   * Get configuration value for the specified key
+   * Retrieves value with priority: environment variable > configuration object > default value
    * 
-   * @param key 設定キー
-   * @param defaultValue デフォルト値（オプション）
-   * @returns 設定値
+   * @param key Configuration key
+   * @param defaultValue Default value (optional)
+   * @returns Configuration value
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   get(key: string, defaultValue?: any): any {
@@ -30,24 +30,24 @@ export class ConfigProvider {
   }
   
   /**
-   * Athenaデータベース名を取得する
-   * @returns Athenaデータベース名
+   * Get Athena database name
+   * @returns Athena database name
    */
   getAthenaDatabase(): string {
     return this.get("ATHENA_DATABASE_NAME", "default_database");
   }
   
   /**
-   * デフォルトのSlackチャンネルIDを取得する
-   * @returns SlackチャンネルID
+   * Get default Slack channel ID
+   * @returns Slack channel ID
    */
   getDefaultSlackChannel(): string {
     return this.get("DEFAULT_SLACK_CHANNEL", "general");
   }
   
   /**
-   * ログ取得のデフォルト期間（日数）を取得する
-   * @returns デフォルト期間（日数）
+   * Get default log retrieval period (days)
+   * @returns Default period (days)
    */
   getDefaultLogPeriodDays(): number {
     return parseInt(this.get("DEFAULT_LOG_PERIOD_DAYS", "7"), 10);

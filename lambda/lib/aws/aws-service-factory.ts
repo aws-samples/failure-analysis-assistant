@@ -6,8 +6,8 @@ import { BedrockService } from './services/bedrock-service.js';
 import { LambdaService } from './services/lambda-service.js';
 
 /**
- * AWSサービスのファクトリークラス
- * シングルトンパターンでサービスインスタンスを提供する
+ * AWS service factory class
+ * Provides service instances using singleton pattern
  */
 export class AWSServiceFactory {
   private static cloudWatchService: CloudWatchService;
@@ -18,8 +18,8 @@ export class AWSServiceFactory {
   private static lambdaService: LambdaService;
   
   /**
-   * CloudWatchServiceのインスタンスを取得する
-   * @returns CloudWatchServiceのインスタンス
+   * Get CloudWatchService instance
+   * @returns CloudWatchService instance
    */
   static getCloudWatchService(): CloudWatchService {
     if (!this.cloudWatchService) {
@@ -29,8 +29,8 @@ export class AWSServiceFactory {
   }
   
   /**
-   * CloudWatchLogsServiceのインスタンスを取得する
-   * @returns CloudWatchLogsServiceのインスタンス
+   * Get CloudWatchLogsService instance
+   * @returns CloudWatchLogsService instance
    */
   static getCloudWatchLogsService(): CloudWatchLogsService {
     if (!this.cloudWatchLogsService) {
@@ -40,8 +40,8 @@ export class AWSServiceFactory {
   }
   
   /**
-   * AthenaServiceのインスタンスを取得する
-   * @returns AthenaServiceのインスタンス
+   * Get AthenaService instance
+   * @returns AthenaService instance
    */
   static getAthenaService(): AthenaService {
     if (!this.athenaService) {
@@ -51,8 +51,8 @@ export class AWSServiceFactory {
   }
   
   /**
-   * XRayServiceのインスタンスを取得する
-   * @returns XRayServiceのインスタンス
+   * Get XRayService instance
+   * @returns XRayService instance
    */
   static getXRayService(): XRayService {
     if (!this.xrayService) {
@@ -62,8 +62,8 @@ export class AWSServiceFactory {
   }
   
   /**
-   * BedrockServiceのインスタンスを取得する
-   * @returns BedrockServiceのインスタンス
+   * Get BedrockService instance
+   * @returns BedrockService instance
    */
   static getBedrockService(): BedrockService {
     if (!this.bedrockService) {
@@ -73,8 +73,8 @@ export class AWSServiceFactory {
   }
   
   /**
-   * LambdaServiceのインスタンスを取得する
-   * @returns LambdaServiceのインスタンス
+   * Get LambdaService instance
+   * @returns LambdaService instance
    */
   static getLambdaService(): LambdaService {
     if (!this.lambdaService) {

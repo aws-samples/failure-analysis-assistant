@@ -11,7 +11,7 @@ export const logsToolExecutor = async (params: {
   logger.info("Executing logs tool", { params });
   
   try {
-    // parameter.tsで指定されたロググループを使用
+    // Use log groups specified in parameter.ts
     const configuredLogGroups = process.env.CW_LOGS_LOGGROUPS ? 
       JSON.parse(process.env.CW_LOGS_LOGGROUPS).loggroups || [] : 
       [];
@@ -22,24 +22,24 @@ export const logsToolExecutor = async (params: {
     
     logger.info("Using configured log groups", { configuredLogGroups });
     
-    // クエリ文字列の構築
+    // Build query string
     const filterPattern = params.filterPattern || "";
     const limit = params.limit || 100;
     
-    // 環境変数から取得したデフォルトクエリがあれば使用
+    // Use default query from environment variables if available
     const defaultQuery = process.env.CW_LOGS_INSIGHT_QUERY || "fields @timestamp, @message";
     
-    // デフォルトクエリをベースに、フィルターとリミットを追加
+    // Add filter and limit to the default query
     const queryString = `${defaultQuery}
       ${filterPattern ? `| filter ${filterPattern}` : ""}
       | sort @timestamp desc
       | limit ${limit}`;
     
-    // CloudWatch Logsへのクエリ実行
+    // Execute query to CloudWatch Logs
     const cloudWatchLogsService = AWSServiceFactory.getCloudWatchLogsService();
     
     try {
-      // 最初の試行
+      // First attempt
       const results = await cloudWatchLogsService.queryLogs(
         params.startDate,
         params.endDate,
@@ -47,10 +47,10 @@ export const logsToolExecutor = async (params: {
         queryString
       );
       
-      // 結果を読みやすい形式に整形
+      // Format results in a readable format
       return formatLogsResults(results);
     } catch (error) {
-      // MalformedQueryExceptionの場合、Bedrockを使用してクエリを修正
+      // In case of MalformedQueryException, use Bedrock to fix the query
       if (error instanceof Error && 
           (error.name === "MalformedQueryException" || 
            error.message.includes("MalformedQuery"))) {
@@ -60,11 +60,11 @@ export const logsToolExecutor = async (params: {
           error: error.message
         });
         
-        // Bedrockを使用してフィルターパターンを修正
+        // Use Bedrock to fix the filter pattern
         const fixedFilterPattern = await fixFilterPatternWithBedrock(filterPattern, error.message);
         
         if (fixedFilterPattern !== filterPattern) {
-          // 修正したフィルターパターンで再試行
+          // Retry with the fixed filter pattern
           const fixedQueryString = `${defaultQuery}
             ${fixedFilterPattern ? `| filter ${fixedFilterPattern}` : ""}
             | sort @timestamp desc
@@ -83,7 +83,7 @@ export const logsToolExecutor = async (params: {
             return formatLogsResults(results) + 
               "\n\n**注: 元のフィルターパターンに問題があったため、修正して実行しました。修正後のパターン: `" + fixedFilterPattern + "`**";
           } catch (retryError) {
-            // 再試行も失敗した場合
+            // If retry also fails
             logger.error("Retry also failed", { retryError });
             return `フィルターパターンの構文が無効です: ${params.filterPattern}\n\n` +
                    "有効なフィルターパターン構文の例:\n" +
@@ -94,7 +94,7 @@ export const logsToolExecutor = async (params: {
                    "https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html";
           }
         } else {
-          // 修正できなかった場合
+          // If it couldn't be fixed
           return `フィルターパターンの構文が無効です: ${params.filterPattern}\n\n` +
                  "有効なフィルターパターン構文の例:\n" +
                  "- `@message like 'error'`\n" +
@@ -105,7 +105,7 @@ export const logsToolExecutor = async (params: {
         }
       }
       
-      // その他のエラーは再スロー
+      // Rethrow other errors
       throw error;
     }
   } catch (error) {
@@ -115,10 +115,10 @@ export const logsToolExecutor = async (params: {
 };
 
 /**
- * Bedrockを使用してフィルターパターンを修正する
- * @param filterPattern 元のフィルターパターン
- * @param errorMessage エラーメッセージ
- * @returns 修正したフィルターパターン
+ * Use Bedrock to fix the filter pattern
+ * @param filterPattern Original filter pattern
+ * @param errorMessage Error message
+ * @returns Fixed filter pattern
  */
 async function fixFilterPatternWithBedrock(filterPattern: string, errorMessage: string): Promise<string> {
   if (!filterPattern) return "";

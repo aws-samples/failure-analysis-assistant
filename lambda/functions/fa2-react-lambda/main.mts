@@ -20,11 +20,11 @@ const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const token = await getSecret(slackAppTokenKey);
 
 /**
- * 進捗状況メッセージを構築する関数
- * @param i18n I18nProviderのインスタンス
- * @param stepResult ReActAgentの実行結果
- * @param currentState ReActAgentの現在の状態
- * @returns 構築されたメッセージブロック
+ * Function to build progress message
+ * @param i18n Instance of I18nProvider
+ * @param stepResult Execution result of ReActAgent
+ * @param currentState Current state of ReActAgent
+ * @returns Constructed message blocks
  */
 function buildProgressMessage(
   i18n: I18nProvider,
@@ -33,7 +33,7 @@ function buildProgressMessage(
 ): MessageBlock[] {
   const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
   
-  // 進捗状況のメッセージを構築
+  // Build progress message
   return templateProvider.createProgressMessageTemplate(
     currentState.state,
     undefined,
@@ -72,7 +72,7 @@ export const handler: Handler = async (event: {
   ).loggroups;
   const region = process.env.AWS_REGION;
   
-  // パラメータからmaxAgentCyclesを取得（デフォルト値は5）
+  // Get maxAgentCycles from parameters (default value is 5)
   const maxAgentCycles = devParameter.maxAgentCycles ?? 5;
 
   const messageClient = new MessageClient(token!.toString(), lang);
@@ -91,17 +91,17 @@ export const handler: Handler = async (event: {
   }
 
   try {
-    // セッションIDの生成または取得
+    // Generate or get session ID
     const sessionId = eventSessionId || uuidv4();
     
-    // ツールレジストリの初期化
+    // Initialize tool registry
     const toolRegistry = new ToolRegistry();
     registerAllTools(toolRegistry, {
       startDate,
       endDate
     });
     
-    // ReActAgentの初期化
+    // Initialize ReActAgent
     const reactAgent = new ReActAgent(
       sessionId,
       errorDescription,
@@ -110,31 +110,31 @@ export const handler: Handler = async (event: {
       { maxAgentCycles }
     );
     
-    // セッション状態の取得（新規セッションの場合はnull）
+    // Get session state (null for new session)
     const sessionState = await getSessionState(sessionId);
     
-    // 新規セッションの場合
+    // For new session
     if (!sessionState) {
-      // 初期プロンプトを送信
+      // Send initial prompt
       const initialPrompt = prompt.createReactInitialPrompt(
         errorDescription,
         toolRegistry.getToolDescriptions()
       );
 
-      // 初期思考を取得
+      // Get initial thinking
       const bedrockService = AWSServiceFactory.getBedrockService();
       const initialThinking = await bedrockService.converse(initialPrompt, modelId);
 
-      // ReActAgentの初期化
+      // Initialize ReActAgent
       reactAgent.initializeWithThinking(initialThinking || "");
       
-      // 進捗状況をSlackに送信
+      // Send progress to Slack
       const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const startBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisStartMessage")
       ).blocks;
       
-      // MessageBlock[]をKnownBlock[]に変換
+      // Convert MessageBlock[] to KnownBlock[]
       const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: startBlocks });
       
@@ -144,21 +144,21 @@ export const handler: Handler = async (event: {
         threadTs
       );
     } else {
-      // 既存のセッション状態をReActAgentに設定
+      // Set existing session state to ReActAgent
       reactAgent.setSessionState(sessionState);
     }
     
-    // 1ステップ実行（Lambda実行時間を考慮）
+    // Execute one step (considering Lambda execution time)
     const stepResult = await reactAgent.executeStep();
     
-    // セッション状態の保存
+    // Save session state
     await saveSessionState(sessionId, reactAgent.getSessionState());
     
     if (stepResult.isDone) {
-      // 最終回答をSlackに送信
+      // Send final answer to Slack
       const finalAnswer = stepResult.finalAnswer || "分析が完了しましたが、結果を生成できませんでした。";
       
-      // マークダウン形式のテキストをリッチテキストに変換
+      // Convert markdown text to rich text
       await messageClient.sendMarkdownSnippet(
         "analysis_result.md",
         finalAnswer,
@@ -166,16 +166,16 @@ export const handler: Handler = async (event: {
         threadTs
       );
       
-      // セッション完了の処理
+      // Process session completion
       await completeSession(sessionId);
       
-      // 分析完了メッセージ
+      // Analysis complete message
       const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const completeBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisCompleteMessage")
       ).blocks;
       
-      // MessageBlock[]をKnownBlock[]に変換
+      // Convert MessageBlock[] to KnownBlock[]
       const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: completeBlocks });
       
@@ -185,7 +185,7 @@ export const handler: Handler = async (event: {
         threadTs
       );
     } else {
-      // 次のステップを実行するためにLambdaを再度呼び出し
+      // Call Lambda again to execute next step
       const lambdaFunctionName = process.env.AWS_LAMBDA_FUNCTION_NAME!;
       const payload = JSON.stringify({
         errorDescription,
@@ -196,18 +196,18 @@ export const handler: Handler = async (event: {
         sessionId
       });
       
-      // 非同期でLambdaを呼び出し
+      // Invoke Lambda asynchronously
       const lambdaService = AWSServiceFactory.getLambdaService();
       lambdaService.invokeAsyncLambdaFunc(payload, lambdaFunctionName);
       
-      // 進捗状況をSlackに送信
-      // 現在のReActAgentの状態を取得
+      // Send progress to Slack
+      // Get current state of ReActAgent
       const currentState = reactAgent.getSessionState();
       
-      // 次のアクションに応じて異なるメッセージを構築
+      // Build different messages according to next action
       const progressBlocks = buildProgressMessage(i18n, stepResult, currentState);
       
-      // MessageBlock[]をKnownBlock[]に変換
+      // Convert MessageBlock[] to KnownBlock[]
       const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: progressBlocks });
       
@@ -219,22 +219,22 @@ export const handler: Handler = async (event: {
     }
   } catch (error) {
     logger.error("Something happened", error as Error);
-    // エラー時のフォームを送信
+    // Send form on error
     if(channelId && threadTs){
-      // エラーメッセージを送信
+      // Send error message
       await messageClient.sendMessage(
         messageClient.createErrorMessageBlock(),
         channelId, 
         threadTs
       );
       
-      // リトライ案内メッセージを送信
+      // Send retry guidance message
       const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const errorBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisErrorMessage")
       ).blocks;
       
-      // MessageBlock[]をKnownBlock[]に変換
+      // Convert MessageBlock[] to KnownBlock[]
       const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: errorBlocks });
       

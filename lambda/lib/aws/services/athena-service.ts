@@ -10,26 +10,26 @@ import { logger } from "../../logger.js";
 import { AWSError } from '../errors/aws-error.js';
 
 /**
- * Athenaサービスのラッパークラス
+ * Wrapper class for Athena service
  */
 export class AthenaService {
   private client: AthenaClient;
   
   /**
-   * コンストラクタ
-   * @param client AthenaClient（テスト用にモックを注入可能）
+   * Constructor
+   * @param client AthenaClient 
    */
   constructor(client?: AthenaClient) {
     this.client = client || new AthenaClient();
   }
   
   /**
-   * Athenaでクエリを実行する
-   * @param query クエリ文字列
-   * @param queryExecutionContext クエリ実行コンテキスト
-   * @param queryParams クエリパラメータ
-   * @param outputLocation 出力場所
-   * @returns キーと値のペアの配列
+   * Execute query in Athena
+   * @param query Query string
+   * @param queryExecutionContext Query execution context
+   * @param queryParams Query parameters
+   * @param outputLocation Output location
+   * @returns Array of key-value pairs
    */
   async queryToAthena(
     query: string,
@@ -62,7 +62,7 @@ export class AthenaService {
       });
       let queryExecution = await this.client.send(getQueryExecutionCommand);
       
-      // クエリ完了を待機
+      // Wait for query completion
       while (
         queryExecution.QueryExecution?.Status?.State === QueryExecutionState.QUEUED ||
         queryExecution.QueryExecution?.Status?.State === QueryExecutionState.RUNNING
@@ -71,7 +71,7 @@ export class AthenaService {
         queryExecution = await this.client.send(getQueryExecutionCommand);
       }
       
-      // クエリ結果を取得
+      // Get query results
       let getQueryResultsCommand = new GetQueryResultsCommand({
         QueryExecutionId
       });
@@ -79,7 +79,7 @@ export class AthenaService {
       
       results = queryResults.ResultSet?.Rows || [];
       
-      // 全ての結果を取得
+      // Get all results
       while (queryResults.NextToken) {
         getQueryResultsCommand = new GetQueryResultsCommand({
           QueryExecutionId,
@@ -92,7 +92,7 @@ export class AthenaService {
         }
       }
       
-      // クエリ文字列にパラメータを適用
+      // Apply parameters to query string
       const queryString = query.replace(
         /\?/g,
         () => `'${queryParams.shift() || ""}'`
@@ -100,7 +100,7 @@ export class AthenaService {
       
       logger.info("End", {function: "queryToAthena", output: {results, queryString}});
       
-      // 結果をCSV形式に変換して返す
+      // Convert results to CSV format and return
       return { 
         result: this.rowsToCSV(results),
         query: queryString
@@ -117,9 +117,9 @@ export class AthenaService {
   }
   
   /**
-   * Row型の配列をCSV形式に変換する
-   * @param rows Row型の配列
-   * @returns CSV形式の文字列
+   * Convert array of Row type to CSV format
+   * @param rows Array of Row type
+   * @returns String in CSV format
    */
   private rowsToCSV(rows: Row[]): string {
     return rows

@@ -1,12 +1,12 @@
 import { logger } from "../../logger.js";
 
 /**
- * リトライを行う関数
- * @param operation 実行する非同期操作
- * @param maxRetries 最大リトライ回数
- * @param initialDelay 初期遅延時間（ミリ秒）
- * @param maxDelay 最大遅延時間（ミリ秒）
- * @returns 操作の結果
+ * Function to perform retries
+ * @param operation Asynchronous operation to execute
+ * @param maxRetries Maximum number of retries
+ * @param initialDelay Initial delay time (milliseconds)
+ * @param maxDelay Maximum delay time (milliseconds)
+ * @returns Result of the operation
  */
 export async function retryWithExponentialBackoff<T>(
   operation: () => Promise<T>,
@@ -21,7 +21,7 @@ export async function retryWithExponentialBackoff<T>(
     try {
       return await operation();
     } catch (error) {
-      // スロットリングエラーかどうかを確認
+      // Check if it's a throttling error
       const isThrottlingError = 
         error instanceof Error && 
         (error.name === 'ThrottlingException' || 
@@ -29,12 +29,12 @@ export async function retryWithExponentialBackoff<T>(
          error.message.includes('TooManyRequests') ||
          error.message.includes('Rate exceeded'));
       
-      // 最大リトライ回数に達したか、スロットリングエラーでない場合はエラーをスロー
+      // Throw error if maximum retries reached or if it's not a throttling error
       if (retries >= maxRetries || !isThrottlingError) {
         throw error;
       }
       
-      // 遅延時間を計算（エクスポネンシャルバックオフ + ジッター）
+      // Calculate delay time (exponential backoff + jitter)
       delay = Math.min(delay * 2, maxDelay);
       const jitter = delay * 0.2 * Math.random();
       const waitTime = delay + jitter;
@@ -46,7 +46,7 @@ export async function retryWithExponentialBackoff<T>(
         waitTime: Math.round(waitTime)
       });
       
-      // 指定時間待機
+      // Wait for specified time
       await new Promise(resolve => setTimeout(resolve, waitTime));
       
       retries++;
@@ -55,9 +55,9 @@ export async function retryWithExponentialBackoff<T>(
 }
 
 /**
- * スロットリングエラーかどうかを判定する関数
- * @param error エラーオブジェクト
- * @returns スロットリングエラーの場合はtrue
+ * Function to determine if an error is a throttling error
+ * @param error Error object
+ * @returns true if it's a throttling error
  */
 export function isThrottlingError(error: unknown): boolean {
   return (

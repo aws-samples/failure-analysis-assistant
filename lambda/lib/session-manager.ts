@@ -35,14 +35,14 @@ export async function getSessionState(sessionId: string): Promise<SessionState |
       return null;
     }
     
-    // セッション状態を取得
+    // Get session state
     const state = response.Item.state as SessionState;
     
-    // ツール実行記録があれば追加
+    // Add tool execution records if they exist
     if (response.Item.toolExecutions) {
       state.toolExecutions = response.Item.toolExecutions as ToolExecutionRecord[];
     } else if (!state.toolExecutions) {
-      // ツール実行記録がない場合は空の配列を設定
+      // Set empty array if there are no tool execution records
       state.toolExecutions = [];
     }
     
@@ -66,9 +66,9 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
       throw new Error("SESSION_TABLE_NAME environment variable is not set");
     }
     
-    const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60 * 30; // 30日後に期限切れ
+    const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60 * 30; // Expires after 30 days
     
-    // ツール実行記録を別フィールドとして保存
+    // Save tool execution records as a separate field
     const toolExecutions = state.toolExecutions || [];
     
     const command = new PutCommand({
@@ -76,7 +76,7 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
       Item: {
         sessionId,
         state,
-        toolExecutions, // ツール実行記録を別フィールドとして保存
+        toolExecutions, // Save tool execution records as a separate field
         ttl
       }
     });
@@ -101,7 +101,7 @@ export async function updateSessionState(sessionId: string, state: SessionState)
       throw new Error("SESSION_TABLE_NAME environment variable is not set");
     }
     
-    // ツール実行記録を別フィールドとして更新
+    // Update tool execution records as a separate field
     const toolExecutions = state.toolExecutions || [];
     
     const command = new UpdateCommand({
@@ -138,19 +138,19 @@ export async function completeSession(sessionId: string): Promise<void> {
       throw new Error("SESSION_TABLE_NAME environment variable is not set");
     }
     
-    // セッション状態を取得
+    // Get session state
     const currentState = await getSessionState(sessionId);
     if (currentState) {
-      // 最終回答が設定されていない場合は設定
+      // Set final answer if it's not set
       if (!currentState.finalAnswer) {
         currentState.finalAnswer = "分析が完了しました。";
       }
       
-      // 状態を更新
+      // Update state
       const { ReactionState } = await import("./react-agent.js");
       currentState.state = ReactionState.COMPLETED;
       
-      // 更新したセッション状態を保存
+      // Save updated session state
       await saveSessionState(sessionId, currentState);
     }
     
