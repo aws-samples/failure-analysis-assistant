@@ -1,5 +1,5 @@
-import { KnownBlock, View } from "@slack/types";
-import { MessageTemplate, FormTemplate, MessageBlock } from '../../interfaces/template-provider.interface.js';
+import { KnownBlock, View, RichTextBlock } from "@slack/types";
+import { MessageTemplate, FormTemplate, MessageBlock, RichTextElement } from '../../interfaces/template-provider.interface.js';
 
 /**
  * テンプレートコンバーターのインターフェース
@@ -65,6 +65,8 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
   private convertBlock(block: MessageBlock): KnownBlock {
     // 抽象的なMessageBlockをSlackのKnownBlockに変換
     switch (block.type) {
+      case "rich_text":
+        return this.convertRichTextBlock(block);
       case "section":
         return {
           type: "section",
@@ -93,10 +95,78 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
             ? block.elements.map(element => this.convertElement(element))
             : []
         };
+      case "header":
+        return {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: block.text || "",
+            emoji: true
+          }
+        };
       // 他のブロックタイプの変換...
       default:
         // 未知のブロックタイプはそのまま返す（型キャスト）
         return block as unknown as KnownBlock;
+    }
+  }
+  
+  /**
+   * リッチテキストブロックを変換する
+   * @param block リッチテキストブロック
+   * @returns Slackリッチテキストブロック
+   */
+  private convertRichTextBlock(block: MessageBlock): RichTextBlock {
+    return {
+      type: "rich_text",
+      elements: block.elements ? 
+        block.elements.map(element => this.convertRichTextElement(element)) : []
+    };
+  }
+  
+  /**
+   * リッチテキスト要素を変換する
+   * @param element リッチテキスト要素
+   * @returns Slackリッチテキスト要素
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private convertRichTextElement(element: RichTextElement): any {
+    if (!element) return undefined;
+    
+    switch (element.type) {
+      case "rich_text_section":
+        return {
+          type: "rich_text_section",
+          elements: element.elements ? 
+            element.elements.map((subElement: RichTextElement) => this.convertRichTextElement(subElement)) : []
+        };
+      case "rich_text_list":
+        return {
+          type: "rich_text_list",
+          style: element.style || "bullet",
+          elements: element.elements ? 
+            element.elements.map((subElement: RichTextElement) => this.convertRichTextElement(subElement)) : []
+        };
+      case "text":
+        return {
+          type: "text",
+          text: element.text || "",
+          style: element.style
+        };
+      case "emoji":
+        return {
+          type: "emoji",
+          name: element.name || ""
+        };
+      case "link":
+        return {
+          type: "link",
+          url: element.url || "",
+          text: element.text || element.url || ""
+        };
+      default:
+        // 未知の要素タイプはそのまま返す
+        return element;
     }
   }
   

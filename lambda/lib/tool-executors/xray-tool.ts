@@ -1,6 +1,6 @@
 import { AWSServiceFactory } from "../../lib/aws/index.js";
 import { TraceSummary } from "@aws-sdk/client-xray";
-import { logger } from "../../lib/logger";
+import { logger } from "../logger.js";
 
 export const xrayToolExecutor = async (params: {
   startDate: string;

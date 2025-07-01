@@ -74,7 +74,7 @@ export class FA2 extends Construct {
     });
 
     // Function of Failure Analysis
-    const applicationSignalLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'ApplicationSignalsLayer', "arn:aws:lambda:us-west-2:615299751070:layer:AWSOpenTelemetryDistroJs:8");
+    const applicationSignalLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'ApplicationSignalsLayer', `arn:aws:lambda:${Stack.of(this).region}:615299751070:layer:AWSOpenTelemetryDistroJs:8`);
     const fa2BackendRole = new iam.Role(this, "FA2BackendRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       managedPolicies: [

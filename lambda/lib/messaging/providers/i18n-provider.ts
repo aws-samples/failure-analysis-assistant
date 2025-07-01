@@ -26,11 +26,6 @@ export type TranslationKey =
   | "analysisStartMessage"
   | "analysisStepMessage"
   | "analysisErrorMessage"
-  | "generatedHypothesesTitle"
-  | "confidenceLabel"
-  | "reasoningLabel"
-  | "startingHypothesisVerification"
-  | "verifyingHypothesis"
   | "thinkingStateMessage"
   | "actingStateMessage"
   | "observingStateMessage"
@@ -74,12 +69,7 @@ export class I18nProvider {
         analysisStartMessage: "Starting failure analysis.",
         analysisStepMessage: "Analyzing... (Step ",
         analysisErrorMessage: "If you want to retry it, you send same request again from below form.",
-        generatedHypothesesTitle: "Generated Hypotheses",
-        confidenceLabel: "Confidence",
-        reasoningLabel: "Reasoning",
-        startingHypothesisVerification: "Starting hypothesis verification...",
-        verifyingHypothesis: "Verifying hypothesis",
-        thinkingStateMessage: "Thinking about how to verify this hypothesis...",
+        thinkingStateMessage: "Thinking about next steps...",
         actingStateMessage: "Executing a tool to gather evidence...",
         observingStateMessage: "Analyzing the results...",
         executingTool: "Executing tool"
@@ -104,12 +94,7 @@ export class I18nProvider {
         analysisStartMessage: "障害分析を開始しました。",
         analysisStepMessage: "# 分析中... (ステップ ",
         analysisErrorMessage: "リトライしたい場合は、以下のフォームからもう一度同じ内容のリクエストを送ってください。",
-        generatedHypothesesTitle: "生成された仮説一覧",
-        confidenceLabel: "信頼度",
-        reasoningLabel: "根拠",
-        startingHypothesisVerification: "仮説の検証を開始します...",
-        verifyingHypothesis: "仮説を検証中",
-        thinkingStateMessage: "この仮説を検証する方法を考えています...",
+        thinkingStateMessage: "次のステップを考えています...",
         actingStateMessage: "証拠を収集するためにツールを実行しています...",
         observingStateMessage: "結果を分析しています...",
         executingTool: "実行中のツール"

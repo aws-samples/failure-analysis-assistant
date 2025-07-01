@@ -1,5 +1,5 @@
 import { AWSServiceFactory } from "../../lib/aws/index.js";
-import { logger } from "../../lib/logger";
+import { logger } from "../logger.js";
 
 export const auditLogToolExecutor = async (params: {
   startDate: string;

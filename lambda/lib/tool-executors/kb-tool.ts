@@ -1,6 +1,6 @@
 import { AWSServiceFactory } from "../../lib/aws/index.js";
 import { KBResult } from "../../lib/aws/services/bedrock-service.js";
-import { logger } from "../../lib/logger";
+import { logger } from "../logger.js";
 
 export const kbToolExecutor = async (params: {
   query: string;

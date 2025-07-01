@@ -33,20 +33,10 @@ export interface ToolExecutionRecord {
   dataAvailable: boolean;
 }
 
-/**
- * 基本セッション状態を表すインターフェース
- */
-export interface BaseState {
+export interface SessionState {
   context: string;
-  finalAnswer: string | null;
-  toolExecutions: ToolExecutionRecord[];
-}
-
-/**
- * ReActエージェントのセッション状態
- */
-export interface ReactSessionState extends BaseState {
   history: HistoryItem[];
+  finalAnswer: string | null;
   state: ReactionState;
   cycleCount: number;
   dataCollectionStatus: {
@@ -60,10 +50,8 @@ export interface ReactSessionState extends BaseState {
   lastAction?: ToolAction;
   lastObservation?: string;
   missingData?: string[];
+  toolExecutions: ToolExecutionRecord[];
 }
-
-// 後方互換性のために残す
-export type SessionState = ReactSessionState;
 
 export interface StepResult {
   isDone: boolean;
@@ -73,12 +61,19 @@ export interface StepResult {
 
 export class ReActAgent {
   private sessionId: string;
-  private sessionState: ReactSessionState;
+  private sessionState: SessionState;
   private toolRegistry: ToolRegistry;
   private prompt: Prompt;
   private bedrockService: BedrockService;
+  private maxAgentCycles: number;
   
-  constructor(sessionId: string, initialContext: string, toolRegistry: ToolRegistry, prompt: Prompt) {
+  constructor(
+    sessionId: string, 
+    initialContext: string, 
+    toolRegistry: ToolRegistry, 
+    prompt: Prompt,
+    options?: { maxAgentCycles?: number }
+  ) {
     this.sessionId = sessionId;
     this.sessionState = {
       context: initialContext,
@@ -99,6 +94,9 @@ export class ReActAgent {
     this.toolRegistry = toolRegistry;
     this.prompt = prompt;
     this.bedrockService = AWSServiceFactory.getBedrockService();
+    
+    // デフォルト値は5、オプションで上書き可能
+    this.maxAgentCycles = options?.maxAgentCycles ?? 5;
   }
   
   /**
@@ -147,7 +145,7 @@ export class ReActAgent {
   /**
    * セッション状態を設定する
    */
-  setSessionState(state: ReactSessionState): void {
+  setSessionState(state: SessionState): void {
     this.sessionState = state;
   }
   
@@ -393,8 +391,8 @@ ${this.generateDataSummary()}
    * 一定回数のサイクル後に最終回答を強制的に生成するかどうかを判断する
    */
   private shouldForceCompletion(): boolean {
-    // 5回以上のサイクルを実行した場合
-    if (this.sessionState.cycleCount >= 5) {
+    // 最大サイクル数以上のサイクルを実行した場合
+    if (this.sessionState.cycleCount >= this.maxAgentCycles) {
       // データ収集状況を確認
       const dataCollectionStatus = this.sessionState.dataCollectionStatus;
       const collectedDataCount = Object.values(dataCollectionStatus).filter(Boolean).length;
@@ -551,7 +549,7 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
     });
   }
   
-  getSessionState(): ReactSessionState {
+  getSessionState(): SessionState {
     return this.sessionState;
   }
 }

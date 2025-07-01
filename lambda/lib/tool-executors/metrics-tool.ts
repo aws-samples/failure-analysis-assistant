@@ -1,6 +1,6 @@
 import { AWSServiceFactory } from "../../lib/aws/index.js";
 import { MetricDataResult } from "@aws-sdk/client-cloudwatch";
-import { logger } from "../../lib/logger";
+import { logger } from "../logger.js";
 
 export class MetricsTool {
   async execute(params: {

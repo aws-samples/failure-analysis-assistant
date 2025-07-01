@@ -1,10 +1,9 @@
-// ESMでは拡張子が必要
-import { ToolRegistry } from "../../lib/tools-registry";
-import { metricsToolExecutor } from "./metrics-tool";
-import { logsToolExecutor } from "./logs-tool";
-import { auditLogToolExecutor } from "./audit-log-tool";
-import { xrayToolExecutor } from "./xray-tool";
-import { kbToolExecutor } from "./kb-tool";
+import { ToolRegistry } from "../tools-registry.js";
+import { metricsToolExecutor } from "./metrics-tool.js";
+import { logsToolExecutor } from "./logs-tool.js";
+import { auditLogToolExecutor } from "./audit-log-tool.js";
+import { xrayToolExecutor } from "./xray-tool.js";
+import { kbToolExecutor } from "./kb-tool.js";
 
 export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
   startDate: string;
@@ -57,12 +56,38 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
   // ログツール
   toolRegistry.registerTool({
     name: "logs_tool",
-    description: "設定されたCloudWatch Logsからログを取得して分析します。フィルターパターンを指定できます。",
+    description: `設定されたCloudWatch Logsからログを取得して分析します。フィルターパターンを指定できます。
+
+# CloudWatch Logs Insightsフィルター構文ガイド
+
+## 基本的なフィルター構文
+- @message like 'error' - エラーを含むメッセージ
+- @message like /Exception/ - 正規表現でExceptionを含むメッセージ
+- level = 'ERROR' - 特定のフィールドの値でフィルタリング
+- @timestamp > '2023-01-01' - 日付でフィルタリング
+
+## 演算子
+- like/not like - 部分一致（大文字小文字を区別しない）
+- =, !=, <, >, <=, >= - 比較演算子
+- and, or, not - 論理演算子
+
+## 構文ルール
+- 文字列は '単一引用符' または "二重引用符" で囲む（一貫して使用）
+- 正規表現は /スラッシュ/ で囲む
+- 複雑な条件は (括弧) でグループ化
+- 特殊文字は \\ でエスケープ
+
+## 例
+- @message like 'error' and status >= 500
+- (@message like 'timeout' or @message like 'connection refused')
+- @message like /ERROR.*timeout/
+
+詳細: https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html`,
     parameters: [
       {
         name: "filterPattern",
         type: "string",
-        description: "CloudWatch Logs Insightsのフィルターパターン（例: 'error'）",
+        description: "CloudWatch Logs Insightsのフィルターパターン（例: '@message like \"error\"'）",
         required: false
       },
       {

@@ -1,8 +1,34 @@
 /**
+ * リッチテキスト要素のスタイル
+ */
+export interface RichTextStyle {
+  bold?: boolean;
+  italic?: boolean;
+  strike?: boolean;
+  code?: boolean;
+}
+
+/**
+ * リッチテキスト要素の基本構造
+ */
+export interface RichTextElement {
+  type: string;
+  text?: string;
+  url?: string;
+  name?: string;
+  style?: string | RichTextStyle;
+  elements?: RichTextElement[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+/**
  * メッセージブロックの基本構造
  */
 export interface MessageBlock {
   type: string;
+  text?: string;
+  elements?: RichTextElement[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }

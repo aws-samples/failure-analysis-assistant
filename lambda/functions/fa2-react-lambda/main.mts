@@ -3,15 +3,18 @@ import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import { v4 as uuidv4 } from "uuid";
 import { Prompt } from "../../lib/prompt.js";
 import { MessageClient } from "../../lib/messaging/message-client.js";
-import { Language } from "../../../parameter.js";
+import { Language, devParameter } from "../../../parameter.js";
 import { logger } from "../../lib/logger.js"; 
-import { Orchestrator } from "../../lib/orchestrator.js";
+import { ReActAgent, SessionState, StepResult } from "../../lib/react-agent.js";
 import { ToolRegistry } from "../../lib/tools-registry.js";
-import { registerAllTools } from "../tool-executors/index.js";
+import { registerAllTools } from "../../lib/tool-executors/index.js";
 import { getSessionState, saveSessionState, completeSession } from "../../lib/session-manager.js";
 import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
-import { OrchestratorState, OrchestratorStepResult } from "../../lib/orchestrator.js";
+import { GenericTemplateProvider } from "../../lib/messaging/templates/generic-template-provider.js";
+import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
+import { MessageBlock } from "../../lib/messaging/interfaces/template-provider.interface.js";
+import { SlackTemplateConverter } from "../../lib/messaging/platforms/slack/slack-template-converter.js";
 
 const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const token = await getSecret(slackAppTokenKey);
@@ -19,93 +22,23 @@ const token = await getSecret(slackAppTokenKey);
 /**
  * 進捗状況メッセージを構築する関数
  * @param i18n I18nProviderのインスタンス
- * @param stepResult Orchestratorの実行結果
- * @param currentState Orchestratorの現在の状態
- * @returns 構築されたメッセージ文字列
+ * @param stepResult ReActAgentの実行結果
+ * @param currentState ReActAgentの現在の状態
+ * @returns 構築されたメッセージブロック
  */
 function buildProgressMessage(
   i18n: I18nProvider,
-  stepResult: OrchestratorStepResult,
-  currentState: OrchestratorState
-): string {
-  // 基本的なステータスメッセージ
-  let progressMessage = `${i18n.translate("analysisStepMessage")} - ${stepResult.nextAction?.toUpperCase() || "PROCESSING"}`;
+  stepResult: StepResult,
+  currentState: SessionState
+): MessageBlock[] {
+  const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
   
-  // 仮説の生成が終わったタイミングで仮説一覧を送信
-  if (stepResult.nextAction === 'select_next_hypothesis' && 
-      currentState.hypotheses.length > 0 && 
-      currentState.currentHypothesisIndex === -1) {
-    
-    // 仮説一覧のメッセージを構築
-    progressMessage += `\n\n**${i18n.translate("generatedHypothesesTitle")}**:\n`;
-    
-    // 仮説はLLMが重要度順に並べているのでそのまま使用
-    const hypotheses = currentState.hypotheses;
-    
-    // 各仮説の情報を追加
-    hypotheses.forEach((hypothesis, index) => {
-      // 信頼度レベルを日本語に変換
-      const confidenceLevelJa = hypothesis.confidenceLevel === 'high' ? "高" : 
-                                hypothesis.confidenceLevel === 'medium' ? "中" : "低";
-      progressMessage += `\n${index + 1}. [${i18n.translate("confidenceLabel")}: ${confidenceLevelJa}] ${hypothesis.description}`;
-      if (hypothesis.reasoning) {
-        progressMessage += `\n   ${i18n.translate("reasoningLabel")}: ${hypothesis.reasoning}`;
-      }
-    });
-    
-    // 仮説検証を開始することを通知
-    progressMessage += `\n\n${i18n.translate("startingHypothesisVerification")}`;
-  }
-  // 仮説検証中の場合、ReActAgentの状態に関する情報を送信
-  else if (stepResult.nextAction === 'verify_hypothesis' && currentState.reactSessionState) {
-    const reactState = currentState.reactSessionState;
-    const currentHypothesis = currentState.hypotheses[currentState.currentHypothesisIndex];
-    
-    if (currentHypothesis) {
-      // 現在検証中の仮説の説明を追加
-      progressMessage += `\n\n${i18n.translate("verifyingHypothesis")}: "${currentHypothesis.description}"`;
-      
-      // ReActAgentの状態に応じたメッセージを追加
-      switch (reactState.state) {
-        case 'thinking':
-          progressMessage += `\n${i18n.translate("thinkingStateMessage")}`;
-          // 最新の思考内容があれば追加
-          if (reactState.history.length > 0) {
-            const latestThinking = reactState.history[reactState.history.length - 1].thinking;
-            if (latestThinking) {
-              // <Thought>タグ内のテキストを抽出
-              const thoughtMatch = latestThinking.match(/<Thought>([\s\S]*?)<\/Thought>/);
-              if (thoughtMatch) {
-                const thoughtContent = thoughtMatch[1].trim();
-                // 思考内容を表示
-                progressMessage += `\n${thoughtContent}`;
-              }
-            }
-          }
-          break;
-        case 'acting':
-          progressMessage += `\n${i18n.translate("actingStateMessage")}`;
-          // 最新のアクション情報があれば追加
-          if (reactState.lastAction) {
-            progressMessage += `\n${i18n.translate("executingTool")}: "${reactState.lastAction.tool}"`;
-          }
-          break;
-        case 'observing':
-          progressMessage += `\n${i18n.translate("observingStateMessage")}`;
-          // 最新の観察結果があれば追加
-          if (reactState.lastObservation) {
-            const observation = reactState.lastObservation;
-            progressMessage += `\n${observation}`;
-          }
-          break;
-        default:
-          // その他の状態の場合はデフォルトメッセージ
-          break;
-      }
-    }
-  }
-  
-  return progressMessage;
+  // 進捗状況のメッセージを構築
+  return templateProvider.createProgressMessageTemplate(
+    currentState.state,
+    undefined,
+    currentState
+  ).blocks;
 }
 
 export const handler: Handler = async (event: {
@@ -138,9 +71,9 @@ export const handler: Handler = async (event: {
     JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
   ).loggroups;
   const region = process.env.AWS_REGION;
-  const maxHypotheses = process.env.MAX_HYPOTHESES 
-    ? parseInt(process.env.MAX_HYPOTHESES, 10) 
-    : 5;
+  
+  // パラメータからmaxAgentCyclesを取得（デフォルト値は5）
+  const maxAgentCycles = devParameter.maxAgentCycles ?? 5;
 
   const messageClient = new MessageClient(token!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
@@ -168,12 +101,13 @@ export const handler: Handler = async (event: {
       endDate
     });
     
-    // Orchestratorの初期化
-    const orchestrator = new Orchestrator(
+    // ReActAgentの初期化
+    const reactAgent = new ReActAgent(
       sessionId,
+      errorDescription,
       toolRegistry,
       prompt,
-      maxHypotheses
+      { maxAgentCycles }
     );
     
     // セッション状態の取得（新規セッションの場合はnull）
@@ -181,29 +115,53 @@ export const handler: Handler = async (event: {
     
     // 新規セッションの場合
     if (!sessionState) {
+      // 初期プロンプトを送信
+      const initialPrompt = prompt.createReactInitialPrompt(
+        errorDescription,
+        toolRegistry.getToolDescriptions()
+      );
+
+      // 初期思考を取得
+      const bedrockService = AWSServiceFactory.getBedrockService();
+      const initialThinking = await bedrockService.converse(initialPrompt, modelId);
+
+      // ReActAgentの初期化
+      reactAgent.initializeWithThinking(initialThinking || "");
+      
       // 進捗状況をSlackに送信
+      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+      const startBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisStartMessage")
+      ).blocks;
+      
+      // MessageBlock[]をKnownBlock[]に変換
+      const templateConverter = new SlackTemplateConverter();
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: startBlocks });
+      
       await messageClient.sendMessage(
-        messageClient.createMessageBlock(
-          i18n.translate("analysisStartMessage"),
-        ),
+        knownBlocks,
         channelId, 
         threadTs
       );
     } else {
-      // 既存のセッション状態をOrchestratorに設定
-      orchestrator.setState(sessionState);
+      // 既存のセッション状態をReActAgentに設定
+      reactAgent.setSessionState(sessionState);
     }
     
     // 1ステップ実行（Lambda実行時間を考慮）
-    const stepResult = await orchestrator.executeStep(errorDescription);
+    const stepResult = await reactAgent.executeStep();
     
     // セッション状態の保存
-    await saveSessionState(sessionId, orchestrator.getState());
+    await saveSessionState(sessionId, reactAgent.getSessionState());
     
     if (stepResult.isDone) {
       // 最終回答をSlackに送信
-      await messageClient.sendMessage(
-        messageClient.createMessageBlock(stepResult.finalAnswer || "分析が完了しましたが、結果を生成できませんでした。"),
+      const finalAnswer = stepResult.finalAnswer || "分析が完了しましたが、結果を生成できませんでした。";
+      
+      // マークダウン形式のテキストをリッチテキストに変換
+      await messageClient.sendMarkdownSnippet(
+        "analysis_result.md",
+        finalAnswer,
         channelId!,
         threadTs
       );
@@ -212,10 +170,17 @@ export const handler: Handler = async (event: {
       await completeSession(sessionId);
       
       // 分析完了メッセージ
+      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+      const completeBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisCompleteMessage")
+      ).blocks;
+      
+      // MessageBlock[]をKnownBlock[]に変換
+      const templateConverter = new SlackTemplateConverter();
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: completeBlocks });
+      
       await messageClient.sendMessage(
-        messageClient.createMessageBlock(
-          i18n.translate("analysisCompleteMessage"),
-        ),
+        knownBlocks,
         channelId!, 
         threadTs
       );
@@ -236,14 +201,18 @@ export const handler: Handler = async (event: {
       lambdaService.invokeAsyncLambdaFunc(payload, lambdaFunctionName);
       
       // 進捗状況をSlackに送信
-      // 現在のOrchestratorの状態を取得
-      const currentState = orchestrator.getState();
+      // 現在のReActAgentの状態を取得
+      const currentState = reactAgent.getSessionState();
       
       // 次のアクションに応じて異なるメッセージを構築
-      const progressMessage = buildProgressMessage(i18n, stepResult, currentState);
+      const progressBlocks = buildProgressMessage(i18n, stepResult, currentState);
+      
+      // MessageBlock[]をKnownBlock[]に変換
+      const templateConverter = new SlackTemplateConverter();
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: progressBlocks });
       
       await messageClient.sendMessage(
-        messageClient.createMessageBlock(progressMessage),
+        knownBlocks,
         channelId!,
         threadTs
       );
@@ -252,15 +221,25 @@ export const handler: Handler = async (event: {
     logger.error("Something happened", error as Error);
     // エラー時のフォームを送信
     if(channelId && threadTs){
+      // エラーメッセージを送信
       await messageClient.sendMessage(
         messageClient.createErrorMessageBlock(),
         channelId, 
         threadTs
       );
-      await messageClient.sendMessage( 
-        messageClient.createMessageBlock(
-          i18n.translate("analysisErrorMessage")
-        ),
+      
+      // リトライ案内メッセージを送信
+      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+      const errorBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisErrorMessage")
+      ).blocks;
+      
+      // MessageBlock[]をKnownBlock[]に変換
+      const templateConverter = new SlackTemplateConverter();
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: errorBlocks });
+      
+      await messageClient.sendMessage(
+        knownBlocks,
         channelId, 
         threadTs
       );
