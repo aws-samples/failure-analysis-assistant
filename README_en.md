@@ -1,6 +1,6 @@
 # Failure Analysis Assistant (FA2) Slack App Version
 
-> **Note**: This version of FA2 uses an agent based on the Tree of Thinking (ToT) and ReACT algorithms and is currently under validation. The source code and implementation may undergo significant changes.
+> **Note**: This version of FA2 uses an agent based on the ReACT algorithm and is currently under validation. The source code and implementation may undergo significant changes.
 
 [日本語で読む](./README.md)
 
@@ -49,20 +49,12 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 1. Alarms are triggered on the target system, and notifications are sent to Slack via Amazon SNS and Amazon Q Developer in chat applications
 2. Show the input form of Slack App when it received an alarm
 3. Enter `log retrieval time range` and `event information understood from alarms`, and submit a request
-4. FA2 runs on AWS Lambda and uses an agent based on the Tree of Thinking (ToT) and ReACT (Reasoning + Acting) algorithms to perform failure analysis:
-   1. **Hypothesis Generation Phase**: ToT is used to generate multiple failure cause hypotheses (up to 5, adjustable by parameter)
-      - Searches Knowledge Base for related information and references past failure information
-      - Assigns confidence levels and reasoning to each hypothesis
-   2. **Hypothesis Verification Phase**: Generated hypotheses are verified one by one using the ReACT agent
-      - **Thinking Step**: The agent analyzes the situation to verify the current hypothesis and decides what action to take next
-      - **Acting Step**: The agent executes the decided tool (e.g., retrieving logs from CloudWatch Logs, analyzing metrics)
-      - **Observing Step**: The agent observes the results of the tool execution and collects new information
-      - **Cycle Repetition**: The agent repeats the thinking→acting→observing cycle until sufficient information is gathered
-   3. **Evaluation Phase**: The agent evaluates the hypothesis based on verification results and determines if it's confirmed/rejected/inconclusive
-   4. **Result Generation Phase**: 
-      - If a hypothesis is confirmed, its result is adopted
-      - If all hypotheses are rejected or inconclusive, the hypothesis with the highest confidence is adopted
-      - A final failure analysis report is generated
+4. FA2 runs on AWS Lambda and uses an agent based on the ReACT (Reasoning + Acting) algorithm to perform failure analysis:
+   1. **Thinking Step**: The agent analyzes the situation and decides what action to take next
+   2. **Acting Step**: The agent executes the decided tool (e.g., retrieving logs from CloudWatch Logs, analyzing metrics)
+   3. **Observing Step**: The agent observes the results of the tool execution and collects new information
+   4. **Cycle Repetition**: The agent repeats the thinking→acting→observing cycle until sufficient information is gathered
+   5. **Result Generation Phase**: The agent generates a final failure analysis report based on the collected information
 5. The agent uses the following tools to collect and analyze information:
    - **metrics_tool**: Retrieves and analyzes CloudWatch metrics
    - **logs_tool**: Retrieves and analyzes logs from CloudWatch Logs
@@ -155,7 +147,7 @@ export const devParameter: AppParameter = {
 | `xrayTrace`              | `false`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
 | `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
 | `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
-| `maxHypotheses`              | `5`                                                                    | Specifies the maximum number of hypotheses to generate with Tree of Thinking (ToT). Default is 5.                                                                                                      |
+| `maxAgentCycles`              | `5`                                                                    | Specifies the maximum number of cycles the ReACT agent will execute. Default is 5.                                                                                                      |
 
 #### Modify prompts
 
