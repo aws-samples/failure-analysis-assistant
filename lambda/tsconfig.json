@@ -13,5 +13,5 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
   },
-  "include": ["functions/**/*", "lib/**/*"]
+  "include": ["functions/**/*", "lib/**/*", "../lib/constructs/athena.ts"]
 }
