@@ -172,16 +172,8 @@ export const handler: Handler = async (event: {
     logger.info("Answer", answer);
 
     if (destination) {
-      if(answer.length < 3500){
-        // Send the answer to Slack directly.
-        await messageClient.sendMessage(
-          messageClient.createMessageBlock(answer),
-          destination,
-        );
-      }else{
-        // Send the snippet of answer instead of message due to limitation of message size.
-        await messageClient.sendMarkdownContent("answer.md", answer, destination);
-      }
+      // 常にマークダウンファイルとして送信
+      await messageClient.sendMarkdownContent("metrics-insight.md", answer, destination);
     }
   } catch (error) {
     logger.error("Something happened", error as Error);

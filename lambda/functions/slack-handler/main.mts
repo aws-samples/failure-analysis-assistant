@@ -142,15 +142,37 @@ app.action("submit_button", async ({ body, ack, respond }) => {
   return;
 });
 
-app.command('/insight-dev', async ({ client, body, ack }) => {
+app.command('/insight-dev', async ({ client, body, ack, respond }) => {
   // Ack the request of insight command
   await ack();
   logger.info("/insight command", {body})
 
   try {
+    // DMでの実行を判断（チャンネルIDがDで始まる場合はDM）
+    if (body.channel_id.startsWith('D')) {
+      logger.info("Command executed in DM, rejecting", { channel_id: body.channel_id });
+      
+      // DMでの実行を拒否するメッセージを送信
+      await respond({
+        blocks: messageClient.createMessageBlock(
+          lang === "ja"
+            ? "このコマンドはDMでは実行できません。チャンネル内で実行してください。"
+            : "This command cannot be executed in DMs. Please run it in a channel."
+        ),
+        replace_original: false
+      } as RespondArguments);
+      return;
+    }
+    
+    // チャンネルIDをprivate_metadataに含める
+    const metadata = JSON.stringify({ channelId: body.channel_id });
+    
     await client.views.open({
       trigger_id: body.trigger_id,
-      view: messageClient.createInsightCommandFormView()
+      view: {
+        ...messageClient.createInsightCommandFormView(),
+        private_metadata: metadata
+      }
     });
   } catch (error) {
     logger.error("Failed to open views", error as Error);
@@ -170,6 +192,35 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
   const now = new Date();
   const nowItnTime = fromZonedTime(now, "Asia/Tokyo");
   const pastItnTime = fromZonedTime(sub(now,{days: Number(duration)}), "Asia/Tokyo");
+  
+  // private_metadataからチャンネルIDを取得
+  let channelId: string | undefined;
+  try {
+    if (view.private_metadata) {
+      const metadata = JSON.parse(view.private_metadata);
+      if (metadata.channelId) {
+        channelId = metadata.channelId;
+        logger.info(`Using channel ID from metadata: ${channelId}`);
+      }
+    }
+  } catch (error) {
+    logger.warn("Failed to parse private_metadata", { error });
+  }
+  
+  // チャンネルIDが取得できない場合はエラーを表示
+  if (!channelId) {
+    logger.error("Channel ID not found in metadata");
+    await client.chat.postMessage({
+      blocks: messageClient.createMessageBlock(
+        lang === "ja"
+          ? "エラー: チャンネルIDが取得できませんでした。チャンネル内で/insight-devコマンドを実行してください。"
+          : "Error: Channel ID not found. Please run the /insight-dev command in a channel."
+      ),
+      channel: body.user.id // エラーメッセージはユーザーのDMに送信
+    });
+    return;
+  }
+  
   try{
     // Invoke backend lambda
     const res = await lambdaService.invokeAsyncLambdaFunc(
@@ -177,7 +228,7 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
         query: query,
         startDate: pastItnTime.toISOString(),
         endDate: nowItnTime.toISOString(),
-        channelId: body.user.id 
+        channelId: channelId
       }),
       metricsInsightFunction
     );
@@ -193,14 +244,14 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
           ? `質問：${query}を、${duration}日分のメトリクスで確認します。FA2の回答をお待ちください。`
           : `FA2 received your question: ${query} with the metric data of ${duration} days. Please wait for its answer..`,
       ),
-      channel: body.user.id
+      channel: channelId
     });
   } catch (error) {
     // Send result to Slack
-    logger.error("Somegthing happend", error as Error);
+    logger.error("Something happened", error as Error);
     await client.chat.postMessage({
       blocks: messageClient.createErrorMessageBlock(),
-      channel: body.user.id
+      channel: channelId
     });
   }
   return;
