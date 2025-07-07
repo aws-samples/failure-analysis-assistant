@@ -29,7 +29,10 @@ export type TranslationKey =
   | "thinkingStateMessage"
   | "actingStateMessage"
   | "observingStateMessage"
-  | "executingTool";
+  | "executingTool"
+  | "withParameters"
+  | "completingStateMessage"
+  | "maxCyclesReachedMessage";
 
 /**
  * Internationalization (i18n) provider class
@@ -72,7 +75,10 @@ export class I18nProvider {
         thinkingStateMessage: "Thinking about next steps...",
         actingStateMessage: "Executing a tool to gather evidence...",
         observingStateMessage: "Analyzing the results...",
-        executingTool: "Executing tool"
+        executingTool: "Executing tool",
+        withParameters: "Tool parameters: ",
+        completingStateMessage: "Generating final analysis...",
+        maxCyclesReachedMessage: "Maximum analysis cycles reached. Generating final answer based on current information."
       },
       ja: {
         errorMessage: "エラーが発生しました。システム管理者にご連絡ください。",
@@ -97,7 +103,10 @@ export class I18nProvider {
         thinkingStateMessage: "次のステップを考えています...",
         actingStateMessage: "証拠を収集するためにツールを実行しています...",
         observingStateMessage: "結果を分析しています...",
-        executingTool: "実行中のツール"
+        executingTool: "実行中のツール",
+        withParameters: "ツールのパラメータ: ",
+        completingStateMessage: "最終分析を生成しています...",
+        maxCyclesReachedMessage: "最大分析サイクル数に達しました。現在の情報に基づいて最終回答を生成します。"
       }
     };
   }

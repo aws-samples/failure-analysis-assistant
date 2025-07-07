@@ -2,6 +2,7 @@ import { AbstractTemplateProvider } from './abstract-template-provider.js';
 import { MessageTemplate, FormTemplate, RetrieveResultItem, MessageBlock, RichTextElement } from '../interfaces/template-provider.interface.js';
 import { I18nProvider } from '../providers/i18n-provider.js';
 import { ConfigProvider } from '../providers/config-provider.js';
+import { ToolAction, ToolExecutionRecord } from '../../react-agent.js';
 
 /**
  * Generic template provider class
@@ -210,11 +211,210 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
    */
   createProgressMessageTemplate(
     stepAction: string | undefined,
-    currentHypothesis?: { description: string; confidenceLevel: string; reasoning?: string },
-    reactState?: { state: string; lastAction?: { tool: string }; lastObservation?: string; history?: Array<{ thinking?: string }> }
+    reactState: {
+      state: string;
+      lastThinking?: string;
+      lastAction?: ToolAction;
+      lastObservation?: string;
+      forcedCompletion?: boolean; // 追加: 強制完了フラグ
+      toolExecutions?: ToolExecutionRecord[];
+    }
   ): MessageTemplate {
     const elements: RichTextElement[] = [];
-    
+
+
+    // 現在の状態に基づいて適切なメッセージを生成
+    switch (reactState.state) {
+      case 'thinking':
+        // observingの結果を表示
+        if (reactState.lastObservation) {
+          elements.push({
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: reactState.lastObservation.length < 3000 ? reactState.lastObservation : `${reactState.lastObservation.substring(0,3000)}...`,
+                style: {
+                  italic: true
+                }
+              }
+            ]
+          });
+        }
+
+        elements.push({
+          type: "rich_text_section",
+          elements: [
+            {
+              type: "text",
+              text: "\n" + this.i18n.translate("thinkingStateMessage"),
+              style: {
+                italic: true
+              }
+            }
+          ]
+        });
+        break;
+        
+      case 'acting':
+        // thinkingの結果を表示
+        if (reactState.lastThinking) {
+          const thoughtMatch = reactState.lastThinking.match(/<Thought>([\s\S]*?)<\/Thought>/);
+          if (thoughtMatch) {
+            const thoughtContent = thoughtMatch[1].trim();
+            elements.push({
+              type: "rich_text_section",
+              elements: [
+                {
+                  type: "text",
+                  text: thoughtContent,
+                  style: {
+                    italic: true
+                  }
+                }
+              ]
+            });
+          }
+        }
+        
+
+        elements.push({
+          type: "rich_text_section",
+          elements: [
+            {
+              type: "emoji",
+              name: "gear"
+            },
+            {
+              type: "text",
+              text: " " + this.i18n.translate("actingStateMessage")
+            }
+          ]
+        });
+        break;
+        
+      case 'observing':
+        // actingの結果を表示
+        if (reactState.lastAction) {
+          elements.push({
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: "\n実行したツール: ",
+                style: {
+                  bold: true
+                }
+              },
+              {
+                type: "text",
+                text: `"${reactState.lastAction.tool}"`,
+                style: {
+                  code: true
+                }
+              }
+            ]
+          });
+          
+          // パラメータ情報を追加
+          elements.push({
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: "\nパラメータ: ",
+                style: {
+                  bold: true
+                }
+              },
+              {
+                type: "text",
+                text: JSON.stringify(reactState.lastAction.parameters, null, 2),
+                style: {
+                  code: true
+                }
+              }
+            ]
+          });
+        }
+        
+        elements.push({
+          type: "rich_text_section",
+          elements: [
+            {
+              type: "emoji",
+              name: "mag"
+            },
+            {
+              type: "text",
+              text: " " + this.i18n.translate("observingStateMessage")
+            }
+          ]
+        });
+
+        break;
+        
+      case 'completing':
+        // 強制完了の場合のメッセージを先に追加
+        if (reactState.forcedCompletion) {
+          elements.push({
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "emoji",
+                name: "warning"
+              },
+              {
+                type: "text",
+                text: " " + this.i18n.translate("maxCyclesReachedMessage"),
+                style: {
+                  bold: true
+                }
+              }
+            ]
+          });
+        }
+
+        // 最終分析生成中のメッセージを追加
+        elements.push({
+          type: "rich_text_section",
+          elements: [
+            {
+              type: "emoji",
+              name: "hourglass_flowing_sand"
+            },
+            {
+              type: "text",
+              text: " " + this.i18n.translate("completingStateMessage"),
+              style: {
+                italic: true
+              }
+            }
+          ]
+        });
+        
+        // 最後の思考内容があれば表示
+        if (reactState.lastThinking) {
+          const thoughtMatch = reactState.lastThinking.match(/<FinalAnswer>([\s\S]*?)<\/FinalAnswer>/);
+          if (thoughtMatch) {
+            const thoughtContent = thoughtMatch[1].trim();
+            elements.push({
+              type: "rich_text_section",
+              elements: [
+                {
+                  type: "text",
+                  text: "\n最終的な分析:\n" + thoughtContent,
+                  style: {
+                    italic: true
+                  }
+                }
+              ]
+            });
+          }
+        }
+        break;
+    }
+
     // 基本的なステータスメッセージ
     elements.push({
       type: "rich_text_section",
@@ -232,120 +432,7 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
         },
       ]
     });
-    
-    // ReActAgentの状態に関する情報を表示
-    if (reactState) {
-      
-      // ReActAgentの状態に応じたメッセージを追加
-      switch (reactState.state) {
-        case 'thinking':
-          elements.push({
-            type: "rich_text_section",
-            elements: [
-              {
-                type: "text",
-                text: "\n" + this.i18n.translate("thinkingStateMessage"),
-                style: {
-                  italic: true
-                }
-              }
-            ]
-          });
-          
-          // 最新の思考内容があれば追加
-          if (reactState.history && reactState.history.length > 0) {
-            const latestThinking = reactState.history[reactState.history.length - 1].thinking;
-            if (latestThinking) {
-              // <Thought>タグ内のテキストを抽出
-              const thoughtMatch = latestThinking.match(/<Thought>([\s\S]*?)<\/Thought>/);
-              if (thoughtMatch) {
-                const thoughtContent = thoughtMatch[1].trim();
-                // 思考内容を表示
-                elements.push({
-                  type: "rich_text_section",
-                  elements: [
-                    {
-                      type: "text",
-                      text: "\n" + thoughtContent,
-                      style: {
-                        italic: true
-                      }
-                    }
-                  ]
-                });
-              }
-            }
-          }
-          break;
-        case 'acting':
-          elements.push({
-            type: "rich_text_section",
-            elements: [
-              {
-                type: "emoji",
-                name: "gear"
-              },
-              {
-                type: "text",
-                text: " " + this.i18n.translate("actingStateMessage")
-              }
-            ]
-          });
-          
-          // 最新のアクション情報があれば追加
-          if (reactState.lastAction) {
-            elements.push({
-              type: "rich_text_section",
-              elements: [
-                {
-                  type: "text",
-                  text: "\n" + this.i18n.translate("executingTool") + ": ",
-                  style: {
-                    bold: true
-                  }
-                },
-                {
-                  type: "text",
-                  text: `"${reactState.lastAction.tool}"`,
-                  style: {
-                    code: true
-                  }
-                }
-              ]
-            });
-          }
-          break;
-        case 'observing':
-          elements.push({
-            type: "rich_text_section",
-            elements: [
-              {
-                type: "emoji",
-                name: "mag"
-              },
-              {
-                type: "text",
-                text: " " + this.i18n.translate("observingStateMessage")
-              }
-            ]
-          });
-          
-          // 最新の観察結果があれば追加
-          if (reactState.lastObservation) {
-            elements.push({
-              type: "rich_text_section",
-              elements: [
-                {
-                  type: "text",
-                  text: "\n" + reactState.lastObservation,
-                }
-              ]
-            });
-          }
-          break;
-      }
-    }
-    
+
     return {
       blocks: [
         {

@@ -1,6 +1,7 @@
 import { ToolDescription } from "./tools-registry.js";
 import { HistoryItem } from "./react-agent.js";
 import { Language } from "../../parameter.js";
+import { logger } from "./logger.js";
 
 export class Prompt {
   language: Language;
@@ -24,7 +25,12 @@ export class Prompt {
       // 直近の3回分の履歴を詳細に含める
       const recentHistory = history.slice(-3);
       const recentHistoryText = recentHistory
-        .map(item => `思考: ${item.thinking}\n行動: ${item.action}\n観察: ${item.observation}`)
+        .map((item, index) => {
+          const cycleNumber = history.length - 3 + index + 1;
+          // ツール名を抽出
+          const toolName = this.extractToolName(item.action);
+          return `【サイクル ${cycleNumber}】\n思考: ${item.thinking}\n実行したツール: ${toolName}\n実行結果: ${item.observation}`;
+        })
         .join('\n\n');
       
       // 残りの履歴を要約
@@ -40,8 +46,25 @@ export class Prompt {
     
     // 履歴が短い場合は全て含める
     return history
-      .map(item => `思考: ${item.thinking}\n行動: ${item.action}\n観察: ${item.observation}`)
+      .map((item, index) => {
+        const cycleNumber = index + 1;
+        // ツール名を抽出
+        const toolName = this.extractToolName(item.action);
+        return `【サイクル ${cycleNumber}】\n思考: ${item.thinking}\n実行したツール: ${toolName}\n実行結果: ${item.observation}`;
+      })
       .join('\n\n');
+  }
+  
+  /**
+   * ツール名を抽出するヘルパーメソッド
+   */
+  private extractToolName(action: string): string {
+    try {
+      const actionObj = JSON.parse(action);
+      return actionObj.tool || "不明なツール";
+    } catch {
+      return "不明なツール";
+    }
   }
   
   /**
@@ -71,12 +94,39 @@ export class Prompt {
     availableTools: ToolDescription[],
     cycleCount: number = 0
   ): string {
+    // デバッグログを追加
+    logger.debug("createReactThinkingPrompt - 入力パラメータ", {
+      contextLength: context.length,
+      historyLength: history.length,
+      availableToolsCount: availableTools.length,
+      cycleCount: cycleCount
+    });
+    
+    // 最新の履歴項目の内容をログに出力
+    if (history.length > 0) {
+      const latestHistory = history[history.length - 1];
+      logger.debug("createReactThinkingPrompt - 最新の履歴項目", {
+        hasThinking: !!latestHistory.thinking,
+        thinkingPreview: latestHistory.thinking ? latestHistory.thinking.substring(0, 100) + "..." : "なし",
+        hasAction: !!latestHistory.action,
+        actionPreview: latestHistory.action ? latestHistory.action.substring(0, 100) + "..." : "なし",
+        hasObservation: !!latestHistory.observation,
+        observationPreview: latestHistory.observation ? latestHistory.observation.substring(0, 100) + "..." : "なし"
+      });
+    }
+    
     const toolDescriptions = availableTools
       .map(tool => `${tool.name}: ${tool.description}\nパラメータ: ${JSON.stringify(tool.parameters)}`)
       .join('\n\n');
     
     // 履歴の最適化
     const historyText = this.optimizeHistory(history, cycleCount);
+    
+    // 最適化された履歴テキストのログ出力
+    logger.debug("createReactThinkingPrompt - 最適化された履歴テキスト", {
+      historyTextLength: historyText.length,
+      historyTextPreview: historyText.substring(0, 200) + "..."
+    });
     
     // 基本プロンプトの生成
     let basePrompt = "";
@@ -95,10 +145,17 @@ export class Prompt {
       ${toolDescriptions}
       </AvailableTools>
       
+      【重要】履歴を注意深く確認してください。各サイクルで実行されたツールとその結果を正確に把握することが重要です。
+      特に、あるツールが実行されたかどうか、その結果が返ってきたかどうかを正確に理解してください。
+      
       次に何をすべきか考えてください。以下の形式で回答してください：
       
       <Thought>
       現在の状況を分析し、次に何をすべきか考えます。
+      これまでに実行したツールとその結果を整理します：
+      - サイクル1: [実行したツール名] - [結果の要約]
+      - サイクル2: [実行したツール名] - [結果の要約]
+      （以降、実行したサイクル数に応じて）
       </Thought>
       
       <Action>
@@ -153,7 +210,15 @@ export class Prompt {
       </FinalAnswer>`;
       
       // サイクル数に応じたプロンプト強化
-      return this.enhancePromptForHighCycleCount(basePrompt, cycleCount);
+      const finalPrompt = this.enhancePromptForHighCycleCount(basePrompt, cycleCount);
+      
+      // 生成されたプロンプトのログ出力
+      logger.debug("createReactThinkingPrompt - 生成されたプロンプト", {
+        promptLength: finalPrompt.length,
+        promptPreview: finalPrompt.substring(0, 200) + "..."
+      });
+      
+      return finalPrompt;
     } else {
       basePrompt = `You are an agent that monitors and operates workloads running on AWS.
       ${this.architectureDescription}
@@ -169,10 +234,17 @@ export class Prompt {
       ${toolDescriptions}
       </AvailableTools>
       
+      【IMPORTANT】Carefully review the history. It is crucial to accurately understand the tools executed in each cycle and their results.
+      In particular, be precise about whether a tool has been executed and whether its results have been returned.
+      
       Think about what to do next. Please respond in the following format:
       
       <Thought>
       Analyze the current situation and consider what to do next.
+      Let me organize the tools executed so far and their results:
+      - Cycle 1: [tool name used] - [summary of results]
+      - Cycle 2: [tool name used] - [summary of results]
+      (and so on, according to the number of cycles executed)
       </Thought>
       
       <Action>
@@ -226,7 +298,15 @@ export class Prompt {
       </FinalAnswer>`;
       
       // サイクル数に応じたプロンプト強化
-      return this.enhancePromptForHighCycleCount(basePrompt, cycleCount);
+      const finalPrompt = this.enhancePromptForHighCycleCount(basePrompt, cycleCount);
+      
+      // 生成されたプロンプトのログ出力
+      logger.debug("createReactThinkingPrompt - 生成されたプロンプト", {
+        promptLength: finalPrompt.length,
+        promptPreview: finalPrompt.substring(0, 200) + "..."
+      });
+      
+      return finalPrompt;
     }
   }
 

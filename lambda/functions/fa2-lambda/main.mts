@@ -5,7 +5,7 @@ import { Prompt } from "../../lib/prompt.js";
 import { MessageClient } from "../../lib/messaging/message-client.js";
 import { Language, devParameter } from "../../../parameter.js";
 import { logger } from "../../lib/logger.js"; 
-import { ReActAgent, SessionState, StepResult } from "../../lib/react-agent.js";
+import { ReActAgent } from "../../lib/react-agent.js";
 import { ToolRegistry } from "../../lib/tools-registry.js";
 import { registerAllTools } from "../../lib/tool-executors/index.js";
 import { getSessionState, saveSessionState, completeSession } from "../../lib/session-manager.js";
@@ -13,33 +13,17 @@ import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
 import { GenericTemplateProvider } from "../../lib/messaging/templates/generic-template-provider.js";
 import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
-import { MessageBlock } from "../../lib/messaging/interfaces/template-provider.interface.js";
 import { SlackTemplateConverter } from "../../lib/messaging/platforms/slack/slack-template-converter.js";
 
 const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
 const token = await getSecret(slackAppTokenKey);
-
-/**
- * Function to build progress message
- * @param i18n Instance of I18nProvider
- * @param stepResult Execution result of ReActAgent
- * @param currentState Current state of ReActAgent
- * @returns Constructed message blocks
- */
-function buildProgressMessage(
-  i18n: I18nProvider,
-  stepResult: StepResult,
-  currentState: SessionState
-): MessageBlock[] {
-  const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
-  
-  // Build progress message
-  return templateProvider.createProgressMessageTemplate(
-    currentState.state,
-    undefined,
-    currentState
-  ).blocks;
-}
+const lang: Language = process.env.LANG
+  ? (process.env.LANG as Language)
+  : "en";
+const i18n = new I18nProvider(lang)
+const messageClient = new MessageClient(token!.toString(), lang);
+const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+const templateConverter = new SlackTemplateConverter();
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -61,10 +45,7 @@ export const handler: Handler = async (event: {
   } = event;
 
   const modelId = process.env.MODEL_ID;
-  const lang: Language = process.env.LANG
-    ? (process.env.LANG as Language)
-    : "en";
-  const i18n = new I18nProvider(lang)
+
   const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
   const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
   const logGroups = (
@@ -74,8 +55,6 @@ export const handler: Handler = async (event: {
   
   // Get maxAgentCycles from parameters (default value is 5)
   const maxAgentCycles = devParameter.maxAgentCycles ?? 5;
-
-  const messageClient = new MessageClient(token!.toString(), lang);
   const prompt = new Prompt(lang, architectureDescription);
 
   if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
@@ -115,27 +94,12 @@ export const handler: Handler = async (event: {
     
     // For new session
     if (!sessionState) {
-      // Send initial prompt
-      const initialPrompt = prompt.createReactInitialPrompt(
-        errorDescription,
-        toolRegistry.getToolDescriptions()
-      );
-
-      // Get initial thinking
-      const bedrockService = AWSServiceFactory.getBedrockService();
-      const initialThinking = await bedrockService.converse(initialPrompt, modelId);
-
-      // Initialize ReActAgent
-      reactAgent.initializeWithThinking(initialThinking || "");
-      
       // Send progress to Slack
-      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const startBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisStartMessage")
       ).blocks;
       
       // Convert MessageBlock[] to KnownBlock[]
-      const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: startBlocks });
       
       await messageClient.sendMessage(
@@ -170,13 +134,11 @@ export const handler: Handler = async (event: {
       await completeSession(sessionId);
       
       // Analysis complete message
-      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const completeBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisCompleteMessage")
       ).blocks;
       
       // Convert MessageBlock[] to KnownBlock[]
-      const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: completeBlocks });
       
       await messageClient.sendMessage(
@@ -205,10 +167,12 @@ export const handler: Handler = async (event: {
       const currentState = reactAgent.getSessionState();
       
       // Build different messages according to next action
-      const progressBlocks = buildProgressMessage(i18n, stepResult, currentState);
+      const progressBlocks = templateProvider.createProgressMessageTemplate(
+        currentState.state,
+        currentState
+      ).blocks;
       
       // Convert MessageBlock[] to KnownBlock[]
-      const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: progressBlocks });
       
       await messageClient.sendMessage(
@@ -229,13 +193,11 @@ export const handler: Handler = async (event: {
       );
       
       // Send retry guidance message
-      const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
       const errorBlocks = templateProvider.createMessageTemplate(
         i18n.translate("analysisErrorMessage")
       ).blocks;
       
       // Convert MessageBlock[] to KnownBlock[]
-      const templateConverter = new SlackTemplateConverter();
       const knownBlocks = templateConverter.convertMessageTemplate({ blocks: errorBlocks });
       
       await messageClient.sendMessage(

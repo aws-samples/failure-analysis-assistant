@@ -51,6 +51,7 @@ export interface SessionState {
   lastObservation?: string;
   missingData?: string[];
   toolExecutions: ToolExecutionRecord[];
+  forcedCompletion?: boolean; // 強制完了フラグ
 }
 
 export interface StepResult {
@@ -99,48 +100,7 @@ export class ReActAgent {
     this.maxAgentCycles = options?.maxAgentCycles ?? 5;
   }
   
-  /**
-   * Set initial thinking
-   */
-  initializeWithThinking(initialThinking: string): void {
-    logger.info("Initializing with thinking", { sessionId: this.sessionId });
-    
-    // Extract action part
-    const actionMatch = initialThinking.match(/<Action>([\s\S]*?)<\/Action>/);
-    
-    if (actionMatch) {
-      try {
-        const actionJson = actionMatch[1].trim();
-        const action = JSON.parse(actionJson);
-        
-        // Add thinking to initial state
-        this.sessionState.history.push({
-          thinking: initialThinking,
-          action: JSON.stringify(action, null, 2),
-          observation: "初期分析を開始します。",
-          timestamp: Date.now()
-        });
-      } catch (error) {
-        logger.error("Failed to parse initial action JSON", { error, initialThinking });
-        
-        // Record thinking even in case of error
-        this.sessionState.history.push({
-          thinking: initialThinking,
-          action: "INITIAL_THINKING_ERROR",
-          observation: `初期思考の解析中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`,
-          timestamp: Date.now()
-        });
-      }
-    } else {
-      // Record thinking even if no action is found
-      this.sessionState.history.push({
-        thinking: initialThinking,
-        action: "NO_INITIAL_ACTION",
-        observation: "初期思考から行動を抽出できませんでした。",
-        timestamp: Date.now()
-      });
-    }
-  }
+  // initializeWithThinking関数は削除
   
   /**
    * Set session state
@@ -187,14 +147,14 @@ export class ReActAgent {
     
     // Determine whether to forcibly generate a final answer after a certain number of cycles
     const shouldForceCompletion = this.shouldForceCompletion();
-    
+  
     // Check if final answer is included
     const finalAnswerMatch = thinking.match(/<FinalAnswer>([\s\S]*?)<\/FinalAnswer>/);
     if (finalAnswerMatch || shouldForceCompletion) {
-      logger.info("FinalAnswer or ForceCompletion", {finalAnswer: JSON.stringify(finalAnswerMatch), forceCompletiong: shouldForceCompletion})
+      logger.info("FinalAnswer or ForceCompletion", {finalAnswer: JSON.stringify(finalAnswerMatch), forceCompletion: shouldForceCompletion})
       // If final answer is included, process it as a special action "final_answer"
       const finalAnswer = finalAnswerMatch ? finalAnswerMatch[1].trim() : "";
-      
+
       // Record "final_answer" as an action
       const finalAnswerAction = {
         tool: "final_answer",
@@ -204,15 +164,19 @@ export class ReActAgent {
           missingData: this.sessionState.missingData
         }
       };
-      
+
+      // 強制完了フラグを設定
+      this.sessionState.forcedCompletion = shouldForceCompletion && !finalAnswerMatch;
+
       // Update state
       const message = shouldForceCompletion && !finalAnswerMatch 
-        ? "十分なデータが集まらないため、現在の情報に基づいて最終回答を生成します。" 
+        ? "最大分析サイクル数に達したため、現在の情報に基づいて最終回答を生成します。" 
         : "最終回答を生成します。";
-      
+
       this.updateSessionState(thinking, JSON.stringify(finalAnswerAction, null, 2), message);
       this.sessionState.state = ReactionState.COMPLETING;
-      
+      this.sessionState.lastThinking = thinking; // 最終回答生成の思考を追加する
+
       return {
         isDone: false,
         currentState: this.sessionState
@@ -279,6 +243,16 @@ export class ReActAgent {
     const action = this.sessionState.lastAction;
     const observation = this.sessionState.lastObservation;
     
+    // ここにデバッグログを追加
+    logger.debug("executeObservingStep - データ確認", { 
+      sessionId: this.sessionId,
+      hasThinking: !!thinking,
+      hasAction: !!action,
+      hasObservation: observation !== undefined,
+      actionDetails: action ? JSON.stringify(action) : "なし",
+      observationPreview: observation ? observation.substring(0, 100) + "..." : "なし"
+    });
+    
     if (!thinking || !action || observation === undefined) {
       logger.error("Missing data in observing step");
       this.sessionState.state = ReactionState.THINKING;
@@ -291,6 +265,18 @@ export class ReActAgent {
     // Update session state
     this.updateSessionState(thinking, JSON.stringify(action, null, 2), observation);
     
+    // ここに履歴更新後のデバッグログを追加
+    logger.debug("executeObservingStep - 履歴更新後", {
+      sessionId: this.sessionId,
+      historyLength: this.sessionState.history.length,
+      latestHistoryItem: this.sessionState.history.length > 0 ? {
+        hasThinking: !!this.sessionState.history[this.sessionState.history.length - 1].thinking,
+        hasAction: !!this.sessionState.history[this.sessionState.history.length - 1].action,
+        hasObservation: !!this.sessionState.history[this.sessionState.history.length - 1].observation,
+        observationPreview: this.sessionState.history[this.sessionState.history.length - 1].observation.substring(0, 100) + "..."
+      } : "履歴なし"
+    });
+    
     // Increment cycle count
     this.sessionState.cycleCount++;
     
@@ -300,7 +286,7 @@ export class ReActAgent {
     // Clear temporary data
     delete this.sessionState.lastThinking;
     delete this.sessionState.lastAction;
-    delete this.sessionState.lastObservation;
+    // delete this.sessionState.lastObservation;
     
     return {
       isDone: false,
@@ -405,37 +391,117 @@ ${this.generateDataSummary()}
   }
   
   private async think(): Promise<string> {
-    const thinkingPrompt = this.prompt.createReactThinkingPrompt(
-      this.sessionState.context,
-      this.sessionState.history,
-      this.toolRegistry.getToolDescriptions(),
-      this.sessionState.cycleCount // サイクル数を渡す
-    );
+    let prompt: string;
+    let logContext: Record<string, unknown> = {
+      sessionId: this.sessionId
+    };
+    
+    // 履歴がない場合は初期プロンプトを生成
+    if (this.sessionState.history.length === 0) {
+      // 初期プロンプトを生成
+      prompt = this.prompt.createReactInitialPrompt(
+        this.sessionState.context,
+        this.toolRegistry.getToolDescriptions()
+      );
+      
+      // ログコンテキストを設定
+      logContext = {
+        ...logContext,
+        promptLength: prompt.length,
+        promptType: "initial",
+        promptPreview: prompt.substring(0, 200) + "..."
+      };
+      
+      // デバッグログを追加
+      logger.debug("think - 初期プロンプト生成", logContext);
+    } else {
+      // 通常の思考プロセス
+      // 直前のサイクルの情報を明示的に追加
+      let contextualInfo = "";
+      const lastHistory = this.sessionState.history[this.sessionState.history.length - 1];
+      const toolName = this.extractToolName(lastHistory.action);
+      
+      contextualInfo = `【直前のサイクル情報】\n実行したツール: ${toolName}\n実行結果の概要: ${lastHistory.observation.substring(0, 200)}...\n\n`;
+      
+      const thinkingPrompt = this.prompt.createReactThinkingPrompt(
+        this.sessionState.context,
+        this.sessionState.history,
+        this.toolRegistry.getToolDescriptions(),
+        this.sessionState.cycleCount
+      );
+      
+      // コンテキスト情報を追加したプロンプト
+      prompt = contextualInfo + thinkingPrompt;
+      
+      // ログコンテキストを設定
+      logContext = {
+        ...logContext,
+        promptLength: prompt.length,
+        promptType: "thinking",
+        historyLength: this.sessionState.history.length,
+        cycleCount: this.sessionState.cycleCount,
+        promptPreview: prompt.substring(0, 200) + "..."
+      };
+      
+      // デバッグログを追加
+      logger.debug("think - 生成されたプロンプト", logContext);
+    }
     
     try {
-      const response = await this.bedrockService.converse(thinkingPrompt);
+      // LLMに問い合わせ
+      const response = await this.bedrockService.converse(prompt);
+      
+      // レスポンスのデバッグログ
+      logger.debug("think - LLMからのレスポンス", {
+        ...logContext,
+        responseLength: response ? response.length : 0,
+        responsePreview: response ? response.substring(0, 200) + "..." : "レスポンスなし"
+      });
+      
       return response || "";
     } catch (error) {
-      // Return error message in case of throttling error
+      // エラーハンドリング（共通化）
       if (error instanceof BedrockThrottlingError) {
-        logger.warn("Bedrock API throttled during thinking step", { error });
+        const isInitialThinking = this.sessionState.history.length === 0;
+        const logLevel = "warn";
+        const logMessage = isInitialThinking 
+          ? "Bedrock API throttled during initial thinking step" 
+          : "Bedrock API throttled during thinking step";
+        
+        logger[logLevel](logMessage, { error });
+        
+        // 初期思考か通常の思考かに応じてエラーメッセージを変更
+        const thoughtContent = isInitialThinking
+          ? "Bedrockのレート制限に達しました。しばらく待ってから再試行してください。"
+          : "Bedrockのレート制限に達しました。しばらく待ってから再試行してください。\n現在の情報に基づいて分析を続けます。";
+        
         return `<Thought>
-Bedrockのレート制限に達しました。しばらく待ってから再試行してください。
-現在の情報に基づいて分析を続けます。
+${thoughtContent}
 </Thought>
 
 <Action>
 {
   "tool": "final_answer",
   "parameters": {
-    "content": "Bedrockのレート制限に達したため、分析を完了できませんでした。しばらく待ってから再試行してください。"
+    "content": "Bedrockのレート制限に達したため、分析を${isInitialThinking ? '開始' : '完了'}できませんでした。しばらく待ってから再試行してください。"
   }
 }
 </Action>`;
       }
       
-      // Rethrow other errors
+      // その他のエラーは再スロー
       throw error;
+    }
+  }
+  
+  // ツール名を抽出するヘルパーメソッド
+  private extractToolName(action: string): string {
+    try {
+      const actionObj = JSON.parse(action);
+      return actionObj.tool || "不明なツール";
+    } catch {
+      // JSONパースに失敗した場合はそのまま
+      return "不明なツール";
     }
   }
   
@@ -463,13 +529,16 @@ Bedrockのレート制限に達しました。しばらく待ってから再試�
       // Execute tool
       const result = await this.toolRegistry.executeTool(toolName, parameters);
       
+      // 結果にツール名を明示的に含める
+      const markedResult = `【${toolName}の実行結果】\n${result}`;
+      
       // Update data collection status
-      this.updateDataCollectionStatus(toolName, result);
+      this.updateDataCollectionStatus(toolName, markedResult);
       
       // Add tool execution record
-      this.recordToolExecution(toolName, parameters, result);
+      this.recordToolExecution(toolName, parameters, markedResult);
       
-      return result;
+      return markedResult;
     } catch (error) {
       logger.error("Failed to execute tool", { error, action });
       return `ツールの実行中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`;
