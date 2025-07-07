@@ -1,7 +1,7 @@
 import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { FA2 } from "../constructs/fa2";
-import { Language } from "../../parameter";
+import { Language, SlashCommands } from "../../parameter";
 import { NagSuppressions } from "cdk-nag";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
@@ -17,6 +17,7 @@ interface FA2StackProps extends StackProps {
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+  slashCommands: SlashCommands;
   detectorId?: string;
   knowledgeBaseId?: string;
   rerankModelId?: string;
@@ -42,6 +43,7 @@ export class FA2Stack extends Stack {
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
+      slashCommands: props.slashCommands,
       detectorId: props.detectorId,
       maxHypotheses: props.maxHypotheses,
     });
@@ -90,6 +92,36 @@ export class FA2Stack extends Stack {
         reason: "Puppetter didn't work on lambda of the runtime of Node.js v22."
       }
     ])
+
+        if(props.slashCommands.insight){
+      NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
+    
+    if(props.slashCommands.findingsReport && props.detectorId){
+      NagSuppressions.addResourceSuppressions(fa2.findingsReportRole, [
+        {
+          id: "AwsSolutions-IAM4",
+          reason:
+            "This managed role is for logging and Using it keeps simple code instead of customer managed policies.",
+        },
+        {
+          id: "AwsSolutions-IAM5",
+          reason:
+            "CloudWatch need * resources to do these API actions.",
+        },
+      ]);
+    }
 
     if (fa2.slackHandlerRole) {
       NagSuppressions.addResourceSuppressions(fa2.slackHandlerRole, [

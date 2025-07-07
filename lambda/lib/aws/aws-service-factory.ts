@@ -4,6 +4,8 @@ import { AthenaService } from './services/athena-service.js';
 import { XRayService } from './services/xray-service.js';
 import { BedrockService } from './services/bedrock-service.js';
 import { LambdaService } from './services/lambda-service.js';
+import { GuardDutyService } from './services/guardduty-service.js';
+import { SecurityHubService } from './services/securityhub-service.js';
 
 /**
  * AWS service factory class
@@ -16,6 +18,8 @@ export class AWSServiceFactory {
   private static xrayService: XRayService;
   private static bedrockService: BedrockService;
   private static lambdaService: LambdaService;
+  private static guardDutyService: GuardDutyService;
+  private static securityHubService: SecurityHubService;
   
   /**
    * Get CloudWatchService instance
@@ -81,5 +85,27 @@ export class AWSServiceFactory {
       this.lambdaService = new LambdaService();
     }
     return this.lambdaService;
+  }
+  
+  /**
+   * Get GuardDutyService instance
+   * @returns GuardDutyService instance
+   */
+  static getGuardDutyService(): GuardDutyService {
+    if (!this.guardDutyService) {
+      this.guardDutyService = new GuardDutyService();
+    }
+    return this.guardDutyService;
+  }
+  
+  /**
+   * Get SecurityHubService instance
+   * @returns SecurityHubService instance
+   */
+  static getSecurityHubService(): SecurityHubService {
+    if (!this.securityHubService) {
+      this.securityHubService = new SecurityHubService();
+    }
+    return this.securityHubService;
   }
 }

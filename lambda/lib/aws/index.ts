@@ -8,6 +8,8 @@ export { AthenaService } from './services/athena-service.js';
 export { XRayService } from './services/xray-service.js';
 export { BedrockService } from './services/bedrock-service.js';
 export { LambdaService } from './services/lambda-service.js';
+export { GuardDutyService } from './services/guardduty-service.js';
+export { SecurityHubService } from './services/securityhub-service.js';
 
 // Common utilities
 export { paginateResults, iso8601ToMilliseconds } from './common/pagination-utils.js';

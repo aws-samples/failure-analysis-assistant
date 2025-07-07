@@ -1,6 +1,10 @@
 import { Environment } from "aws-cdk-lib";
 
 export type Language = "ja" | "en";
+export type SlashCommands = {
+  insight: boolean;
+  findingsReport: boolean;
+};
 
 export interface AppParameter {
   env?: Environment;
@@ -16,6 +20,7 @@ export interface AppParameter {
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
   xrayTrace: boolean;
+  slashCommands: SlashCommands;
   detectorId?: string;
   knowledgeBase: boolean;
   embeddingModelId?: string;
@@ -43,6 +48,11 @@ export const devParameter: AppParameter = {
   ],
   cwLogsInsightQuery: "fields @message | limit 100",
   xrayTrace: false,
+  slashCommands: {
+    insight: false,
+    findingsReport: true,
+  },
+  detectorId: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   knowledgeBase: true,
   embeddingModelId: "amazon.titan-embed-text-v2:0",
   maxHypotheses: 3 // デフォルトで最大3つの仮説を生成

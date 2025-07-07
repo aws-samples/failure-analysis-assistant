@@ -30,6 +30,7 @@ const fa2Stack = new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   databaseName: devParameter.databaseName,
   albAccessLogTableName: devParameter.albAccessLogTableName,
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
+  slashCommands: devParameter.slashCommands,
   detectorId: devParameter.detectorId,
   maxHypotheses: devParameter.maxHypotheses,
 });
