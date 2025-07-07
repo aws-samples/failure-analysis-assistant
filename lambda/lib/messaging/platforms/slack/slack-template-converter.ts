@@ -31,7 +31,6 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
    * @returns Array of Slack blocks
    */
   convertMessageTemplate(template: MessageTemplate): KnownBlock[] {
-    // 抽象的なMessageTemplateをSlackのKnownBlock[]に変換
     return template.blocks.map(block => this.convertBlock(block));
   }
   
@@ -41,7 +40,6 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
    * @returns Slack view
    */
   convertFormTemplate(template: FormTemplate): View {
-    // FormTemplateをSlackのViewに変換
     return {
       type: "modal",
       title: {
@@ -63,7 +61,6 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
    * @returns Slack block
    */
   private convertBlock(block: MessageBlock): KnownBlock {
-    // 抽象的なMessageBlockをSlackのKnownBlockに変換
     switch (block.type) {
       case "rich_text":
         return this.convertRichTextBlock(block);
@@ -104,9 +101,7 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
             emoji: true
           }
         };
-      // 他のブロックタイプの変換...
       default:
-        // 未知のブロックタイプはそのまま返す（型キャスト）
         return block as unknown as KnownBlock;
     }
   }
@@ -165,7 +160,6 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
           text: element.text || element.url || ""
         };
       default:
-        // 未知の要素タイプはそのまま返す
         return element;
     }
   }
@@ -177,7 +171,6 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private convertElement(element: any): any {
-    // 要素の変換ロジック
     if (!element) return undefined;
     
     switch (element.type) {
@@ -243,9 +236,7 @@ export class SlackTemplateConverter implements ITemplateConverter<KnownBlock[] |
           action_id: element.actionId,
           value: element.value
         };
-      // 他の要素タイプの変換...
       default:
-        // 未知の要素タイプはそのまま返す
         return element;
     }
   }

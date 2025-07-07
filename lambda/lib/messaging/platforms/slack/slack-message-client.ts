@@ -74,7 +74,6 @@ export class SlackMessageClient implements IMessageClient {
           ...(threadTs && { thread_ts: threadTs })
         });
       } else if (Array.isArray(message)) {
-        // KnownBlock[] として処理
         await this.slackClient.chat.postMessage({
           channel: channelId,
           text: this.i18n.translate("defaultMessageText"),
@@ -82,7 +81,6 @@ export class SlackMessageClient implements IMessageClient {
           ...(threadTs && { thread_ts: threadTs })
         });
       } else {
-        // その他のオブジェクトはJSON文字列に変換
         await this.slackClient.chat.postMessage({
           channel: channelId,
           text: JSON.stringify(message),

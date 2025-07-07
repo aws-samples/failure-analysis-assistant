@@ -29,10 +29,8 @@ export abstract class AbstractTemplateProvider implements ITemplateProvider {
    * @returns Markdown formatted text
    */
   createHowToGetLogs(params: LogParams): string {
-    // 基本構造を作成
     const baseTemplate = this.createBaseLogTemplate(params);
     
-    // 各ログタイプ別のセクションを追加
     let template = baseTemplate;
     
     if (params.albQuery) {
@@ -43,10 +41,8 @@ export abstract class AbstractTemplateProvider implements ITemplateProvider {
       template += this.createTrailLogSection(params.trailQuery);
     }
     
-    // メトリクスセクションを追加
     template += this.createMetricsSection(params.cwMetricQuery, params.startDate, params.endDate);
     
-    // X-rayセクションを条件付きで追加
     if (params.xrayTraces) {
       template += this.createXraySection(params.startDate, params.endDate);
     }

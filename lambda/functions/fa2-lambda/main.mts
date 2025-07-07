@@ -11,6 +11,7 @@ import { registerAllTools } from "../../lib/tool-executors/index.js";
 import { getSessionState, saveSessionState, completeSession } from "../../lib/session-manager.js";
 import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
+import { setI18nProvider } from "../../lib/messaging/providers/i18n-factory.js";
 import { GenericTemplateProvider } from "../../lib/messaging/templates/generic-template-provider.js";
 import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
 import { SlackTemplateConverter } from "../../lib/messaging/platforms/slack/slack-template-converter.js";
@@ -20,7 +21,11 @@ const token = await getSecret(slackAppTokenKey);
 const lang: Language = process.env.LANG
   ? (process.env.LANG as Language)
   : "en";
-const i18n = new I18nProvider(lang)
+const i18n = new I18nProvider(lang);
+
+// Set i18n instance to factory for singleton usage
+setI18nProvider(i18n);
+
 const messageClient = new MessageClient(token!.toString(), lang);
 const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
 const templateConverter = new SlackTemplateConverter();
@@ -75,10 +80,14 @@ export const handler: Handler = async (event: {
     
     // Initialize tool registry
     const toolRegistry = new ToolRegistry();
-    registerAllTools(toolRegistry, {
-      startDate,
-      endDate
-    });
+    registerAllTools(
+      toolRegistry, 
+      {
+        startDate,
+        endDate
+      },
+      i18n // Pass i18n instance to registerAllTools
+    );
     
     // Initialize ReActAgent
     const reactAgent = new ReActAgent(

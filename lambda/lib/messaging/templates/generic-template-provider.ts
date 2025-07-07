@@ -107,35 +107,25 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
    * @returns Form template
    */
   createCommandFormTemplate(): FormTemplate {
-    const language = this.i18n.getLanguage();
-    
     const blocks: MessageBlock[] = [
       {
         type: "input",
         blockId: "input_query",
-        label: language === "ja" 
-          ? "メトリクスからどのようなことを知りたいですか?"
-          : "What do you want to know based on metrics?",
+        label: this.i18n.translate("insightQueryLabel"),
         element: {
           type: "text_input",
           actionId: "query",
           multiline: true,
-          placeholder: language === "ja"
-            ? "例：ECSのリソースは十分ですか？チューニングの必要があるか教えてください"
-            : "Ex. Are ECS resources enough? Please let me know if the tuning is required for this workload."
+          placeholder: this.i18n.translate("insightQueryPlaceholder")
         }
       },
       {
         type: "input",
         blockId: "input_duration",
-        label: language === "ja"
-          ? "メトリクスを取得する期間"
-          : "Duration of getting metric data",
+        label: this.i18n.translate("insightDurationLabel"),
         element: {
           type: "select",
-          placeholder: language === "ja"
-            ? "期間を日単位で選択してください"
-            : "Please select days to get metric data",
+          placeholder: this.i18n.translate("insightDurationPlaceholder"),
           actionId: "duration",
           options: this.createDurationOptions()
         }
@@ -144,8 +134,8 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
     
     return {
       blocks,
-      title: language === "ja" ? "insightコマンドの実行" : "Invoke insight command",
-      submitLabel: "Submit",
+      title: this.i18n.translate("insightCommandTitle"),
+      submitLabel: this.i18n.translate("submitLabel"),
       callbackId: "view_insight"
     };
   }
@@ -216,17 +206,17 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
       lastThinking?: string;
       lastAction?: ToolAction;
       lastObservation?: string;
-      forcedCompletion?: boolean; // 追加: 強制完了フラグ
+      forcedCompletion?: boolean;
       toolExecutions?: ToolExecutionRecord[];
     }
   ): MessageTemplate {
     const elements: RichTextElement[] = [];
 
 
-    // 現在の状態に基づいて適切なメッセージを生成
+    // Create the message align with each statuses
     switch (reactState.state) {
       case 'thinking':
-        // observingの結果を表示
+        // Show observation result when current state is thinking
         if (reactState.lastObservation) {
           elements.push({
             type: "rich_text_section",
@@ -257,7 +247,7 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
         break;
         
       case 'acting':
-        // thinkingの結果を表示
+        // Show thinking result when current state is acting
         if (reactState.lastThinking) {
           const thoughtMatch = reactState.lastThinking.match(/<Thought>([\s\S]*?)<\/Thought>/);
           if (thoughtMatch) {
@@ -294,14 +284,14 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
         break;
         
       case 'observing':
-        // actingの結果を表示
+        // Show acting result when current state is observing
         if (reactState.lastAction) {
           elements.push({
             type: "rich_text_section",
             elements: [
               {
                 type: "text",
-                text: "\n実行したツール: ",
+                text: this.i18n.translate("executedToolLabel"),
                 style: {
                   bold: true
                 }
@@ -316,13 +306,12 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
             ]
           });
           
-          // パラメータ情報を追加
           elements.push({
             type: "rich_text_section",
             elements: [
               {
                 type: "text",
-                text: "\nパラメータ: ",
+                text: this.i18n.translate("parametersLabel"),
                 style: {
                   bold: true
                 }
@@ -351,11 +340,9 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
             }
           ]
         });
-
         break;
         
       case 'completing':
-        // 強制完了の場合のメッセージを先に追加
         if (reactState.forcedCompletion) {
           elements.push({
             type: "rich_text_section",
@@ -375,7 +362,6 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
           });
         }
 
-        // 最終分析生成中のメッセージを追加
         elements.push({
           type: "rich_text_section",
           elements: [
@@ -393,7 +379,6 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
           ]
         });
         
-        // 最後の思考内容があれば表示
         if (reactState.lastThinking) {
           const thoughtMatch = reactState.lastThinking.match(/<FinalAnswer>([\s\S]*?)<\/FinalAnswer>/);
           if (thoughtMatch) {
@@ -403,7 +388,7 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
               elements: [
                 {
                   type: "text",
-                  text: "\n最終的な分析:\n" + thoughtContent,
+                  text: this.i18n.translate("finalAnalysisLabel") + thoughtContent,
                   style: {
                     italic: true
                   }
@@ -415,7 +400,6 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
         break;
     }
 
-    // 基本的なステータスメッセージ
     elements.push({
       type: "rich_text_section",
       elements: [
@@ -471,12 +455,11 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
    * @returns Array of duration selection options
    */
   private createDurationOptions(): Array<{ text: string; value: string }> {
-    const language = this.i18n.getLanguage();
     const options = [];
     
     for (let i = 1; i <= 14; i++) {
       options.push({
-        text: language === "ja" ? `${i}日` : `${i} Day${i > 1 ? 's' : ''}`,
+        text: this.i18n.ifJaElseEn(`${i}日`, `${i} Day${i > 1 ? 's' : ''}`),
         value: i.toString()
       });
     }
