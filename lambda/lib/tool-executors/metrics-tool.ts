@@ -1,8 +1,17 @@
 import { AWSServiceFactory } from "../../lib/aws/index.js";
 import { MetricDataResult } from "@aws-sdk/client-cloudwatch";
 import { logger } from "../logger.js";
+import { I18nProvider } from "../messaging/providers/i18n-provider.js";
+import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
 
 export class MetricsTool {
+  private i18n: I18nProvider;
+  
+  constructor(i18n?: I18nProvider) {
+    // Use provided i18n instance or get from factory
+    this.i18n = i18n || getI18nProvider();
+  }
+  
   async execute(params: {
     metricNames?: string[];
     dimensions?: Record<string, string>[];
@@ -11,7 +20,12 @@ export class MetricsTool {
     endDate: string;
     period?: number;
     stat?: string;
+    i18n?: I18nProvider;
   }): Promise<string> {
+    // Update i18n if provided in params
+    if (params.i18n) {
+      this.i18n = params.i18n;
+    }
     logger.info("Executing metrics tool", { params });
     
     try {
@@ -84,16 +98,16 @@ export class MetricsTool {
   
   private formatMetricsResults(results: MetricDataResult[]): string {
     if (!results || results.length === 0) {
-      return "メトリクスデータが見つかりませんでした。";
+      return this.i18n.translate("metricsNoResults");
     }
     
-    let output = "## メトリクス分析結果\n\n";
+    let output = this.i18n.translate("metricsResultsTitle");
     
     results.forEach((metric, index) => {
-      output += `### ${metric.Label || `メトリクス ${index + 1}`}\n\n`;
+      output += `### ${metric.Label || this.i18n.formatTranslation("metricsGenericLabel", index + 1)}\n\n`;
       
       if (!metric.Timestamps || metric.Timestamps.length === 0) {
-        output += "データポイントがありません。\n\n";
+        output += this.i18n.translate("metricsNoDataPoints");
         return;
       }
       
@@ -103,10 +117,10 @@ export class MetricsTool {
       const max = values.length > 0 ? Math.max(...values) : 0;
       const avg = values.length > 0 ? values.reduce((sum: number, val: number) => sum + val, 0) / values.length : 0;
       
-      output += `- データポイント数: ${values.length}\n`;
-      output += `- 最小値: ${min.toFixed(4)}\n`;
-      output += `- 最大値: ${max.toFixed(4)}\n`;
-      output += `- 平均値: ${avg.toFixed(4)}\n`;
+      output += this.i18n.formatTranslation("metricsDataPointCount", values.length);
+      output += this.i18n.formatTranslation("metricsMinValue", min.toFixed(4));
+      output += this.i18n.formatTranslation("metricsMaxValue", max.toFixed(4));
+      output += this.i18n.formatTranslation("metricsAvgValue", avg.toFixed(4));
       
       // Detect anomalies (values that deviate significantly from the average)
       const stdDev = Math.sqrt(
@@ -121,7 +135,7 @@ export class MetricsTool {
         .filter((point: { value: number }) => Math.abs(point.value - avg) > 2 * stdDev) : [];
       
       if (anomalies.length > 0) {
-        output += `\n**異常値検出** (標準偏差の2倍以上外れた値):\n`;
+        output += this.i18n.translate("metricsAnomalyDetection");
         anomalies.forEach((anomaly: { value: number, timestamp: Date }) => {
           output += `- ${anomaly.timestamp.toISOString()}: ${anomaly.value.toFixed(4)}\n`;
         });
@@ -146,6 +160,7 @@ export const metricsToolExecutor = async (params: {
   endDate: string;
   period?: number;
   stat?: string;
+  i18n?: I18nProvider;
 }): Promise<string> => {
   return await metricsTool.execute(params);
 };

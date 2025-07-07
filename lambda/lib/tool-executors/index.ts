@@ -4,11 +4,20 @@ import { logsToolExecutor } from "./logs-tool.js";
 import { auditLogToolExecutor } from "./audit-log-tool.js";
 import { xrayToolExecutor } from "./xray-tool.js";
 import { kbToolExecutor } from "./kb-tool.js";
+import { I18nProvider } from "../messaging/providers/i18n-provider.js";
+import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
 
-export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
-  startDate: string;
-  endDate: string;
-}): void {
+export function registerAllTools(
+  toolRegistry: ToolRegistry, 
+  globalParams: {
+    startDate: string;
+    endDate: string;
+  },
+  i18n?: I18nProvider // Add optional i18n parameter
+): void {
+  // Use provided i18n instance or get from factory
+  const i18nInstance = i18n || getI18nProvider();
+  
   // Metrics tool
   toolRegistry.registerTool({
     name: "metrics_tool",
@@ -48,7 +57,8 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       return await metricsToolExecutor({
         ...params,
         startDate: globalParams.startDate,
-        endDate: globalParams.endDate
+        endDate: globalParams.endDate,
+        i18n: i18nInstance // Pass i18n instance
       });
     }
   });
@@ -98,7 +108,7 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       }
     ],
     execute: async (params: Record<string, unknown>) => {
-      // 型アサーション
+      // Type assertion
       const typedParams = params as {
         filterPattern?: string;
         limit?: number;
@@ -106,7 +116,8 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       return await logsToolExecutor({
         ...typedParams,
         startDate: globalParams.startDate,
-        endDate: globalParams.endDate
+        endDate: globalParams.endDate,
+        i18n: i18nInstance // Pass i18n instance
       });
     }
   });
@@ -144,7 +155,8 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       return await auditLogToolExecutor({
         ...params,
         startDate: globalParams.startDate,
-        endDate: globalParams.endDate
+        endDate: globalParams.endDate,
+        i18n: i18nInstance // Pass i18n instance
       });
     }
   });
@@ -167,7 +179,8 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
       return await xrayToolExecutor({
         ...params,
         startDate: globalParams.startDate,
-        endDate: globalParams.endDate
+        endDate: globalParams.endDate,
+        i18n: i18nInstance // Pass i18n instance
       });
     }
   });
@@ -196,7 +209,10 @@ export function registerAllTools(toolRegistry: ToolRegistry, globalParams: {
         query: string;
         maxResults?: number;
       };
-      return await kbToolExecutor(typedParams);
+      return await kbToolExecutor({
+        ...typedParams,
+        i18n: i18nInstance // Pass i18n instance
+      });
     }
   });
   
