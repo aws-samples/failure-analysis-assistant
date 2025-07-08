@@ -1,7 +1,7 @@
 import { ToolRegistry } from "../tools-registry.js";
 import { metricsToolExecutor } from "./metrics-tool.js";
 import { logsToolExecutor } from "./logs-tool.js";
-import { auditLogToolExecutor } from "./audit-log-tool.js";
+import { athenaLogToolExecutor, LogType } from "./athena-log-tool.js";
 import { xrayToolExecutor } from "./xray-tool.js";
 import { kbToolExecutor } from "./kb-tool.js";
 import { I18nProvider } from "../messaging/providers/i18n-provider.js";
@@ -152,10 +152,65 @@ export function registerAllTools(
       users?: string[];
       region?: string;
     }) => {
-      return await auditLogToolExecutor({
+      return await athenaLogToolExecutor({
         ...params,
         startDate: globalParams.startDate,
         endDate: globalParams.endDate,
+        logType: LogType.CLOUDTRAIL,
+        i18n: i18nInstance // Pass i18n instance
+      });
+    }
+  });
+  
+  // ALB log tool
+  toolRegistry.registerTool({
+    name: "alb_log_tool",
+    description: "ALBアクセスログを取得して分析します。ステータスコード、クライアントIP、パスなどでフィルタリングできます。",
+    parameters: [
+      {
+        name: "targetGroups",
+        type: "string[]",
+        description: "フィルタリングするターゲットグループARNの配列",
+        required: false
+      },
+      {
+        name: "statusCodes",
+        type: "string[]",
+        description: "フィルタリングするステータスコードの配列（例: ['200', '404', '500']）",
+        required: false
+      },
+      {
+        name: "clientIps",
+        type: "string[]",
+        description: "フィルタリングするクライアントIPの配列",
+        required: false
+      },
+      {
+        name: "paths",
+        type: "string[]",
+        description: "フィルタリングするリクエストパスの配列（例: ['/api', '/login']）",
+        required: false
+      },
+      {
+        name: "userAgents",
+        type: "string[]",
+        description: "フィルタリングするユーザーエージェントの配列",
+        required: false
+      },
+    ],
+    execute: async (params: {
+      targetGroups?: string[];
+      statusCodes?: string[];
+      clientIps?: string[];
+      paths?: string[];
+      userAgents?: string[];
+      region?: string;
+    }) => {
+      return await athenaLogToolExecutor({
+        ...params,
+        startDate: globalParams.startDate,
+        endDate: globalParams.endDate,
+        logType: LogType.ALB,
         i18n: i18nInstance // Pass i18n instance
       });
     }
