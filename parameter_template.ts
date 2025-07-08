@@ -25,7 +25,7 @@ export interface AppParameter {
   knowledgeBase: boolean;
   embeddingModelId?: string;
   rerankModelId?: string;
-  maxHypotheses: number; // ToTで生成する最大仮説数
+  maxAgentCycles?: number; // Maximum number of cycles for ReAct agent
 }
 
 // Parameters for Dev Account
@@ -55,5 +55,5 @@ export const devParameter: AppParameter = {
   detectorId: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   knowledgeBase: true,
   embeddingModelId: "amazon.titan-embed-text-v2:0",
-  maxHypotheses: 3 // デフォルトで最大3つの仮説を生成
+  maxAgentCycles: 5 // Maximum number of cycles for ReAct agent
 };
