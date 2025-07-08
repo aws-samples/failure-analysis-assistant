@@ -1,6 +1,5 @@
 {
   "name": "fa2-lambda",
-  "version": "1.0.0",
   "description": "FA2 Lambda Function",
   "main": "main.ts",
   "type": "module",
