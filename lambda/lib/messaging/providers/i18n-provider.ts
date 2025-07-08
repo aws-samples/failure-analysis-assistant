@@ -56,6 +56,25 @@ export type TranslationKey =
   | "auditLogTimelineTitle"
   | "auditLogFirstLog"
   | "auditLogLastLog"
+  | "albLogTableNotConfigured"
+  | "albLogQueryError"
+  | "albLogNoResults"
+  | "albLogNoLogsFound"
+  | "albLogAnalysisTitle"
+  | "albLogTotalFound"
+  | "albLogStatusCodeTitle"
+  | "albLogStatusCodeCount"
+  | "albLogErrorsTitle"
+  | "albLogErrorDetail"
+  | "albLogPopularPathsTitle"
+  | "albLogPathCount"
+  | "albLogResponseTimeTitle"
+  | "albLogAvgResponseTime"
+  | "albLogMaxResponseTime"
+  | "albLogMinResponseTime"
+  | "albLogTimelineTitle"
+  | "albLogFirstRequest"
+  | "albLogLastRequest"
   | "kbDisabled"
   | "kbIdNotConfigured"
   | "kbNotFound"
@@ -117,7 +136,13 @@ export type TranslationKey =
   | "xrayServiceStatsTitle"
   | "xrayRequestCount"
   | "xrayErrorCount"
-  | "xrayAvgResponseTime";
+  | "xrayAvgResponseTime"
+  | "requestAccepted"
+  | "requestParameters"
+  | "dmNotAllowed"
+  | "channelIdNotFound"
+  | "insightConfirmation"
+  | "findingsReportConfirmation";
 
 /**
  * Internationalization (i18n) provider class
@@ -142,6 +167,31 @@ export class I18nProvider {
         uploadedFile: "Uploaded a file.",
         defaultMessageText: "Message from FA2",
         howToGetLogsTitle: "How to Get..",
+        albLogTableNotConfigured: "ALB log table is not configured. Please check albLogTableName in parameter.ts.",
+        albLogQueryError: "Error occurred while retrieving ALB logs: ",
+        albLogNoResults: "No ALB logs matching the criteria were found.",
+        albLogNoLogsFound: "No ALB logs were found.",
+        albLogAnalysisTitle: "## ALB Access Log Analysis Results\n\n",
+        albLogTotalFound: "Total of {0} ALB logs found.\n\n",
+        albLogStatusCodeTitle: "### Status Code Distribution\n\n",
+        albLogStatusCodeCount: "- Status {0}: {1} requests\n",
+        albLogErrorsTitle: "### Error Requests ({0})\n\n",
+        albLogErrorDetail: "- **{0}**: {1} {2} - Status: {3}, Target Status: {4}\n  Client IP: {5}\n\n",
+        albLogPopularPathsTitle: "### Popular Request Paths\n\n",
+        albLogPathCount: "- {0}: {1} requests\n",
+        albLogResponseTimeTitle: "### Response Time Analysis\n\n",
+        albLogAvgResponseTime: "- Average response time: {0}s\n",
+        albLogMaxResponseTime: "- Maximum response time: {0}s\n",
+        albLogMinResponseTime: "- Minimum response time: {0}s\n\n",
+        albLogTimelineTitle: "### Timeline Distribution\n\n",
+        albLogFirstRequest: "- First request: {0} ({1} {2})\n",
+        albLogLastRequest: "- Last request: {0} ({1} {2})\n",
+        requestAccepted: "Received your request. Please wait...",
+        requestParameters: "Input parameters: ",
+        dmNotAllowed: "This command cannot be executed in DMs. Please run it in a channel.",
+        channelIdNotFound: "Error: Channel ID not found. Please run the /insight-dev command in a channel.",
+        insightConfirmation: "FA2 received your question: {0} with the metric data of {1} days. Please wait for its answer..",
+        findingsReportConfirmation: "FA2 received your request to create a report of findings. Please wait for its answer..",
         formTitle: "Error Analysis",
         submitLabel: "Submit",
         alarmDescription: "Please put time range to get the logs that may includes root cause.",
@@ -255,6 +305,31 @@ export class I18nProvider {
         uploadedFile: "ファイルをアップロードしました",
         defaultMessageText: "FA2からのメッセージ",
         howToGetLogsTitle: "ログやメトリクス、トレースの取得手順",
+        albLogTableNotConfigured: "ALBログテーブルが設定されていません。parameter.tsのalbLogTableNameを確認してください。",
+        albLogQueryError: "ALBログの取得中にエラーが発生しました: ",
+        albLogNoResults: "条件に一致するALBログが見つかりませんでした。",
+        albLogNoLogsFound: "ALBログが見つかりませんでした。",
+        albLogAnalysisTitle: "## ALBアクセスログ分析結果\n\n",
+        albLogTotalFound: "合計 {0} 件のALBログが見つかりました。\n\n",
+        albLogStatusCodeTitle: "### ステータスコード別分布\n\n",
+        albLogStatusCodeCount: "- ステータス {0}: {1}件\n",
+        albLogErrorsTitle: "### エラーリクエスト ({0}件)\n\n",
+        albLogErrorDetail: "- **{0}**: {1} {2} - ステータス: {3}, ターゲットステータス: {4}\n  クライアントIP: {5}\n\n",
+        albLogPopularPathsTitle: "### 人気のリクエストパス\n\n",
+        albLogPathCount: "- {0}: {1}件\n",
+        albLogResponseTimeTitle: "### レスポンスタイム分析\n\n",
+        albLogAvgResponseTime: "- 平均レスポンスタイム: {0}秒\n",
+        albLogMaxResponseTime: "- 最大レスポンスタイム: {0}秒\n",
+        albLogMinResponseTime: "- 最小レスポンスタイム: {0}秒\n\n",
+        albLogTimelineTitle: "### 時系列分布\n\n",
+        albLogFirstRequest: "- 最初のリクエスト: {0} ({1} {2})\n",
+        albLogLastRequest: "- 最後のリクエスト: {0} ({1} {2})\n",
+        requestAccepted: "リクエストを受け付けました。分析完了までお待ちください。",
+        requestParameters: "リクエスト内容: ",
+        dmNotAllowed: "このコマンドはDMでは実行できません。チャンネル内で実行してください。",
+        channelIdNotFound: "エラー: チャンネルIDが取得できませんでした。チャンネル内で/insight-devコマンドを実行してください。",
+        insightConfirmation: "質問：{0}を、{1}日分のメトリクスで確認します。FA2の回答をお待ちください。",
+        findingsReportConfirmation: "Findingsのレポート作成依頼を受け付けました。FA2の回答をお待ちください。",
         formTitle: "エラー分析",
         submitLabel: "送信",
         alarmDescription: "ログ検索を行う時刻の範囲を以下のフォームから入力してください。アラームのDatapointを参考に入力いただくと、比較的良い結果が得られやすいです。",

@@ -11,6 +11,7 @@ import { MessageClient } from "../../lib/messaging/message-client.js";
 import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { Language } from "../../../parameter.js";
 import { logger } from "../../lib/logger.js";
+import { getI18nProvider } from "../../lib/messaging/providers/i18n-factory.js";
 
 // Environment variables
 const lang: Language = process.env.LANG ? (process.env.LANG as Language) : "en";
@@ -51,7 +52,8 @@ const app = new App({
   receiver: awsLambdaReceiver
 });
 
-const messageClient = new MessageClient(token, lang, 'slack'); 
+const messageClient = new MessageClient(token, lang, 'slack');
+const i18n = getI18nProvider(lang);
 
 // When app receive an alarm from AWS Chatbot, send the form of FA2.
 app.message("", async ({ event, body, payload, say }) => {
@@ -125,9 +127,7 @@ app.action("submit_button", async ({ body, ack, respond }) => {
     // Send the message to notify the completion of receiving request.
     await respond({
       blocks: messageClient.createMessageBlock(
-        lang === "ja"
-          ? `リクエストを受け付けました。分析完了までお待ちください。\nリクエスト内容: \`\`\`${JSON.stringify({errorDescription, startDate, startTime, endDate, endTime})}\`\`\` `
-          : `Reveived your request. Please wait... \nInput parameters: \`\`\`${JSON.stringify({errorDescription, startDate, startTime, endDate, endTime})}\`\`\` `,
+        `${i18n.translate("requestAccepted")}\n${i18n.translate("requestParameters")}\`\`\`${JSON.stringify({errorDescription, startDate, startTime, endDate, endTime})}\`\`\` `
       ),
       replace_original: true,
     } as RespondArguments);
@@ -148,23 +148,21 @@ app.command('/insight', async ({ client, body, ack, respond }) => {
   logger.info("/insight command", {body})
 
   try {
-    // DMでの実行を判断（チャンネルIDがDで始まる場合はDM）
+    // Check if the command is executed in DM (channel ID starts with 'D' for DM)
     if (body.channel_id.startsWith('D')) {
       logger.info("Command executed in DM, rejecting", { channel_id: body.channel_id });
       
-      // DMでの実行を拒否するメッセージを送信
+      // Send a message to reject execution in DM
       await respond({
         blocks: messageClient.createMessageBlock(
-          lang === "ja"
-            ? "このコマンドはDMでは実行できません。チャンネル内で実行してください。"
-            : "This command cannot be executed in DMs. Please run it in a channel."
+          i18n.translate("dmNotAllowed")
         ),
         replace_original: false
       } as RespondArguments);
       return;
     }
     
-    // チャンネルIDをprivate_metadataに含める
+    // Include channel ID in private_metadata
     const metadata = JSON.stringify({ channelId: body.channel_id });
     
     await client.views.open({
@@ -186,14 +184,20 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
   
   // Get the form data
   const query = view['state']['values']['input_query']['query']['value'];
-  const duration = view['state']['values']['input_duration']['duration']['selected_option']!['value'];
+  const durationOption = view['state']['values']['input_duration']['duration']['selected_option'];
+  
+  if (!query || !durationOption || !durationOption.value) {
+    throw new Error("Form data is incomplete");
+  }
+  
+  const duration = durationOption.value;
 
   // Convert from duration to datetime
   const now = new Date();
   const nowItnTime = fromZonedTime(now, "Asia/Tokyo");
   const pastItnTime = fromZonedTime(sub(now,{days: Number(duration)}), "Asia/Tokyo");
   
-  // private_metadataからチャンネルIDを取得
+  // Get channel ID from private_metadata
   let channelId: string | undefined;
   try {
     if (view.private_metadata) {
@@ -207,16 +211,14 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
     logger.warn("Failed to parse private_metadata", { error });
   }
   
-  // チャンネルIDが取得できない場合はエラーを表示
+  // Display an error if channel ID cannot be obtained
   if (!channelId) {
     logger.error("Channel ID not found in metadata");
     await client.chat.postMessage({
       blocks: messageClient.createMessageBlock(
-        lang === "ja"
-          ? "エラー: チャンネルIDが取得できませんでした。チャンネル内で/insight-devコマンドを実行してください。"
-          : "Error: Channel ID not found. Please run the /insight-dev command in a channel."
+        i18n.translate("channelIdNotFound")
       ),
-      channel: body.user.id // エラーメッセージはユーザーのDMに送信
+      channel: body.user.id // Send error message to user's DM
     });
     return;
   }
@@ -240,9 +242,7 @@ app.view('view_insight', async ({ ack, view, client, body }) => {
     // Send the message to notify the completion of receiving request.
     await client.chat.postMessage({
       blocks: messageClient.createMessageBlock(
-        lang === "ja"
-          ? `質問：${query}を、${duration}日分のメトリクスで確認します。FA2の回答をお待ちください。`
-          : `FA2 received your question: ${query} with the metric data of ${duration} days. Please wait for its answer..`,
+        i18n.formatTranslation("insightConfirmation", query, duration)
       ),
       channel: channelId
     });
@@ -277,9 +277,7 @@ app.command('/findings-report', async ({ client, body, ack }) => {
     // Send the message to notify the completion of receiving request.
     await client.chat.postMessage({
       blocks: messageClient.createMessageBlock(
-        lang === "ja"
-          ? `Findingsのレポート作成依頼を受け付けました。FA2の回答をお待ちください。`
-          : `FA2 received your request to create a report of findings. Please wait for its answer..`,
+        i18n.translate("findingsReportConfirmation")
       ),
       channel: body.channel_id
     });
