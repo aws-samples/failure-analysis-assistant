@@ -32,7 +32,7 @@ const fa2Stack = new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
   cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
   slashCommands: devParameter.slashCommands,
   detectorId: devParameter.detectorId,
-  maxHypotheses: devParameter.maxHypotheses,
+  maxAgentCycles: devParameter.maxAgentCycles,
 });
 
 if(devParameter.knowledgeBase){
@@ -43,7 +43,6 @@ if(devParameter.knowledgeBase){
     },
     envName: devParameter.envName,
     fa2BackendFunction: fa2Stack.fa2BackendFunction,
-    fa2ReactLambda: fa2Stack.fa2ReactLambda, // ReACT版FA2のLambda関数を追加
     embeddingModelId: devParameter.embeddingModelId,
     rerankModelId: devParameter.rerankModelId,
   });

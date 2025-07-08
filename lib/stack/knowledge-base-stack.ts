@@ -9,7 +9,6 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 interface KnowledgeBaseStackProps extends StackProps {
   envName: string;
   fa2BackendFunction: NodejsFunction;
-  fa2ReactLambda?: NodejsFunction; // ReACT版FA2のLambda関数を追加
   embeddingModelId?: string;
   rerankModelId?: string;
 }
@@ -36,11 +35,6 @@ export class KnowledgeBaseStack extends Stack {
     knowledgeBase.node.addDependency(auroraServerless.cluster);
     props.fa2BackendFunction.addEnvironment("KNOWLEDGEBASE_ID", knowledgeBase.knowledgeBaseId);
     
-    // ReACT版FA2のLambda関数にも環境変数を設定
-    if (props.fa2ReactLambda) {
-      props.fa2ReactLambda.addEnvironment("KNOWLEDGEBASE_ID", knowledgeBase.knowledgeBaseId);
-    }
-
     // add permissions to fa2 backend function
     props.fa2BackendFunction.addToRolePolicy(
       new PolicyStatement({
@@ -51,18 +45,6 @@ export class KnowledgeBaseStack extends Stack {
       })
     );
     
-    // ReACT版FA2のLambda関数にも権限を追加
-    if (props.fa2ReactLambda) {
-      props.fa2ReactLambda.addToRolePolicy(
-        new PolicyStatement({
-          actions: [
-            'bedrock:Retrieve',
-          ],
-          resources: [`arn:aws:bedrock:${Stack.of(this).region}:${Stack.of(this).account}:knowledge-base/${knowledgeBase.knowledgeBaseId}`],
-        })
-      );
-    }
-
     if (props.rerankModelId) {
       props.fa2BackendFunction.addEnvironment("RERANK_MODEL_ID", props.rerankModelId);
       props.fa2BackendFunction.addToRolePolicy(
@@ -82,26 +64,6 @@ export class KnowledgeBaseStack extends Stack {
         })
       );
       
-      // ReACT版FA2のLambda関数にも環境変数と権限を追加
-      if (props.fa2ReactLambda) {
-        props.fa2ReactLambda.addEnvironment("RERANK_MODEL_ID", props.rerankModelId);
-        props.fa2ReactLambda.addToRolePolicy(
-          new PolicyStatement({
-            actions: [
-              'bedrock:Rerank',
-            ],
-            resources: ['*'],
-          })
-        );
-        props.fa2ReactLambda.addToRolePolicy(
-          new PolicyStatement({
-            actions: [
-              'bedrock:InvokeModel'
-            ],
-            resources: ['*'],
-          })
-        );
-      }
     }
   }
 }

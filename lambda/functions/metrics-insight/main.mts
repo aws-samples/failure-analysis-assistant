@@ -11,30 +11,30 @@ import { MetricDataQuery } from "@aws-sdk/client-cloudwatch";
 import { Prompt } from "../../lib/prompt.js";
 
 /**
- * クエリからAWSのnamespaceを推論する関数
- * @param query ユーザーのクエリ
+ * Function to infer AWS namespaces from a query
+ * @param query User's query
  * @param bedrockService BedrockService
- * @param prompt Promptインスタンス
- * @returns 推論されたnamespaceの配列
+ * @param prompt Prompt instance
+ * @returns Array of inferred namespaces
  */
 async function inferNamespacesFromQuery(
   query: string, 
   bedrockService: { converse: (prompt: string) => Promise<string> }, 
   prompt: Prompt
 ): Promise<string[]> {
-  // デフォルトのnamespace
+  // Default namespaces
   const defaultNamespaces = ["AWS/EC2", "AWS/ECS", "AWS/RDS", "AWS/Lambda", "AWS/ApplicationELB"];
   
   try {
-    // BedrockServiceを使用してnamespaceを推論
+    // Infer namespaces using BedrockService
     const promptText = prompt.createNamespaceInferencePrompt(query);
     const response = await bedrockService.converse(promptText);
     
-    // レスポンスをJSONとしてパース
+    // Parse response as JSON
     try {
       const namespaces = JSON.parse(response);
       
-      // 配列であることを確認
+      // Verify it's an array
       if (Array.isArray(namespaces) && namespaces.length > 0) {
         logger.info("Inferred namespaces from query", { namespaces });
         return namespaces;
@@ -46,7 +46,7 @@ async function inferNamespacesFromQuery(
     logger.error("Error inferring namespaces from query", { error });
   }
   
-  // エラーが発生した場合やレスポンスが無効な場合はデフォルトのnamespaceを返す
+  // Return default namespaces if an error occurs or the response is invalid
   logger.info("Using default namespaces", { defaultNamespaces });
   return defaultNamespaces;
 }
@@ -97,10 +97,10 @@ export const handler: Handler = async (event: {
     const cloudWatchService = AWSServiceFactory.getCloudWatchService();
     const bedrockService = AWSServiceFactory.getBedrockService();
     
-    // クエリからnamespaceを推論
+    // Infer namespaces from query
     const namespaces = await inferNamespacesFromQuery(query, bedrockService, prompt);
     
-    // 推論されたnamespaceからメトリクスを取得
+    // Get metrics from inferred namespaces
     const allMetrics = [];
     for (const namespace of namespaces) {
       try {
@@ -112,7 +112,7 @@ export const handler: Handler = async (event: {
       }
     }
     
-    // メトリクスが取得できなかった場合のフォールバック
+    // Fallback if no metrics were retrieved
     if (allMetrics.length === 0) {
       const fallbackNamespaces = ["AWS/EC2", "AWS/ECS", "AWS/RDS", "AWS/Lambda"];
       logger.info("No metrics found, trying fallback namespaces", { fallbackNamespaces });
@@ -128,18 +128,18 @@ export const handler: Handler = async (event: {
       }
     }
     
-    // メトリクス選択のためのプロンプトを作成
+    // Create prompt for metric selection
     const durationInDays = ((new Date(endDate)).getTime() - (new Date(startDate)).getTime()) / (1000 * 60 * 60 * 24);
     const metricSelectionPromptText = prompt.createMetricSelectionPrompt(query, JSON.stringify(allMetrics), durationInDays);
     
-    // メトリクスデータクエリを生成
+    // Generate metric data query
     logger.info("Generating metric data query");
     const metricDataQueryResponse = await bedrockService.converse(metricSelectionPromptText);
     
-    // <Query>タグからJSONを抽出
+    // Extract JSON from <Query> tag
     let metricDataQuery: MetricDataQuery[];
     try {
-      // <Query>タグ内のコンテンツを抽出
+      // Extract content within <Query> tag
       const queryTagRegex = /<Query>([\s\S]*?)<\/Query>/;
       const match = metricDataQueryResponse.match(queryTagRegex);
       
@@ -148,7 +148,7 @@ export const handler: Handler = async (event: {
         throw new Error("Query tag not found in response");
       }
       
-      // 抽出したJSONをパース
+      // Parse the extracted JSON
       const jsonContent = match[1].trim();
       metricDataQuery = JSON.parse(jsonContent);
       logger.info("Generated metric data query", { metricDataQuery });
@@ -157,27 +157,27 @@ export const handler: Handler = async (event: {
       throw new Error("Invalid metric data query format");
     }
     
-    // CloudWatchメトリクスを取得
+    // Get CloudWatch metrics
     logger.info("Querying CloudWatch metrics", { startDate, endDate });
     const results = await cloudWatchService.queryMetrics(startDate, endDate, metricDataQuery, "CWMetrics");
     
-    // インサイト生成のためのプロンプトを作成
+    // Create prompt for generating insights
     const metricsInsightPromptText = prompt.createMetricsInsightPrompt(query, JSON.stringify(results));
     logger.info("Created metrics insight prompt");
     
-    // インサイトを生成
+    // Generate insights
     const answer = await bedrockService.converse(metricsInsightPromptText);
     if(!answer) throw new Error("No response from LLM");
 
     logger.info("Answer", answer);
 
     if (destination) {
-      // 常にマークダウンファイルとして送信
+      // Always send as a markdown file
       await messageClient.sendMarkdownContent("metrics-insight.md", answer, destination);
     }
   } catch (error) {
     logger.error("Something happened", error as Error);
-    // Send the form to retry when error was occured.
+    // Send the form to retry when an error has occurred.
     if(channelId && destination){
       await messageClient.sendMessage(
         messageClient.createErrorMessageBlock(),

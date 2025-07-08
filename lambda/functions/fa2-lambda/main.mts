@@ -3,7 +3,7 @@ import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
 import { v4 as uuidv4 } from "uuid";
 import { Prompt } from "../../lib/prompt.js";
 import { MessageClient } from "../../lib/messaging/message-client.js";
-import { Language, devParameter } from "../../../parameter.js";
+import { Language } from "../../../parameter.js";
 import { logger } from "../../lib/logger.js"; 
 import { ReActAgent } from "../../lib/react-agent.js";
 import { ToolRegistry } from "../../lib/tools-registry.js";
@@ -58,8 +58,7 @@ export const handler: Handler = async (event: {
   ).loggroups;
   const region = process.env.AWS_REGION;
   
-  // Get maxAgentCycles from parameters (default value is 5)
-  const maxAgentCycles = devParameter.maxAgentCycles ?? 5;
+  const maxAgentCycles = Number(process.env.MAX_AGENT_CYCLES);
   const prompt = new Prompt(lang, architectureDescription);
 
   if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {

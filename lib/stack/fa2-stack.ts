@@ -21,12 +21,11 @@ interface FA2StackProps extends StackProps {
   detectorId?: string;
   knowledgeBaseId?: string;
   rerankModelId?: string;
-  maxHypotheses?: number;
+  maxAgentCycles?: number;
 }
 
 export class FA2Stack extends Stack {
   public readonly fa2BackendFunction: NodejsFunction;
-  public readonly fa2ReactLambda: NodejsFunction;
   constructor(scope: Construct, id: string, props: FA2StackProps) {
     super(scope, id, props);
 
@@ -45,7 +44,7 @@ export class FA2Stack extends Stack {
       cloudTrailLogTableName: props.cloudTrailLogTableName,
       slashCommands: props.slashCommands,
       detectorId: props.detectorId,
-      maxHypotheses: props.maxHypotheses,
+      maxAgentCycles: props.maxAgentCycles,
     });
     this.fa2BackendFunction = fa2.backendFunction;
     
