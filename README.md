@@ -1,7 +1,5 @@
 # Failure Analysis Assistant (FA2)
 
-> **注意**: このバージョンのFA2は、ReACTアルゴリズムを使用したエージェント版であり、現在検証中です。ソースコードの内容や実装が大きく変更される可能性があります。
-
 [View this page in English](./README_en.md)
 
 Amazon Q Developer in chat applications が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
@@ -71,6 +69,34 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
    - 再発防止策
 7. 生成されたレポートはSlackに送信され、ユーザーに提供されます
 
+### ReACTエージェントの詳細な動作
+
+FA2のコアとなるReACTエージェントは、以下のような詳細なプロセスで動作します：
+
+1. **セッション管理**：
+   - 各分析リクエストに対して一意のセッションIDが生成されます
+   - セッション状態はDynamoDBに保存され、Lambda関数の実行間で維持されます
+   - セッション情報には思考履歴、実行したツール、収集したデータなどが含まれます
+
+2. **思考プロセス**：
+   - 初回の思考では、エラー内容と利用可能なツールの情報を基に分析戦略を立てます
+   - 2回目以降は、これまでに収集した情報を考慮して次のアクションを決定します
+   - 思考の結果は構造化された形式で出力され、次のアクションが決定されます
+
+3. **ツール実行**：
+   - 選択されたツールは適切なパラメータで実行されます
+   - 実行結果はセッション状態に記録され、データ収集状況が更新されます
+   - 各ツールの実行結果は、次の思考サイクルの入力として使用されます
+
+4. **サイクル制御**：
+   - `maxAgentCycles`パラメータで最大サイクル数を制御できます（デフォルト: 5）
+   - 十分な情報が集まった場合や最大サイクル数に達した場合、最終回答生成フェーズに移行します
+   - Bedrockのレート制限に達した場合は、適切なエラーハンドリングが行われます
+
+5. **最終回答生成**：
+   - 収集したすべての情報を統合し、構造化された障害分析レポートを生成します
+   - レポートはMarkdown形式でSlackに送信され、ファイルとして共有されます
+
 ## 前提条件
 
 - AWS Cloud Development Kit (CDK) が利用できること
@@ -125,9 +151,13 @@ export const devParameter: AppParameter = {
   ],
   cwLogsInsightQuery: "fields @message | limit 100",
   xrayTrace: false,
+  slashCommands: {
+    insight: true,
+    findingsReport: true
+  },
   knowledgeBase: true,
   embeddingModelId: "amazon.titan-embed-text-v2:0",
-  maxHypotheses: 5 // ToTで生成する最大仮説数
+  maxAgentCycles: 5 // ReACTエージェントが実行する最大サイクル数
 };
 ```
 

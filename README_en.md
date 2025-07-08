@@ -1,7 +1,5 @@
 # Failure Analysis Assistant (FA2) Slack App Version
 
-> **Note**: This version of FA2 uses an agent based on the ReACT algorithm and is currently under validation. The source code and implementation may undergo significant changes.
-
 [日本語で読む](./README.md)
 
 This is a sample implementation that responds to alarms sent to Slack by Amazon Q Developer in chat applications and helps analyze the root cause of the failure.
@@ -70,6 +68,34 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
    - Prevention measures
 7. The generated report is sent to Slack and provided to the user
 
+### Detailed ReACT Agent Operation
+
+The ReACT agent, which is the core of FA2, operates with the following detailed process:
+
+1. **Session Management**:
+   - A unique session ID is generated for each analysis request
+   - Session state is stored in DynamoDB and maintained between Lambda function executions
+   - Session information includes thinking history, executed tools, collected data, etc.
+
+2. **Thinking Process**:
+   - In the initial thinking, the agent develops an analysis strategy based on error content and available tools
+   - In subsequent cycles, it decides the next action considering the information collected so far
+   - The result of thinking is output in a structured format, and the next action is determined
+
+3. **Tool Execution**:
+   - Selected tools are executed with appropriate parameters
+   - Execution results are recorded in the session state, and data collection status is updated
+   - The results of each tool execution are used as input for the next thinking cycle
+
+4. **Cycle Control**:
+   - The maximum number of cycles can be controlled with the `maxAgentCycles` parameter (default: 5)
+   - When sufficient information is gathered or the maximum number of cycles is reached, it transitions to the final answer generation phase
+   - Appropriate error handling is performed when Bedrock rate limits are reached
+
+5. **Final Answer Generation**:
+   - All collected information is integrated to generate a structured failure analysis report
+   - The report is sent to Slack in Markdown format and shared as a file
+
 ## Requirements
 
 - You can use the AWS Cloud Development Kit (CDK)
@@ -124,9 +150,13 @@ export const devParameter: AppParameter = {
   ],
   cwLogsInsightQuery: "fields @message | limit 100",
   xrayTrace: false,
+  slashCommands: {
+    insight: true,
+    findingsReport: true
+  },
   knowledgeBase: true,
   embeddingModelId: "amazon.titan-embed-text-v2:0",
-  maxHypotheses: 5 // Maximum number of hypotheses to generate with ToT
+  maxAgentCycles: 5 // Maximum number of cycles for ReAct agent
 };
 ```
 
