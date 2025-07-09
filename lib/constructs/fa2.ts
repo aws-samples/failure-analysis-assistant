@@ -66,7 +66,11 @@ export class FA2 extends Construct {
     // DynamoDB table to store session state
     this.sessionTable = new dynamodb.Table(this, "SessionTable", {
       partitionKey: {
-        name: "sessionId",
+        name: "pk",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "sk",
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,

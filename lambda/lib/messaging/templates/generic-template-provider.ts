@@ -2,7 +2,7 @@ import { AbstractTemplateProvider } from './abstract-template-provider.js';
 import { MessageTemplate, FormTemplate, RetrieveResultItem, MessageBlock, RichTextElement } from '../interfaces/template-provider.interface.js';
 import { I18nProvider } from '../providers/i18n-provider.js';
 import { ConfigProvider } from '../providers/config-provider.js';
-import { ToolAction, ToolExecutionRecord } from '../../react-agent.js';
+import { ToolAction } from '../../react-agent.js';
 
 /**
  * Generic template provider class
@@ -207,7 +207,6 @@ export class GenericTemplateProvider extends AbstractTemplateProvider {
       lastAction?: ToolAction;
       lastObservation?: string;
       forcedCompletion?: boolean;
-      toolExecutions?: ToolExecutionRecord[];
     }
   ): MessageTemplate {
     const elements: RichTextElement[] = [];

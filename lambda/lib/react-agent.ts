@@ -25,14 +25,6 @@ export interface ToolAction {
   parameters: Record<string, unknown>;
 }
 
-export interface ToolExecutionRecord {
-  toolName: string;
-  parameters: Record<string, unknown>;
-  result: string;
-  timestamp: number;
-  dataAvailable: boolean;
-}
-
 export interface SessionState {
   context: string;
   history: HistoryItem[];
@@ -50,7 +42,6 @@ export interface SessionState {
   lastAction?: ToolAction;
   lastObservation?: string;
   missingData?: string[];
-  toolExecutions: ToolExecutionRecord[];
   forcedCompletion?: boolean; // 強制完了フラグ
 }
 
@@ -89,8 +80,7 @@ export class ReActAgent {
         xray: false,
         knowledgeBase: false
       },
-      missingData: [],
-      toolExecutions: []
+      missingData: []
     };
     this.toolRegistry = toolRegistry;
     this.prompt = prompt;
@@ -535,9 +525,6 @@ ${thoughtContent}
       // Update data collection status
       this.updateDataCollectionStatus(toolName, markedResult);
       
-      // Add tool execution record
-      this.recordToolExecution(toolName, parameters, markedResult);
-      
       return markedResult;
     } catch (error) {
       logger.error("Failed to execute tool", { error, action });
@@ -570,44 +557,6 @@ ${thoughtContent}
     }
   }
   
-  /**
-   * Add tool execution record
-   */
-  private recordToolExecution(toolName: string, parameters: Record<string, unknown>, result: string): void {
-    // Create tool execution record
-    const toolExecution: ToolExecutionRecord = {
-      toolName,
-      parameters,
-      result,
-      timestamp: Date.now(),
-      dataAvailable: this.checkDataAvailability(toolName, result)
-    };
-    
-    // Add record
-    this.sessionState.toolExecutions.push(toolExecution);
-  }
-  
-  /**
-   * Determine data availability based on tool name and execution result
-   */
-  private checkDataAvailability(toolName: string, result: string): boolean {
-    // Determine data availability based on tool name
-    switch (toolName) {
-      case 'metrics_tool':
-        return !result.includes("メトリクスデータが見つかりませんでした");
-      case 'logs_tool':
-        return !result.includes("条件に一致するログが見つかりませんでした");
-      case 'change_history_tool':
-      case 'audit_log_tool':
-        return !result.includes("変更履歴が見つかりませんでした");
-      case 'xray_tool':
-        return !result.includes("トレースが見つかりませんでした");
-      case 'kb_tool':
-        return !result.includes("ナレッジベースに一致する情報が見つかりませんでした");
-      default:
-        return true;
-    }
-  }
   
   private updateSessionState(thinking: string, action: string, observation: string): void {
     this.sessionState.history.push({

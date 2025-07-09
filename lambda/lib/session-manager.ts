@@ -3,10 +3,10 @@ import {
   DynamoDBDocumentClient, 
   GetCommand, 
   PutCommand, 
-  UpdateCommand, 
-  DeleteCommand 
+  DeleteCommand,
+  QueryCommand
 } from "@aws-sdk/lib-dynamodb";
-import { ToolExecutionRecord, SessionState } from "./react-agent.js";
+import { SessionState } from "./react-agent.js";
 import { logger } from "./logger.js";
 
 const client = new DynamoDBClient({});
@@ -23,33 +23,66 @@ export async function getSessionState(sessionId: string): Promise<SessionState |
       throw new Error("SESSION_TABLE_NAME environment variable is not set");
     }
     
-    const command = new GetCommand({
+    // セッションIDをpkの形式に変換
+    const pk = `SESSION#${sessionId}`;
+    
+    // 1. マスターセッションアイテムを取得
+    const masterCommand = new GetCommand({
       TableName: tableName,
-      Key: { sessionId }
+      Key: { 
+        pk,
+        sk: "DATA"
+      }
     });
     
-    const response = await docClient.send(command);
+    const masterResponse = await docClient.send(masterCommand);
     
-    if (!response.Item) {
+    if (!masterResponse.Item) {
       logger.info("No session found", { sessionId });
       return null;
     }
     
-    // Get session state
-    const state = response.Item.state as SessionState;
-    
-    // Add tool execution records if they exist
-    if (response.Item.toolExecutions) {
-      state.toolExecutions = response.Item.toolExecutions as ToolExecutionRecord[];
-    } else if (!state.toolExecutions) {
-      // Set empty array if there are no tool execution records
-      state.toolExecutions = [];
-    }
-    
-    logger.info("Session state retrieved", { 
-      sessionId, 
-      toolExecutionsCount: state.toolExecutions.length 
+    // 2. 履歴アイテムを取得
+    const historyCommand = new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: {
+        ":pk": pk,
+        ":prefix": "HISTORY#"
+      },
+      ScanIndexForward: true // 昇順でソート
     });
+    
+    const historyResponse = await docClient.send(historyCommand);
+    
+    // 3. マスターセッションと履歴を結合してSessionStateを構築
+    const masterItem = masterResponse.Item;
+    const historyItems = historyResponse.Items || [];
+    
+    // 履歴アイテムをSessionStateのhistory配列に変換
+    const history = historyItems.map(item => ({
+      thinking: item.thinking,
+      action: item.action,
+      observation: item.observation,
+      timestamp: item.timestamp
+    }));
+    
+    // SessionStateオブジェクトを構築
+    const state: SessionState = {
+      context: masterItem.context,
+      history: history,
+      finalAnswer: masterItem.finalAnswer,
+      state: masterItem.state,
+      cycleCount: masterItem.cycleCount,
+      dataCollectionStatus: masterItem.dataCollectionStatus,
+      lastThinking: masterItem.lastThinking,
+      lastAction: masterItem.lastAction,
+      lastObservation: masterItem.lastObservation,
+      missingData: masterItem.missingData,
+      forcedCompletion: masterItem.forcedCompletion
+    };
+    
+    logger.info("Session state retrieved", { sessionId, historyCount: history.length });
     return state;
   } catch (error) {
     logger.error("Error getting session state", { error, sessionId });
@@ -68,23 +101,75 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
     
     const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60 * 30; // Expires after 30 days
     
-    // Save tool execution records as a separate field
-    const toolExecutions = state.toolExecutions || [];
+    // セッションIDをpkの形式に変換
+    const pk = `SESSION#${sessionId}`;
     
-    const command = new PutCommand({
+    // 1. マスターセッションアイテムを保存
+    const masterItem = {
+      pk,
+      sk: "DATA",
+      context: state.context,
+      finalAnswer: state.finalAnswer,
+      state: state.state,
+      cycleCount: state.cycleCount,
+      dataCollectionStatus: state.dataCollectionStatus,
+      lastThinking: state.lastThinking,
+      lastAction: state.lastAction,
+      lastObservation: state.lastObservation,
+      missingData: state.missingData,
+      forcedCompletion: state.forcedCompletion,
+      ttl
+    };
+    
+    const masterCommand = new PutCommand({
       TableName: tableName,
-      Item: {
-        sessionId,
-        state,
-        toolExecutions, // Save tool execution records as a separate field
-        ttl
-      }
+      Item: masterItem
     });
     
-    await docClient.send(command);
+    await docClient.send(masterCommand);
+    
+    // 2. 既存の履歴数を取得
+    const countCommand = new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: {
+        ":pk": pk,
+        ":prefix": "HISTORY#"
+      },
+      Select: "COUNT"
+    });
+    
+    const countResponse = await docClient.send(countCommand);
+    const existingHistoryCount = countResponse.Count || 0;
+    
+    // 3. 新しい履歴アイテムのみを保存
+    const newHistoryItems = state.history.slice(existingHistoryCount);
+    
+    for (let i = 0; i < newHistoryItems.length; i++) {
+      const historyItem = newHistoryItems[i];
+      const historyNumber = existingHistoryCount + i + 1;
+      const sk = `HISTORY#${historyNumber}`;
+      
+      const historyCommand = new PutCommand({
+        TableName: tableName,
+        Item: {
+          pk,
+          sk,
+          thinking: historyItem.thinking,
+          action: historyItem.action,
+          observation: historyItem.observation,
+          timestamp: historyItem.timestamp,
+          ttl
+        }
+      });
+      
+      await docClient.send(historyCommand);
+    }
+    
     logger.info("Session state saved", { 
       sessionId, 
-      toolExecutionsCount: toolExecutions.length 
+      newHistoryCount: newHistoryItems.length,
+      totalHistoryCount: state.history.length
     });
   } catch (error) {
     logger.error("Error saving session state", { error, sessionId });
@@ -93,40 +178,8 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
 }
 
 export async function updateSessionState(sessionId: string, state: SessionState): Promise<void> {
-  logger.info("Updating session state", { sessionId });
-  
-  try {
-    const tableName = process.env.SESSION_TABLE_NAME;
-    if (!tableName) {
-      throw new Error("SESSION_TABLE_NAME environment variable is not set");
-    }
-    
-    // Update tool execution records as a separate field
-    const toolExecutions = state.toolExecutions || [];
-    
-    const command = new UpdateCommand({
-      TableName: tableName,
-      Key: { sessionId },
-      UpdateExpression: "set #state = :state, #toolExecutions = :toolExecutions",
-      ExpressionAttributeNames: {
-        "#state": "state",
-        "#toolExecutions": "toolExecutions"
-      },
-      ExpressionAttributeValues: {
-        ":state": state,
-        ":toolExecutions": toolExecutions
-      }
-    });
-    
-    await docClient.send(command);
-    logger.info("Session state updated", { 
-      sessionId, 
-      toolExecutionsCount: toolExecutions.length 
-    });
-  } catch (error) {
-    logger.error("Error updating session state", { error, sessionId });
-    throw error;
-  }
+  // updateSessionStateは内部的にsaveSessionStateを呼び出す
+  await saveSessionState(sessionId, state);
 }
 
 export async function completeSession(sessionId: string): Promise<void> {
@@ -170,13 +223,48 @@ export async function deleteSession(sessionId: string): Promise<void> {
       throw new Error("SESSION_TABLE_NAME environment variable is not set");
     }
     
-    const command = new DeleteCommand({
+    // セッションIDをpkの形式に変換
+    const pk = `SESSION#${sessionId}`;
+    
+    // 1. マスターセッションアイテムを削除
+    const masterCommand = new DeleteCommand({
       TableName: tableName,
-      Key: { sessionId }
+      Key: { 
+        pk,
+        sk: "DATA"
+      }
     });
     
-    await docClient.send(command);
-    logger.info("Session deleted", { sessionId });
+    await docClient.send(masterCommand);
+    
+    // 2. 履歴アイテムを取得
+    const historyCommand = new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: {
+        ":pk": pk,
+        ":prefix": "HISTORY#"
+      },
+      ProjectionExpression: "sk"
+    });
+    
+    const historyResponse = await docClient.send(historyCommand);
+    const historyItems = historyResponse.Items || [];
+    
+    // 3. 履歴アイテムを削除
+    for (const item of historyItems) {
+      const deleteCommand = new DeleteCommand({
+        TableName: tableName,
+        Key: {
+          pk,
+          sk: item.sk
+        }
+      });
+      
+      await docClient.send(deleteCommand);
+    }
+    
+    logger.info("Session deleted", { sessionId, historyItemsDeleted: historyItems.length });
   } catch (error) {
     logger.error("Error deleting session", { error, sessionId });
     throw error;
