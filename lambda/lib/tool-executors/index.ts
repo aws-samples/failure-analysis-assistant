@@ -139,12 +139,6 @@ export function registerAllTools(
         description: "フィルタリングするイベント名の配列（例: ['CreateFunction', 'RunInstances']）",
         required: false
       },
-      {
-        name: "users",
-        type: "string[]",
-        description: "フィルタリングするユーザー名の配列",
-        required: false
-      },
     ],
     execute: async (params: {
       services?: string[];
@@ -189,12 +183,6 @@ export function registerAllTools(
         name: "paths",
         type: "string[]",
         description: "フィルタリングするリクエストパスの配列（例: ['/api', '/login']）",
-        required: false
-      },
-      {
-        name: "userAgents",
-        type: "string[]",
-        description: "フィルタリングするユーザーエージェントの配列",
         required: false
       },
     ],
