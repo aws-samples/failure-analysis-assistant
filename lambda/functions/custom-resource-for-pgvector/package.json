@@ -1,6 +1,5 @@
 {
   "name": "custom-resource-for-pgvector",
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -noEmit"

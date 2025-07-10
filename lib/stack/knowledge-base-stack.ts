@@ -34,7 +34,7 @@ export class KnowledgeBaseStack extends Stack {
     })
     knowledgeBase.node.addDependency(auroraServerless.cluster);
     props.fa2BackendFunction.addEnvironment("KNOWLEDGEBASE_ID", knowledgeBase.knowledgeBaseId);
-
+    
     // add permissions to fa2 backend function
     props.fa2BackendFunction.addToRolePolicy(
       new PolicyStatement({
@@ -44,7 +44,7 @@ export class KnowledgeBaseStack extends Stack {
         resources: [`arn:aws:bedrock:${Stack.of(this).region}:${Stack.of(this).account}:knowledge-base/${knowledgeBase.knowledgeBaseId}`],
       })
     );
-
+    
     if (props.rerankModelId) {
       props.fa2BackendFunction.addEnvironment("RERANK_MODEL_ID", props.rerankModelId);
       props.fa2BackendFunction.addToRolePolicy(
@@ -62,7 +62,8 @@ export class KnowledgeBaseStack extends Stack {
           ],
           resources: ['*'],
         })
-      )
+      );
+      
     }
   }
 }

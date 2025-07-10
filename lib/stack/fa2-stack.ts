@@ -7,19 +7,21 @@ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 
 interface FA2StackProps extends StackProps {
   language: Language;
-  qualityModelId: string;
-  fastModelId: string;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
-  cwLogLogGroups: string[];
+  cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+  slashCommands: SlashCommands;
   detectorId?: string;
+  knowledgeBaseId?: string;
+  rerankModelId?: string;
+  maxAgentCycles?: number;
 }
 
 export class FA2Stack extends Stack {
@@ -30,19 +32,19 @@ export class FA2Stack extends Stack {
     // To deploy FA2 backend with Slack bot backend.
     const fa2 = new FA2(this, "FA2Slack", {
       language: props.language,
-      qualityModelId: props.qualityModelId,
-      fastModelId: props.fastModelId,
+      modelId: props.modelId,
       slackAppTokenKey: props.slackAppTokenKey,
       slackSigningSecretKey: props.slackSigningSecretKey,
       architectureDescription: props.architectureDescription,
-      cwLogLogGroups: props.cwLogLogGroups,
+      cwLogsLogGroups: props.cwLogsLogGroups,
       cwLogsInsightQuery: props.cwLogsInsightQuery,
       xrayTrace: props.xrayTrace,
-      slashCommands: props.slashCommands,
       databaseName: props.databaseName,
       albAccessLogTableName: props.albAccessLogTableName,
       cloudTrailLogTableName: props.cloudTrailLogTableName,
+      slashCommands: props.slashCommands,
       detectorId: props.detectorId,
+      maxAgentCycles: props.maxAgentCycles,
     });
     this.fa2BackendFunction = fa2.backendFunction;
     
@@ -72,6 +74,16 @@ export class FA2Stack extends Stack {
         },
       ],
     );
+    NagSuppressions.addResourceSuppressionsByPath(
+      Stack.of(this),
+      `${Stack.of(this).stackName}/${fa2.node.id}/SlackHandlerEndpoint/CloudWatchRole/Resource`,
+      [
+        {
+          id: "AwsSolutions-IAM4",
+          reason: "Make it simple by using Managed Policy/Role"
+        }
+      ]
+    )
 
     NagSuppressions.addStackSuppressions(this, [
       {
@@ -80,7 +92,7 @@ export class FA2Stack extends Stack {
       }
     ])
 
-    if(props.slashCommands.insight){
+        if(props.slashCommands.insight){
       NagSuppressions.addResourceSuppressions(fa2.metricsInsightRole, [
         {
           id: "AwsSolutions-IAM4",
