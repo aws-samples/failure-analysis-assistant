@@ -10,29 +10,12 @@ const app = new App();
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 const fa2Stack = new FA2Stack(app, `${devParameter.envName.slice(0,3)}-FA2`, {
-  env: {
-    account: devParameter.env?.account || process.env.CDK_DEFAULT_ACCOUNT,
-    region: devParameter.env?.region || process.env.CDK_DEFAULT_REGION,
-  },
   tags: {
     Environment: devParameter.envName,
   },
   description:
-    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:chatbot-customaction).",
-  language: devParameter.language,
-  qualityModelId: devParameter.qualityModelId,
-  fastModelId: devParameter.fastModelId,
-  slackAppTokenKey: devParameter.slackAppTokenKey,
-  slackSigningSecretKey: devParameter.slackSigningSecretKey,
-  architectureDescription: devParameter.architectureDescription,
-  cwLogLogGroups: devParameter.cwLogsLogGroups,
-  cwLogsInsightQuery: devParameter.cwLogsInsightQuery,
-  xrayTrace: devParameter.xrayTrace,
-  slashCommands: devParameter.slashCommands,
-  databaseName: devParameter.databaseName,
-  albAccessLogTableName: devParameter.albAccessLogTableName,
-  cloudTrailLogTableName: devParameter.cloudTrailLogTableName,
-  detectorId: devParameter.detectorId,
+    "Failure Analysis Assistant retrieve logs and traces from AWS services and helps analyze root cause of errors by LLM (uksb-o0f5mc077z) (tag:agent).",
+  ...devParameter
 });
 
 if(devParameter.knowledgeBase){

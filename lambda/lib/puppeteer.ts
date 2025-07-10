@@ -1,18 +1,17 @@
 import puppeteer from 'puppeteer-core';
 import chromium from "@sparticuz/chromium";
 import * as marked from 'marked';
-import logger from './logger.js';
+import { logger } from './logger.js';
 
 export async function convertMermaidToImage(mermaidSyntax: string){
   logger.info("Start", {functionName: convertMermaidToImage.name, input: {mermaidSyntax}});
-  chromium.setHeadlessMode = true;
   chromium.setGraphicsMode = false;
   try{
     const browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: null,
       executablePath: await chromium.executablePath('/opt/nodejs/node_modules/@sparticuz/chromium/bin'),
-      headless: chromium.headless,
+      headless: "shell",
     });
     const page = await browser.newPage();
     await page.setContent(`
@@ -41,7 +40,6 @@ export async function convertMermaidToImage(mermaidSyntax: string){
 
 export async function convertMDToPDF(markdownText: string){
   logger.info("Start", {functionName: convertMDToPDF.name, input: {markdownText}});
-  chromium.setHeadlessMode = true;
   chromium.setGraphicsMode = false;
   try{
     const browser = await puppeteer.launch({
@@ -58,9 +56,9 @@ export async function convertMDToPDF(markdownText: string){
         "--font-render-hinting=none"
       ],
       ignoreDefaultArgs: ['--disable-extensions'],
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: null,
       executablePath: await chromium.executablePath('/opt/nodejs/node_modules/@sparticuz/chromium/bin'),
-      headless: chromium.headless,
+      headless: "shell",
     });
     const html = marked.parse(markdownText);
     const page = await browser.newPage();

@@ -1,5 +1,6 @@
 import {
   aws_apigateway as apigateway,
+  aws_dynamodb as dynamodb,
   aws_iam as iam,
   aws_lambda as lambda,
   aws_lambda_nodejs as lambdaNodejs,
@@ -7,6 +8,7 @@ import {
   aws_secretsmanager as secretsManager,
   Duration,
   Stack,
+  RemovalPolicy,
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
@@ -15,19 +17,19 @@ import { Language, SlashCommands } from "../../parameter";
 
 interface FA2Props {
   language: Language;
-  qualityModelId: string;
-  fastModelId: string;
+  modelId: string;
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
-  cwLogLogGroups: string[];
+  cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
-  slashCommands: SlashCommands;
   databaseName?: string;
   albAccessLogTableName?: string;
   cloudTrailLogTableName?: string;
+  slashCommands: SlashCommands;
   detectorId?: string;
+  maxAgentCycles?: number;
 }
 
 export class FA2 extends Construct {
@@ -37,12 +39,13 @@ export class FA2 extends Construct {
   findingsReportRole: iam.Role;
   slackHandlerRole: iam.Role;
   slackRestApi: apigateway.RestApi;
+  sessionTable: dynamodb.Table;
   constructor(scope: Construct, id: string, props: FA2Props) {
     super(scope, id);
 
     // Baseline. CloudWatch Logs parameters are required.
     if (
-      props.cwLogLogGroups.length < 1 ||
+      props.cwLogsLogGroups.length < 1 ||
       props.cwLogsInsightQuery.length < 1
     ) {
       throw new Error("Please configure CloudWatch Logs LogGroups and Query.");
@@ -59,6 +62,21 @@ export class FA2 extends Construct {
       "SlackSigningSecret",
       props.slackSigningSecretKey
     );
+
+    // DynamoDB table to store session state
+    this.sessionTable = new dynamodb.Table(this, "SessionTable", {
+      partitionKey: {
+        name: "pk",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "sk",
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY,
+      timeToLiveAttribute: "ttl",
+    });
 
     // Function of Failure Analysis
     const fa2BackendRole = new iam.Role(this, "FA2BackendRole", {
@@ -89,7 +107,7 @@ export class FA2 extends Construct {
                 "logs:DescribeLogStreams",
               ],
               resources: [
-                ...props.cwLogLogGroups.map(
+                ...props.cwLogsLogGroups.map(
                   (loggroup) =>
                     `arn:aws:logs:${Stack.of(this).region}:${
                       Stack.of(this).account
@@ -117,49 +135,52 @@ export class FA2 extends Construct {
             }),
           ],
         }),
+        lambda: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["lambda:InvokeFunction"],
+              resources: [`arn:aws:lambda:${Stack.of(this).region}:${Stack.of(this).account}:function:*`],
+            }),
+            // })
+          ],
+        }),
       },
     });
     this.backendRole = fa2BackendRole;
-    // Layer includes fonts and nodejs directroies.
-    // Font file is necessary to show Japanese characters in the diagram.
-    const converterLayer = new lambda.LayerVersion(this, "ConverterLayer", {
-        code: lambda.Code.fromAsset(
-        path.join(`${__dirname}/../..`, "lambda/layers"),
-      ),
-      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
-      description: "A layer of headless chromium and font",
-    });
-    const fa2Function = new lambdaNodejs.NodejsFunction(this, "FA2Backend", {
+    
+    const fa2Function = new lambdaNodejs.NodejsFunction(this, "Agent", {
       runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 2048,
       timeout: Duration.seconds(600),
       entry: path.join(__dirname, "../../lambda/functions/fa2-lambda/main.mts"),
       environment: {
-        QUALITY_MODEL_ID: props.qualityModelId,
-        FAST_MODEL_ID: props.fastModelId,
+        MODEL_ID: props.modelId,
         LANG: props.language,
         SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
         ARCHITECTURE_DESCRIPTION: props.architectureDescription,
         CW_LOGS_LOGGROUPS: JSON.stringify({
-          loggroups: props.cwLogLogGroups,
+          loggroups: props.cwLogsLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
+        SESSION_TABLE_NAME: this.sessionTable.tableName,
+        MAX_AGENT_CYCLES: props.maxAgentCycles?.toString() || "5",
       },
-      layers: [converterLayer],
       bundling: {
         minify: true,
         keepNames: true,
-        externalModules: ["@aws-sdk/*", "@sparticuz/chromium"],
+        externalModules: ["@aws-sdk/*"],
         tsconfig: path.join(__dirname, "../../tsconfig.json"),
         format: lambdaNodejs.OutputFormat.ESM,
-        banner:
-          // __dirname and __filename is necessary to use @sparticuz/chromium in *.mts file
-          "import { createRequire } from 'module';import { fileURLToPath } from 'node:url';import { dirname } from 'path';const require = createRequire(import.meta.url);const __filename = fileURLToPath(import.meta.url);const __dirname = dirname(__filename);",
+        banner: "import { createRequire } from 'module';const require = createRequire(import.meta.url);"
       },
+      tracing: lambda.Tracing.ACTIVE,
+      recursiveLoop: lambda.RecursiveLoop.ALLOW, // Allow this func to loop recursively for agentic process
       role: fa2BackendRole,
     });
     this.backendFunction = fa2Function;
     token.grantRead(fa2Function);
+    this.sessionTable.grantReadWriteData(fa2Function);
 
     // Existed workload has athena database and tables
     if (
@@ -348,8 +369,7 @@ export class FA2 extends Construct {
             "--tree-shaking": "true",
           },
           // Ref: https://docs.powertools.aws.dev/lambda/typescript/2.0.2/upgrade/#unable-to-use-esm
-          banner:
-            "import { createRequire } from 'module';const require = createRequire(import.meta.url);",
+          banner: "import { createRequire } from 'module';const require = createRequire(import.meta.url);"
         },
       },
     );
@@ -365,6 +385,7 @@ export class FA2 extends Construct {
         accessLogFormat: apigateway.AccessLogFormat.clf(),
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
       },
+      cloudWatchRole: true
     });
     this.slackRestApi = restApi;
     restApi.addRequestValidator("ApiGatewayRequestValidator", {
@@ -428,7 +449,7 @@ export class FA2 extends Construct {
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/metrics-insight/main.mts"),
         environment: {
-          QUALITY_MODEL_ID: props.qualityModelId,
+          MODEL_ID: props.modelId,
           LANG: props.language,
           SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription
@@ -484,13 +505,22 @@ export class FA2 extends Construct {
       });
       this.findingsReportRole = findingsReportRole;
 
+      // Layer includes fonts and nodejs directroies.
+      // Font file is necessary to show Japanese characters in the diagram.
+      const converterLayer = new lambda.LayerVersion(this, "ConverterLayer", {
+          code: lambda.Code.fromAsset(
+          path.join(`${__dirname}/../..`, "lambda/layers"),
+        ),
+        compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+        description: "A layer of headless chromium and font",
+      });
       const findingsReportFunction = new lambdaNodejs.NodejsFunction(this, "FindingsReport", {
         runtime: lambda.Runtime.NODEJS_20_X,
         memorySize: 2048,
         timeout: Duration.seconds(600),
         entry: path.join(__dirname, "../../lambda/functions/findings-report/main.mts"),
         environment: {
-          QUALITY_MODEL_ID: props.qualityModelId,
+          MODEL_ID: props.modelId,
           LANG: props.language,
           SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
           ARCHITECTURE_DESCRIPTION: props.architectureDescription,

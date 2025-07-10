@@ -1,24 +1,59 @@
 import { Handler } from "aws-lambda";
 import { getSecret } from "@aws-lambda-powertools/parameters/secrets";
-import { random, split } from "lodash";
-import pLimit from "p-limit";
-import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
-import {
-  queryToXray,
-  queryToAthena,
-  queryToCWLogs,
-  queryToCWMetrics,
-  generateMetricDataQuery,
-  converse,
-  listMetrics,
-  retrieve,
-} from "../../lib/aws-modules.js";
-import { Prompt } from "../../lib/prompts.js";
-import { MessageClient } from "../../lib/message-client.js";
+import { v4 as uuidv4 } from "uuid";
+import { Prompt } from "../../lib/prompt.js";
+import { MessageClient } from "../../lib/messaging/message-client.js";
 import { Language } from "../../../parameter.js";
-import logger from "../../lib/logger.js"; 
-import { convertMermaidToImage } from "../../lib/puppeteer.js";
+import { logger } from "../../lib/logger.js"; 
+import { ReActAgent } from "../../lib/react-agent.js";
+import { ToolRegistry } from "../../lib/tools-registry.js";
+import { registerAllTools } from "../../lib/tool-executors/index.js";
+import { getSessionState, saveSessionState, completeSession } from "../../lib/session-manager.js";
+import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
+import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
+import { setI18nProvider } from "../../lib/messaging/providers/i18n-factory.js";
+import { GenericTemplateProvider } from "../../lib/messaging/templates/generic-template-provider.js";
+import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
+import { SlackTemplateConverter } from "../../lib/messaging/platforms/slack/slack-template-converter.js";
+import { ConfigurationService } from "../../lib/configuration-service.js";
+
+// Initialize configuration service
+const configService = ConfigurationService.getInstance();
+
+// 初期化状態を確認
+const { isInitialized, error } = ConfigurationService.getInitializationStatus();
+if (!isInitialized) {
+  logger.error("ConfigurationService initialization failed", { error });
+}
+
+// グローバル変数の初期化（条件付き）
+// 初期化に成功した場合のみ、他のグローバル変数を初期化
+let slackAppTokenKey: string;
+let token: string | undefined;
+let lang: Language;
+let i18n: I18nProvider;
+let messageClient: MessageClient;
+let templateProvider: GenericTemplateProvider;
+let templateConverter: SlackTemplateConverter;
+
+if (isInitialized) {
+  try {
+    slackAppTokenKey = configService.getSlackAppTokenKey();
+    token = await getSecret(slackAppTokenKey);
+    lang = configService.getLanguage() as Language;
+    i18n = new I18nProvider(lang);
+    
+    // Set i18n instance to factory for singleton usage
+    setI18nProvider(i18n);
+    
+    messageClient = new MessageClient(token!.toString(), lang);
+    templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+    templateConverter = new SlackTemplateConverter();
+  } catch (error) {
+    logger.error("Failed to initialize global resources", { error });
+    // ここでは例外をスローせず、ログに記録するだけ
+  }
+}
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -26,7 +61,19 @@ export const handler: Handler = async (event: {
   endDate: string;
   channelId?: string;
   threadTs?: string;
+  sessionId?: string; 
 }) => {
+  // 初期化状態を確認
+  if (!isInitialized) {
+    logger.error("Handler execution failed due to configuration error", { error });
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: "Internal server error due to configuration issues"
+      })
+    };
+  }
+  
   // Event parameters
   logger.info("Request started", event);
   const {
@@ -35,255 +82,154 @@ export const handler: Handler = async (event: {
     endDate,
     channelId,
     threadTs,
+    sessionId: eventSessionId
   } = event;
 
-  // Environment variables
-  const qualityModelId = process.env.QUALITY_MODEL_ID;
-  const fastModelId = process.env.FAST_MODEL_ID;
-  const lang: Language = process.env.LANG
-    ? (process.env.LANG as Language)
-    : "en";
-  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
-  const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
-  const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
-  const logGroups = (
-    JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
-  ).loggroups;
-  const xrayTrace =
-    process.env.XRAY_TRACE && process.env.XRAY_TRACE === "true" ? true : false;
-  const albAccessLogTableName = process.env.ALB_ACCESS_LOG_TABLE_NAME;
-  const cloudTrailLogTableName = process.env.CLOUD_TRAIL_LOG_TABLE_NAME;
-  const region = process.env.AWS_REGION;
-  const athenaDatabaseName = process.env.ATHENA_DATABASE_NAME;
-  const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
-  const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID !== "" ? process.env.KNOWLEDGEBASE_ID : undefined;
-  const rerankModelId = process.env.RERANK_MODEL_ID !== "" ? process.env.RERANK_MODEL_ID : undefined;
-
-  const token = await getSecret(slackAppTokenKey);
-  const messageClient = new MessageClient(token!.toString(), lang);
-  const prompt = new Prompt(lang, architectureDescription);
-
-  // Check required variables.
-  if (!qualityModelId || !fastModelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
-    logger.error(`Not found any environment variables. Please check.`, {environemnts: {qualityModelId, fastModelId, cwLogsQuery, logGroups, region, channelId, threadTs}});
-    if (channelId && threadTs) {
-      messageClient.sendMessage(
-        lang && lang === "ja"
-          ? "エラーが発生しました: 環境変数が設定されていない、または渡されていない可能性があります。"
-          : "Error: Not found any environment variables.",
-        channelId, 
-        threadTs
-      );
-    }
-    return;
-  }
-
   try {
-    // Generate a query for getMetricData API
-    const metrics = await listMetrics();
-    const metricSelectionPrompt = prompt.createSelectMetricsForFailureAnalysisPrompt(errorDescription, JSON.stringify(metrics));
-    const metricDataQuery = await generateMetricDataQuery(metricSelectionPrompt);
-
-    // If Knowledge Base is enabled, generate retrieve query
-    let retrieveQuery: string = '';
-    if(knowledgeBaseId) {
-      const promptToRetrieveDocs: string = knowledgeBaseId ? prompt.createPromptToRetrieveDocs(errorDescription) : '';
-      retrieveQuery = split(split((await converse(promptToRetrieveDocs, fastModelId)), '<retrieveQuery>')[1], '</retrieveQuery>')[0]
-    }
-
-    // Send query to each AWS APIs in parallel.
-    const limit = pLimit(5);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const input: Promise<any>[] = [
-      limit(() => queryToCWLogs(startDate, endDate, logGroups, cwLogsQuery, "ApplicationLogs")),
-      limit(() => queryToCWMetrics(startDate, endDate, metricDataQuery, "CWMetrics"))
-    ];
-  
-    if (
-      athenaDatabaseName &&
-      athenaQueryOutputLocation &&
-      albAccessLogTableName
-    ) {
-      // The rows used are limited. In this case, we didn't use success request to analyze failure root cause.
-      // It's just sample query. Please you optimize to your situation.
-      const albQuery = `SELECT * FROM ${albAccessLogTableName} WHERE time BETWEEN ? AND ? AND elb_status_code >= 400`;
-      const albQueryParams = [startDate, endDate];
-      input.push(
-        limit(() =>
-          queryToAthena(
-            albQuery,
-            {
-              Database: athenaDatabaseName,
-            },
-            albQueryParams,
-            athenaQueryOutputLocation,
-            "AlbAccessLogs"
-          ),
-        )
-      );
-    }
-
-    if (
-      athenaDatabaseName &&
-      athenaQueryOutputLocation &&
-      cloudTrailLogTableName
-    ) {
-      // The columns used are limited. In this case, we thought that all columns are not required for failure analysis.
-      // It's just sample query. Please you optimize to your situation.
-      const trailQuery = `SELECT eventtime, eventsource, eventname, awsregion, sourceipaddress, errorcode, errormessage FROM ${cloudTrailLogTableName} WHERE eventtime BETWEEN ? AND ? AND awsregion = ? AND sourceipaddress LIKE ?`;
-      const trailQueryParams = [startDate, endDate, region, "%.amazonaws.com"];
-      input.push(
-        limit(() =>
-          queryToAthena(
-            trailQuery,
-            {
-              Database: athenaDatabaseName,
-            },
-            trailQueryParams,
-            athenaQueryOutputLocation,
-            "CloudTrailLogs"
-          ),
-        )
-      );
-    }
-
-    if (xrayTrace) {
-      input.push(
-        limit(() => queryToXray(startDate, endDate, "XrayTraces"))
-      );
-    }
-
-    if (knowledgeBaseId) {
-      input.push(
-        limit(() => retrieve(knowledgeBaseId, retrieveQuery, rerankModelId, "Retrieve"))
-      )
-    }
-
-    const results = await Promise.all(input);
-
-    // Prompt
-    const failureAnalysisPrompt =
-      prompt.createFailureAnalysisPrompt(
-        errorDescription,
-        Prompt.getStringValueFromQueryResult(
-          results,
-          "ApplicationLogs",
-        ),
-        Prompt.getStringValueFromQueryResult(
-          results,
-          "CWMetrics",
-        ),
-        Prompt.getStringValueFromQueryResult(
-          results,
-          "AlbAccessLogs",
-        ),
-        Prompt.getStringValueFromQueryResult(
-          results,
-          "CloudTrailLogs",
-        ),
-        Prompt.getStringValueFromQueryResult(results, "XrayTraces"),
-        Prompt.getStringValueFromQueryResult(results, "Retrieve")
-      );
-
-    logger.info("Made prompt", {prompt: failureAnalysisPrompt});
-
-    const answer = await converse(failureAnalysisPrompt);
-
-    if(!answer) throw new Error("No response from LLM");
-
-    // We assume that threshold is 3,500. And it's not accurate. Please modify this value when you met error. 
-    if(answer.length < 3500){
-      // Send the answer to Slack directly.
+    // Generate or get session ID
+    const sessionId = eventSessionId || uuidv4();
+    
+    // Initialize prompt
+    const architectureDescription = configService.getArchitectureDescription();
+    const prompt = new Prompt(lang, architectureDescription);
+    
+    // Initialize tool registry
+    const toolRegistry = new ToolRegistry();
+    registerAllTools(
+      toolRegistry, 
+      {
+        startDate,
+        endDate
+      },
+      i18n, // Pass i18n instance to registerAllTools
+      configService // Pass configService to registerAllTools
+    );
+    
+    // Initialize ReActAgent
+    const reactAgent = new ReActAgent(
+      sessionId,
+      errorDescription,
+      toolRegistry,
+      prompt,
+      { maxAgentCycles: configService.getMaxAgentCycles() }
+    );
+    
+    // Get session state (null for new session)
+    const sessionState = await getSessionState(sessionId, configService);
+    
+    // For new session
+    if (!sessionState) {
+      // Send progress to Slack
+      const startBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisStartMessage")
+      ).blocks;
+      
+      // Convert MessageBlock[] to KnownBlock[]
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: startBlocks });
+      
       await messageClient.sendMessage(
-        messageClient.createMessageBlock(answer),
-        channelId,
-        threadTs
+        knownBlocks,
+        channelId!, 
+        threadTs!
       );
-    }else{
-      // Send the snippet of answer instead of message due to limitation of message size.
-      await messageClient.sendMarkdownSnippet("answer.md", answer, channelId, threadTs)
+    } else {
+      // Set existing session state to ReActAgent
+      reactAgent.setSessionState(sessionState);
     }
-
-    logger.info('Success to get answer:', answer);
-
-    // Create explanation how to get logs by operators.
-    const howToGetLogs =
-      messageClient.createHowToGetLogs(
+    
+    // Execute one step (considering Lambda execution time)
+    const stepResult = await reactAgent.executeStep();
+    
+    // Save session state
+    await saveSessionState(sessionId, reactAgent.getSessionState(), configService);
+    
+    if (stepResult.isDone) {
+      // Send final answer to Slack
+      const finalAnswer = stepResult.finalAnswer || "分析が完了しましたが、結果を生成できませんでした。";
+      
+      // Convert markdown text to rich text
+      await messageClient.sendMarkdownSnippet(
+        "analysis_result.md",
+        finalAnswer,
+        channelId!,
+        threadTs!
+      );
+      
+      // Process session completion
+      await completeSession(sessionId, configService);
+      
+      // Analysis complete message
+      const completeBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisCompleteMessage")
+      ).blocks;
+      
+      // Convert MessageBlock[] to KnownBlock[]
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: completeBlocks });
+      
+      await messageClient.sendMessage(
+        knownBlocks,
+        channelId!, 
+        threadTs!
+      );
+    } else {
+      // Call Lambda again to execute next step
+      const lambdaFunctionName = configService.getLambdaFunctionName()!;
+      const payload = JSON.stringify({
+        errorDescription,
         startDate,
         endDate,
-        logGroups,
-        cwLogsQuery,
-        JSON.stringify(metricDataQuery),
-        xrayTrace,
-        Prompt.getStringValueFromQueryResult(results, "AlbAccessLogsQueryString"),
-        Prompt.getStringValueFromQueryResult(results, "CloudTrailLogsQueryString")
-      );
-    logger.info('Success to create HowToGetLogs', {howToGetLogs});
-
-    // Send the explanation to Slack directly.
-    await messageClient.sendMarkdownSnippet(
-      "HowToGet.md",
-      howToGetLogs,
-      channelId,
-      threadTs
-    );
-
-    if (knowledgeBaseId) {
-      const message = messageClient.createRetrieveResultMessage(
-        JSON.parse(Prompt.getStringValueFromQueryResult(results, "RetrieveRawData")!)
-      );
-      await messageClient.sendMessage(
-        message,
         channelId,
-        threadTs
+        threadTs,
+        sessionId
+      });
+      
+      // Invoke Lambda asynchronously
+      const lambdaService = AWSServiceFactory.getLambdaService();
+      lambdaService.invokeAsyncLambdaFunc(payload, lambdaFunctionName);
+      
+      // Send progress to Slack
+      // Get current state of ReActAgent
+      const currentState = reactAgent.getSessionState();
+      
+      // Build different messages according to next action
+      const progressBlocks = templateProvider.createProgressMessageTemplate(
+        currentState.state,
+        currentState
+      ).blocks;
+      
+      // Convert MessageBlock[] to KnownBlock[]
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: progressBlocks });
+      
+      await messageClient.sendMessage(
+        knownBlocks,
+        channelId!,
+        threadTs!
       );
     }
-
-    /* ****** */
-    // Additional process. It shows the root cause on the image.
-    // If you don't need it, please comment out below.
-    const outputImageResponse = await converse(
-      prompt.createImageGenerationPrompt(errorDescription, answer), 
-      'anthropic.claude-3-5-sonnet-20240620-v1:0', 
-    )
-    const mermaidSyntax = split(split(outputImageResponse, '<outputMermaidSyntax>')[1], '</outputMermaidSyntax>')[0];
-    logger.info('Success to create Mermaid syntax', {mermaidSyntax})
-
-    const png = await convertMermaidToImage(mermaidSyntax)
-
-    if(!png) {
-      throw new Error("Failed to create Mermaid image")
-    }
-
-    await messageClient.sendFile(png, `fa2-output-image-${Date.now()}${random(100000000,999999999,false)}.png`, channelId, threadTs);
-        
-    // end of output image task
-    /* ****** */
-
   } catch (error) {
     logger.error("Something happened", error as Error);
-    // Send the form to retry when error was occured.
+    // Send form on error
     if(channelId && threadTs){
+      // Send error message
       await messageClient.sendMessage(
         messageClient.createErrorMessageBlock(),
         channelId, 
         threadTs
       );
-      await messageClient.sendMessage( 
-        messageClient.createMessageBlock(
-          lang === "ja" 
-            ? "リトライしたい場合は、以下のフォームからもう一度同じ内容のリクエストを送ってください。" 
-            : "If you want to retry it, you send same request again from below form."
-        ),
+      
+      // Send retry guidance message
+      const errorBlocks = templateProvider.createMessageTemplate(
+        i18n.translate("analysisErrorMessage")
+      ).blocks;
+      
+      // Convert MessageBlock[] to KnownBlock[]
+      const knownBlocks = templateConverter.convertMessageTemplate({ blocks: errorBlocks });
+      
+      await messageClient.sendMessage(
+        knownBlocks,
         channelId, 
         threadTs
       );
-      const now = toZonedTime(new Date(), "Asia/Tokyo");
-      await messageClient.sendMessage(
-        messageClient.createFormBlock(format(now, "yyyy-MM-dd"), format(now, "HH:mm")),
-        channelId,
-        threadTs
-      )
     }
   }
   return;
