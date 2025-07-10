@@ -3,7 +3,6 @@
 [日本語で読む](./README.md)
 
 This is a sample implementation that responds to alarms sent to Slack by Amazon Q Developer in chat applications and helps analyze the root cause of the failure.
-This is the sample code for the demo shown at the AWS Summit Japan 2024 booth.
 This sample code provides the following feature:
 
 **Failure analysis assist**
@@ -23,29 +22,8 @@ Please see [Findings Report Doc](./docs/FindingsReport_en.md)
 
 ## Branches
 
-- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App. This was exhibited at the AWS Summit Japan 2024.
-- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Instead of the Slack App, this is a version that implements an input form using a `Custom Action` of Amazon Q Developer in chat applications. If you don't have an environment where you can't use the Slack App, or if you don't want to manage the Slack App, use this.
-
-## Background
-
-I think there are many people who have implemented ChatOps to send alarm notifications to the chat applications.
-However, when an event such as an alarm occurs, what actually takes time is root cause analysis and correction after identification of analysis results, which occurs after the event is detected.
-This sample shows failure analysis using LLM as one idea to make cause analysis as efficient as possible.
-
-Normally, when you analyses root cause, you aquired logs after defining a fixed period of time from the time the alarm occurred using empirical rules.
-The logs are not in one place, and there are in many places. After collecting logs from all places, we organize their dependencies, and identify the root cause.
-
-This process is so hard task that requires patience and time, and pressure will be applied in situations in the case of happening the negative impact to your business.
-Amazon CloudWatch Logs, which is a typical log output location for AWS, has an API for querying, so if you have specific time range, you can retrieve logs. we can retrieve the logs from Amazon S3 that is combined with Amazon Athena in similar way.
-Additionally, by specifying a time range, AWS X-Ray can also obtain trace information for that time range.
-
-From the above, it is possible to automate the retrieval of logs and traces programmatically.
-And, we inputted the acquired information into a large language model (LLM) to improve the efficiency of information extraction and summarization.
-
-LLM is known for its ability to handle summaries and information extraction. It is possible to process more input information in a faster time than humans.
-There is a possibility that hallucination will be included in LLM response, so caution is necessary, but I think it can be used as an auxiliary way for humans to make decisions in the end.
-
-Please use this sample and try out the effects.
+- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App. 
+- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Instead of the Slack App, this is a version that implements an input form using a `Custom Action` of Amazon Q Developer in chat applications. If you don't have an environment where you can't use the Slack App, or if you don't want to manage the Slack App, use this. This is not updated to Agent version.
 
 ## Architecture & Workflow
 
@@ -66,7 +44,7 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 5. The agent uses the following tools to collect and analyze information:
    - **metrics_tool**: Retrieves and analyzes CloudWatch metrics
    - **logs_tool**: Retrieves and analyzes logs from CloudWatch Logs
-   - **audit_log_tool**: Retrieves and analyzes audit logs from CloudTrail
+   - **athena_log_tool**: Retrieves and analyzes audit logs from CloudTrail and access logs from ALB via Amazon Athena
    - **xray_tool**: Retrieves and analyzes trace information from X-Ray
    - **kb_tool**: Searches documents from Knowledge Base
 6. When the analysis is complete, the agent generates a detailed failure analysis report that includes:
@@ -114,8 +92,7 @@ The ReACT agent, which is the core of FA2, operates with the following detailed 
   - Amazon Athena and AWS X-Ray are optional
   - If you want to invlude AWS CloudTrail or Application Load Balancer (ALB) access logs, an Amazon Athena database must be created
   - If AWS X-Ray trace information is also used, an AWS X-Ray trace for the relevant system must have been obtained
-- Claude 3 Sonnet and Claude 3.5 Sonnet access has been granted from model access on Amazon Bedrock
-  - Claude 3.5 Sonnet is used for generation of the image written by Mermaid syntax.
+- Specific LLMs access has been granted from model access on Amazon Bedrock. (Ex. Claude 3.7 Sonnet, etc.)
 - Confirm that an alarm notification will be sent to Slack from the Amazon Q Developer in chat applications set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
 - You must have the permission to register the Slack App to the Slack workspace you want to use.
@@ -144,7 +121,7 @@ Refer to the following description, copy `parameter_template.ts`, create `parame
 // Example: Settings for the Slack App version when using Claude 3.7 Sonnet and using CloudWatch Logs as search targets
 export const devParameter: AppParameter = {
   env: {
-    account: "148991357402",
+    account: "123456789012",
     region: "us-west-2",
   },
   language: "ja",
@@ -174,7 +151,7 @@ export const devParameter: AppParameter = {
 
 | Parameters               | Example value                                                             | Description                                                                                                                                                                                 |
 | ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.account`            | `"148991357402"`                                                          | AWS Account ID to deploy this sample                                                                                                                                                        |
+| `env.account`            | `"123456789012"`                                                          | AWS Account ID to deploy this sample                                                                                                                                                        |
 | `env.region`             | `"us-west-2"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
 | `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
 | `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
@@ -184,7 +161,12 @@ export const devParameter: AppParameter = {
 | `architectureDescription`  | `"The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
 | `cwLogsLogGroups`        | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
-| `xrayTrace`              | `false`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
+| `databaseName`           | `"athenadatacatalog"`                                                     | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                  |
+| `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
+| `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
+| `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
+| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
+| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
 | `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
 | `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
 | `maxAgentCycles`              | `5`                                                                    | Specifies the maximum number of cycles the ReACT agent will execute. Default is 5.                                                                                                      |
