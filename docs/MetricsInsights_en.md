@@ -1,6 +1,6 @@
 # Metrics Analysis
 
-Metrics Analysis Support is a feature that utilizes AWS CloudWatch metrics to analyze system status and issues. With this feature, users can simply input queries in natural language to automatically identify relevant metrics and obtain analysis results.
+Metrics Analysis Support is a feature that utilizes Amazon CloudWatch's metrics to analyze system status and issues. With this feature, users can simply input queries in natural language to automatically identify relevant metrics and obtain analysis results.
 
 ## Key Features
 
@@ -26,7 +26,7 @@ You type `/insight` in the Slack chat form and send, a modal will be displayed.
 In the modal form, enter [the question you want answered based on the metrics] and [the period you want to obtain the metrics].
 In about 1-2 minutes, you'll get an answer.
 
-The following example asks questions about ECS performance.
+The following example asks questions about Amazon ECS performance.
 
 ![insight-form](./docs/images/en/fa2-insight-form.png)
 
@@ -34,11 +34,11 @@ The following example asks questions about ECS performance.
 
 ## Technical Mechanism
 
-1. Infer relevant AWS namespaces from user queries (using Bedrock LLM)
+1. Infer relevant AWS namespaces from user queries (using Amazon Bedrock LLM)
 2. Retrieve a list of metrics from the inferred namespaces
-3. Generate optimal MetricDataQuery based on the query and metrics list (using Bedrock LLM)
+3. Generate optimal MetricDataQuery based on the query and metrics list (using Amazon Bedrock LLM)
 4. Retrieve actual metrics data using the CloudWatch API
-5. Analyze the retrieved data and generate insights (using Bedrock LLM)
+5. Analyze the retrieved data and generate insights (using Amazon Bedrock LLM)
 6. Format results in Markdown and send to Slack
 
 ## Configuration

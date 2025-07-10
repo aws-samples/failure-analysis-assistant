@@ -1,13 +1,12 @@
 # Findings Report Feature
 
-The Findings Report is a feature that collects detection results (Findings) from AWS SecurityHub and GuardDuty to provide a comprehensive analysis of security status. This feature allows you to quickly identify security issues and take appropriate measures.
+The Findings Report is a feature that collects detection results (Findings) from AWS Security Hub and Amazon GuardDuty to provide a comprehensive analysis of security status. This feature allows you to quickly identify security issues and take appropriate measures.
 
 ## Key Features
 
 1. **Integration of Multiple Security Sources**
-   - Collects and analyzes findings from AWS SecurityHub
+   - Collects and analyzes findings from AWS Security Hub
    - Collects and analyzes findings from Amazon GuardDuty
-   - Potential for future integration with AWS Health information
 
 2. **Comprehensive Security Analysis**
    - Holistically analyzes collected findings
@@ -28,9 +27,9 @@ In about 1-2 minutes, a PDF of the Findings report will be uploaded.
 
 ## Technical Mechanism
 
-1. Use AWS SecurityHub and GuardDuty APIs to retrieve the latest findings
+1. Use AWS Security Hub and Amazon GuardDuty APIs to retrieve the latest findings
 2. Organize the retrieved findings in JSON format
-3. Use Bedrock LLM to analyze the findings and generate a comprehensive report
+3. Use Amazon Bedrock LLM to analyze the findings and generate a comprehensive report
 4. Convert the generated Markdown content to PDF
 5. Send the PDF file to the Slack channel
 
@@ -69,11 +68,11 @@ export const devParameter: AppParameter = {
 The Findings Report feature consists of the following main components:
 
 1. **Lambda Function**: `lambda/functions/findings-report/main.mts`
-   - Retrieves findings from SecurityHub and GuardDuty
+   - Retrieves findings from Security Hub and GuardDuty
    - Integrates Bedrock service and PDF conversion functionality
 
 2. **Security Service Integration**:
-   - `lambda/lib/aws/services/securityhub-service.ts`: Retrieves findings from SecurityHub
+   - `lambda/lib/aws/services/Security Hub-service.ts`: Retrieves findings from Security Hub
    - `lambda/lib/aws/services/guardduty-service.ts`: Retrieves findings from GuardDuty
 
 3. **PDF Conversion**: `lambda/lib/puppeteer.ts`

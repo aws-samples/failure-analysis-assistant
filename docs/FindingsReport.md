@@ -1,13 +1,12 @@
 # Findings レポート
 
-Findingsレポートは、AWS SecurityHubとGuardDutyから検出結果（Findings）を収集し、生成 AI が解説するレポートを作成する機能を追加しました。こちらの機能はオプションとなりますので、有効にする場合は、パラメータ設定や[オプション]Findings レポート機能のための Slack App の設定をご確認ください。
+Findingsレポートは、AWS Security Hub とAmazon GuardDutyから検出結果（Findings）を収集し、生成 AI が解説するレポートを作成する機能を追加しました。こちらの機能はオプションとなりますので、有効にする場合は、パラメータ設定や[オプション]Findings レポート機能のための Slack App の設定をご確認ください。
 
 ## 主な特徴
 
 1. **複数のセキュリティソースの統合**
-   - AWS SecurityHubの検出結果を収集・分析
+   - AWS Security Hubの検出結果を収集・分析
    - Amazon GuardDutyの検出結果を収集・分析
-   - 将来的にはAWS Healthの情報も統合可能
 
 2. **包括的なセキュリティ分析**
    - 収集した検出結果を統合的に分析
@@ -28,9 +27,9 @@ Slack のチャット欄に、`/findings-report` と入力、送信すると、�
 
 ## 技術的な仕組み
 
-1. AWS SecurityHubとGuardDutyのAPIを使用して最新の検出結果を取得
+1. AWS Security Hubと Amazon GuardDutyのAPIを使用して最新の検出結果を取得
 2. 取得した検出結果をJSON形式で整理
-3. BedrockのLLMを使用して検出結果を分析し、包括的なレポートを生成
+3. Amazon BedrockのLLMを使用して検出結果を分析し、包括的なレポートを生成
 4. 生成されたMarkdownコンテンツをPDFに変換
 5. PDFファイルをSlackチャンネルに送信
 
@@ -69,11 +68,11 @@ export const devParameter: AppParameter = {
 Findingsレポート機能は主に以下のコンポーネントで構成されています：
 
 1. **Lambda関数**: `lambda/functions/findings-report/main.mts`
-   - SecurityHubとGuardDutyからの検出結果を取得
+   - Security HubとGuardDutyからの検出結果を取得
    - BedrockサービスとPDF変換機能を連携させて動作
 
 2. **セキュリティサービス連携**:
-   - `lambda/lib/aws/services/securityhub-service.ts`: SecurityHubからの検出結果取得
+   - `lambda/lib/aws/services/Security Hub-service.ts`: Security Hubからの検出結果取得
    - `lambda/lib/aws/services/guardduty-service.ts`: GuardDutyからの検出結果取得
 
 3. **PDF変換機能**: `lambda/lib/puppeteer.ts`
@@ -83,15 +82,3 @@ Findingsレポート機能は主に以下のコンポーネントで構成され
 4. **プロンプト生成**: `lambda/lib/prompt.ts`
    - LLMに送信するプロンプトを生成
    - セキュリティ検出結果の分析と報告書作成のための専用プロンプトを提供
-
-Findingsレポート機能は、複数のセキュリティサービスからの情報を統合し、人間が理解しやすい形式で提供することで、セキュリティ対応の効率化を実現します。定期的にレポートを生成することで、セキュリティ状態の継続的なモニタリングが可能になります。
-
-## 動作イメージ
-
-Slack のチャット欄に、`/findings-report` と入力、送信すると、リクエストを受け付けたメッセージが表示されます。
-1-2分ほどで、 Findings のレポートの PDF がアップロードされます。
-
-![findings-report](./docs/images/ja/fa2-findings-report.png)
-
-レポートで出力する Findings は、`lambda/lib/aws-modules.ts` の `listGuardDutyFindings()` と `listSecurityHubFindings()` の関数で取得されています。
-Findings の取得対象を変更したい場合は、これら関数を修正ください。
