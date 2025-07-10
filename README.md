@@ -12,6 +12,16 @@ Amazon Q Developer in chat applications が Slack に送ったアラームに反
 あらかじめ定義されたログの保管先から、ユーザが指定した時間範囲でログを取得し、そのログを LLM で情報抽出や要約を行い、障害分析を助ける情報を Slack に返します。
 機能の動作イメージは、[障害分析支援](#障害分析支援) を参照ください。
 
+**メトリクス分析支援**
+
+ユーザから与えられた質問に対し、生成 AI が必要なメトリクスを選定、そのメトリクスのデータを元に質問に回答する機能を追加しました。
+詳しくは、[メトリクス分析支援](./docs/MetricsInsights.md)を参照ください。
+
+**Findings レポート**
+
+Security Hub と GuardDuty の Findings を生成 AI が解説するレポートを作成する機能を追加しました。
+詳しくは、[Findings レポート](./docs/FindingsReport.md)を参照ください。
+
 ## Branches
 
 - [`main`](https://github.com/aws-samples/failure-analysis-assistant) - 本ブランチです。Slack App を利用したバージョンです。AWS Summit Japan 2024 ではこちらを展示しました。
@@ -242,10 +252,7 @@ Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わ�
 
 #### 障害分析支援
 
-ログ出力元の対象システムでなんらかエラーを起こしてください
-（今回は AWS FIS を利用し、Amazon ECS のコンテナから Amazon DynamoDB への接続障害を起こしました。）
-すると、Slack チャンネルに以下のようなアラームが表示されます。
-（例では、Amazon CloudWatch Synthetics を利用し、外形監視を行なっているため、このようなエラーとなります。）
+ログ出力元の対象システムでなんらかエラーを起こしてください。すると、Slack チャンネルに以下のようなアラームが表示されます。
 
 ![alarm-sample](./docs/images/ja/fa2-slackapp-chatbot-alarm.png)
 
@@ -265,8 +272,7 @@ Amazon Bedrock knowledge Base を有効にした場合、デプロイが終わ�
 
 少し待つと、回答が Slack に表示されます。
 
-<!-- ここにテスト実行結果の画像を配置してください -->
-![fa2-answer](./docs/images/ja/fa2-slackapp-answer.png)
+![fa2-answer](./docs/images/ja/fa2-agent-demo.gif)
 
 ## リソースの削除
 

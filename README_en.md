@@ -11,6 +11,16 @@ This sample code provides the following feature:
 Logs are retrieved from a predefined log storage location within a time range specified by the user, information is extracted and summarized with LLM, and information useful for failure analysis is returned to Slack.
 For an example of how the function works, see [Failure Analysis Assist](#failure-analysis-assist).
 
+**Metrics Insights**
+
+In response to questions given by users, a function has been added to select metrics that require generative AI and answer questions based on that metric data.
+Please see [Metrics Insights Doc](./docs/MetricsInsights_en.md)
+
+**Findings Report**
+
+We've added the feature to create a report explaining Security Hub and GuardDuty Findings by LLM.
+Please see [Findings Report Doc](./docs/FindingsReport_en.md)
+
 ## Branches
 
 - [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App. This was exhibited at the AWS Summit Japan 2024.
@@ -244,9 +254,7 @@ If this is the case, please make the following settings. The fault analysis assi
 #### Failure Analysis Assist
 
 Some kind of error occurred on the target system from which the log was output.
-(This time, we used AWS FIS and caused a connection failure from the Amazon ECS container to Amazon DynamoDB.)
 Then, the following alarm is displayed on the Slack channel.
-(In the example, Amazon CloudWatch Synthetics is used to perform external monitoring, so this error occurs.)
 
 ![alarm-sample](./docs/images/en/fa2-slackapp-chatbot-alarm.png)
 
@@ -266,8 +274,7 @@ Clicked the button, requests are accepted.
 
 Wait a few minutes, and the answers will appear in Slack.
 
-<!-- Please place the test execution result image here -->
-![fa2-answer](./docs/images/en/fa2-slackapp-answer.png)
+![fa2-answer](./docs/images/en/fa2-agent-demo.gif)
 
 ## Delete deployed resources
 
