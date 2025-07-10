@@ -10,6 +10,12 @@ import { SlackDestination } from "../../lib/messaging/platforms/slack/slack-dest
 import { I18nProvider } from "../../lib/messaging/providers/i18n-provider.js";
 import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
 import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
+import { ConfigurationService } from "../../lib/configuration-service.js";
+
+// Initialize configuration service
+const configService = ConfigurationService.getInstance();
+const slackAppTokenKey = configService.getSlackAppTokenKey();
+const token = await getSecret(slackAppTokenKey);
 
 export const handler: Handler = async (event: {
   channelId: string;
@@ -17,17 +23,14 @@ export const handler: Handler = async (event: {
   // Event parameters
   logger.info("Request started", event);
   const { channelId } = event;
-
-  // Environment variables
-  const modelId = process.env.MODEL_ID;
-  const lang: Language = process.env.LANG
-    ? (process.env.LANG as Language)
-    : "en";
-  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
-  const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
-  const region = process.env.AWS_REGION;
-  const detectorId = process.env.DETECTOR_ID!;
-  const token = await getSecret(slackAppTokenKey);
+  
+  // Get configuration from configuration service
+  const modelId = configService.getModelId();
+  const lang: Language = configService.getLanguage() as Language;
+  const architectureDescription = configService.getArchitectureDescription();
+  const region = configService.getRegion();
+  const detectorId = configService.getDetectorId() || "";
+  
   const i18n = new I18nProvider(lang);
   const config = new ConfigProvider();
   const messageClient = new SlackMessageClient(token!.toString(), i18n, logger, config);

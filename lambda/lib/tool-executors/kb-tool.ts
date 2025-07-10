@@ -3,37 +3,48 @@ import { KBResult } from "../../lib/aws/services/bedrock-service.js";
 import { logger } from "../logger.js";
 import { I18nProvider } from "../messaging/providers/i18n-provider.js";
 import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
+import { ConfigurationService } from "../configuration-service.js";
 
 export class KbTool {
   private i18n: I18nProvider;
+  private configService: ConfigurationService;
   
-  constructor(i18n?: I18nProvider) {
+  constructor(i18n?: I18nProvider, configService?: ConfigurationService) {
     // Use provided i18n instance or get from factory
     this.i18n = i18n || getI18nProvider();
+    // Use provided configuration service or get from singleton
+    this.configService = configService || ConfigurationService.getInstance();
   }
   
   async execute(params: {
     query: string;
     maxResults?: number;
     i18n?: I18nProvider;
+    configService?: ConfigurationService;
   }): Promise<string> {
     // Update i18n if provided in params
     if (params.i18n) {
       this.i18n = params.i18n;
     }
+    
+    // Update configuration service if provided in params
+    if (params.configService) {
+      this.configService = params.configService;
+    }
+    
     logger.info("Executing Knowledge Base tool", { params });
     
     try {
-      // Check if Knowledge Base is enabled
-      const knowledgeBaseEnabled = process.env.KNOWLEDGEBASE_ENABLED === "true" || process.env.KNOWLEDGEBASE_ID !== undefined;
+      // Check if Knowledge Base is enabled using configuration service
+      const knowledgeBaseEnabled = this.configService.isKnowledgeBaseEnabled();
       
       if (!knowledgeBaseEnabled) {
         return this.i18n.translate("kbDisabled");
       }
       
-      // Get environment variables
-      const knowledgeBaseId = process.env.KNOWLEDGEBASE_ID;
-      const rerankModelId = process.env.RERANK_MODEL_ID;
+      // Get configuration from configuration service
+      const knowledgeBaseId = this.configService.getKnowledgeBaseId();
+      const rerankModelId = this.configService.getRerankModelId();
       
       if (!knowledgeBaseId) {
         return this.i18n.translate("kbIdNotConfigured");
@@ -46,7 +57,7 @@ export class KbTool {
         results = await bedrockService.retrieve(
           knowledgeBaseId,
           params.query,
-          rerankModelId
+          rerankModelId || undefined
         );
       } catch (retrieveError) {
         // If Knowledge Base doesn't exist or there's no access permission
@@ -94,14 +105,13 @@ export class KbTool {
   }
 }
 
-// Create tool executor instance
-const kbTool = new KbTool();
-
 // Function that can be called externally
 export const kbToolExecutor = async (params: {
   query: string;
   maxResults?: number;
   i18n?: I18nProvider;
+  configService?: ConfigurationService;
 }): Promise<string> => {
+  const kbTool = new KbTool(params.i18n, params.configService);
   return await kbTool.execute(params);
 };

@@ -15,20 +15,45 @@ import { setI18nProvider } from "../../lib/messaging/providers/i18n-factory.js";
 import { GenericTemplateProvider } from "../../lib/messaging/templates/generic-template-provider.js";
 import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js";
 import { SlackTemplateConverter } from "../../lib/messaging/platforms/slack/slack-template-converter.js";
+import { ConfigurationService } from "../../lib/configuration-service.js";
 
-const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
-const token = await getSecret(slackAppTokenKey);
-const lang: Language = process.env.LANG
-  ? (process.env.LANG as Language)
-  : "en";
-const i18n = new I18nProvider(lang);
+// Initialize configuration service
+const configService = ConfigurationService.getInstance();
 
-// Set i18n instance to factory for singleton usage
-setI18nProvider(i18n);
+// 初期化状態を確認
+const { isInitialized, error } = ConfigurationService.getInitializationStatus();
+if (!isInitialized) {
+  logger.error("ConfigurationService initialization failed", { error });
+}
 
-const messageClient = new MessageClient(token!.toString(), lang);
-const templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
-const templateConverter = new SlackTemplateConverter();
+// グローバル変数の初期化（条件付き）
+// 初期化に成功した場合のみ、他のグローバル変数を初期化
+let slackAppTokenKey: string;
+let token: string | undefined;
+let lang: Language;
+let i18n: I18nProvider;
+let messageClient: MessageClient;
+let templateProvider: GenericTemplateProvider;
+let templateConverter: SlackTemplateConverter;
+
+if (isInitialized) {
+  try {
+    slackAppTokenKey = configService.getSlackAppTokenKey();
+    token = await getSecret(slackAppTokenKey);
+    lang = configService.getLanguage() as Language;
+    i18n = new I18nProvider(lang);
+    
+    // Set i18n instance to factory for singleton usage
+    setI18nProvider(i18n);
+    
+    messageClient = new MessageClient(token!.toString(), lang);
+    templateProvider = new GenericTemplateProvider(i18n, new ConfigProvider());
+    templateConverter = new SlackTemplateConverter();
+  } catch (error) {
+    logger.error("Failed to initialize global resources", { error });
+    // ここでは例外をスローせず、ログに記録するだけ
+  }
+}
 
 export const handler: Handler = async (event: {
   errorDescription: string;
@@ -38,6 +63,17 @@ export const handler: Handler = async (event: {
   threadTs?: string;
   sessionId?: string; 
 }) => {
+  // 初期化状態を確認
+  if (!isInitialized) {
+    logger.error("Handler execution failed due to configuration error", { error });
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: "Internal server error due to configuration issues"
+      })
+    };
+  }
+  
   // Event parameters
   logger.info("Request started", event);
   const {
@@ -49,33 +85,13 @@ export const handler: Handler = async (event: {
     sessionId: eventSessionId
   } = event;
 
-  const modelId = process.env.MODEL_ID;
-
-  const architectureDescription = process.env.ARCHITECTURE_DESCRIPTION!;
-  const cwLogsQuery = process.env.CW_LOGS_INSIGHT_QUERY!;
-  const logGroups = (
-    JSON.parse(process.env.CW_LOGS_LOGGROUPS!) as { loggroups: string[] }
-  ).loggroups;
-  const region = process.env.AWS_REGION;
-  
-  const maxAgentCycles = Number(process.env.MAX_AGENT_CYCLES);
-  const prompt = new Prompt(lang, architectureDescription);
-
-  if (!modelId || !cwLogsQuery || !logGroups || !region || !channelId || !threadTs) {
-    logger.error(`Not found any environment variables. Please check.`, {environments: {modelId, cwLogsQuery, logGroups, region, channelId, threadTs}});
-    if (channelId && threadTs) {
-      messageClient.sendMessage(
-        i18n.translate("analysisErrorMessage"),
-        channelId, 
-        threadTs
-      );
-    }
-    return;
-  }
-
   try {
     // Generate or get session ID
     const sessionId = eventSessionId || uuidv4();
+    
+    // Initialize prompt
+    const architectureDescription = configService.getArchitectureDescription();
+    const prompt = new Prompt(lang, architectureDescription);
     
     // Initialize tool registry
     const toolRegistry = new ToolRegistry();
@@ -85,7 +101,8 @@ export const handler: Handler = async (event: {
         startDate,
         endDate
       },
-      i18n // Pass i18n instance to registerAllTools
+      i18n, // Pass i18n instance to registerAllTools
+      configService // Pass configService to registerAllTools
     );
     
     // Initialize ReActAgent
@@ -94,11 +111,11 @@ export const handler: Handler = async (event: {
       errorDescription,
       toolRegistry,
       prompt,
-      { maxAgentCycles }
+      { maxAgentCycles: configService.getMaxAgentCycles() }
     );
     
     // Get session state (null for new session)
-    const sessionState = await getSessionState(sessionId);
+    const sessionState = await getSessionState(sessionId, configService);
     
     // For new session
     if (!sessionState) {
@@ -112,8 +129,8 @@ export const handler: Handler = async (event: {
       
       await messageClient.sendMessage(
         knownBlocks,
-        channelId, 
-        threadTs
+        channelId!, 
+        threadTs!
       );
     } else {
       // Set existing session state to ReActAgent
@@ -124,7 +141,7 @@ export const handler: Handler = async (event: {
     const stepResult = await reactAgent.executeStep();
     
     // Save session state
-    await saveSessionState(sessionId, reactAgent.getSessionState());
+    await saveSessionState(sessionId, reactAgent.getSessionState(), configService);
     
     if (stepResult.isDone) {
       // Send final answer to Slack
@@ -135,11 +152,11 @@ export const handler: Handler = async (event: {
         "analysis_result.md",
         finalAnswer,
         channelId!,
-        threadTs
+        threadTs!
       );
       
       // Process session completion
-      await completeSession(sessionId);
+      await completeSession(sessionId, configService);
       
       // Analysis complete message
       const completeBlocks = templateProvider.createMessageTemplate(
@@ -152,11 +169,11 @@ export const handler: Handler = async (event: {
       await messageClient.sendMessage(
         knownBlocks,
         channelId!, 
-        threadTs
+        threadTs!
       );
     } else {
       // Call Lambda again to execute next step
-      const lambdaFunctionName = process.env.AWS_LAMBDA_FUNCTION_NAME!;
+      const lambdaFunctionName = configService.getLambdaFunctionName()!;
       const payload = JSON.stringify({
         errorDescription,
         startDate,
@@ -186,7 +203,7 @@ export const handler: Handler = async (event: {
       await messageClient.sendMessage(
         knownBlocks,
         channelId!,
-        threadTs
+        threadTs!
       );
     }
   } catch (error) {

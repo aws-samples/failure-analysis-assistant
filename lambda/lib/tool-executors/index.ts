@@ -6,6 +6,8 @@ import { xrayToolExecutor } from "./xray-tool.js";
 import { kbToolExecutor } from "./kb-tool.js";
 import { I18nProvider } from "../messaging/providers/i18n-provider.js";
 import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
+import { ConfigurationService } from "../configuration-service.js";
+import { logger } from "../logger.js";
 
 export function registerAllTools(
   toolRegistry: ToolRegistry, 
@@ -13,10 +15,23 @@ export function registerAllTools(
     startDate: string;
     endDate: string;
   },
-  i18n?: I18nProvider // Add optional i18n parameter
+  i18n?: I18nProvider, // Add optional i18n parameter
+  configService?: ConfigurationService // Add optional configuration service parameter
 ): void {
   // Use provided i18n instance or get from factory
   const i18nInstance = i18n || getI18nProvider();
+  
+  // Use provided configuration service or get from singleton
+  const config = configService?.getConfig() || ConfigurationService.getInstance().getConfig();
+  
+  logger.info("Registering tools based on configuration", {
+    hasAthenaDatabase: !!config.athenaDatabase,
+    hasAlbAccessLogTable: !!config.albAccessLogTable,
+    hasCloudTrailLogTable: !!config.cloudTrailLogTable,
+    xrayTraceEnabled: config.xrayTraceEnabled,
+    knowledgeBaseEnabled: config.knowledgeBaseEnabled,
+    logGroupsCount: config.cwLogsLogGroups.length
+  });
   
   // Metrics tool
   toolRegistry.registerTool({
@@ -63,10 +78,11 @@ export function registerAllTools(
     }
   });
   
-  // Logs tool
-  toolRegistry.registerTool({
-    name: "logs_tool",
-    description: `設定されたCloudWatch Logsからログを取得して分析します。フィルターパターンを指定できます。
+  // Logs tool - CloudWatch Logsのロググループが設定されている場合のみ登録
+  if (config.cwLogsLogGroups.length > 0) {
+    toolRegistry.registerTool({
+      name: "logs_tool",
+      description: `設定されたCloudWatch Logsからログを取得して分析します。フィルターパターンを指定できます。
 
 # CloudWatch Logs Insightsフィルター構文ガイド
 
@@ -93,173 +109,182 @@ export function registerAllTools(
 - @message like /ERROR.*timeout/
 
 詳細: https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html`,
-    parameters: [
-      {
-        name: "filterPattern",
-        type: "string",
-        description: "CloudWatch Logs Insightsのフィルターパターン（例: '@message like \"error\"'）",
-        required: false
-      },
-      {
-        name: "limit",
-        type: "number",
-        description: "取得するログの最大数。デフォルトは100。",
-        required: false
+      parameters: [
+        {
+          name: "filterPattern",
+          type: "string",
+          description: "CloudWatch Logs Insightsのフィルターパターン（例: '@message like \"error\"'）",
+          required: false
+        },
+        {
+          name: "limit",
+          type: "number",
+          description: "取得するログの最大数。デフォルトは100。",
+          required: false
+        }
+      ],
+      execute: async (params: Record<string, unknown>) => {
+        // Type assertion
+        const typedParams = params as {
+          filterPattern?: string;
+          limit?: number;
+        };
+        return await logsToolExecutor({
+          ...typedParams,
+          startDate: globalParams.startDate,
+          endDate: globalParams.endDate,
+          i18n: i18nInstance // Pass i18n instance
+        });
       }
-    ],
-    execute: async (params: Record<string, unknown>) => {
-      // Type assertion
-      const typedParams = params as {
-        filterPattern?: string;
-        limit?: number;
-      };
-      return await logsToolExecutor({
-        ...typedParams,
-        startDate: globalParams.startDate,
-        endDate: globalParams.endDate,
-        i18n: i18nInstance // Pass i18n instance
-      });
-    }
-  });
+    });
+  }
   
-  // Audit log tool
-  toolRegistry.registerTool({
-    name: "audit_log_tool",
-    description: "CloudTrailログからAuditログを取得して分析します。特定のサービスやイベント名でフィルタリングできます。",
-    parameters: [
-      {
-        name: "services",
-        type: "string[]",
-        description: "フィルタリングするサービス名の配列（例: ['ec2', 'lambda']）",
-        required: false
-      },
-      {
-        name: "eventNames",
-        type: "string[]",
-        description: "フィルタリングするイベント名の配列（例: ['CreateFunction', 'RunInstances']）",
-        required: false
-      },
-    ],
-    execute: async (params: {
-      services?: string[];
-      eventNames?: string[];
-      users?: string[];
-      region?: string;
-    }) => {
-      return await athenaLogToolExecutor({
-        ...params,
-        startDate: globalParams.startDate,
-        endDate: globalParams.endDate,
-        logType: LogType.CLOUDTRAIL,
-        i18n: i18nInstance // Pass i18n instance
-      });
-    }
-  });
-  
-  // ALB log tool
-  toolRegistry.registerTool({
-    name: "alb_log_tool",
-    description: "ALBアクセスログを取得して分析します。ステータスコード、クライアントIP、パスなどでフィルタリングできます。",
-    parameters: [
-      {
-        name: "targetGroups",
-        type: "string[]",
-        description: "フィルタリングするターゲットグループARNの配列",
-        required: false
-      },
-      {
-        name: "statusCodes",
-        type: "string[]",
-        description: "フィルタリングするステータスコードの配列（例: ['200', '404', '500']）",
-        required: false
-      },
-      {
-        name: "clientIps",
-        type: "string[]",
-        description: "フィルタリングするクライアントIPの配列",
-        required: false
-      },
-      {
-        name: "paths",
-        type: "string[]",
-        description: "フィルタリングするリクエストパスの配列（例: ['/api', '/login']）",
-        required: false
-      },
-    ],
-    execute: async (params: {
-      targetGroups?: string[];
-      statusCodes?: string[];
-      clientIps?: string[];
-      paths?: string[];
-      userAgents?: string[];
-      region?: string;
-    }) => {
-      return await athenaLogToolExecutor({
-        ...params,
-        startDate: globalParams.startDate,
-        endDate: globalParams.endDate,
-        logType: LogType.ALB,
-        i18n: i18nInstance // Pass i18n instance
-      });
-    }
-  });
-  
-  // X-Ray tool
-  toolRegistry.registerTool({
-    name: "xray_tool",
-    description: "X-Rayからトレース情報を取得して分析します。エラーのあるトレースや遅いトレースを特定します。X-Rayトレースが有効な場合のみ使用できます。",
-    parameters: [
-      {
-        name: "filterExpression",
-        type: "string",
-        description: "X-Rayのフィルター式",
-        required: false
+  // Audit log tool - CloudTrailログテーブルが存在する場合のみ登録
+  if (config.cloudTrailLogTable) {
+    toolRegistry.registerTool({
+      name: "audit_log_tool",
+      description: "CloudTrailログからAuditログを取得して分析します。特定のサービスやイベント名でフィルタリングできます。",
+      parameters: [
+        {
+          name: "services",
+          type: "string[]",
+          description: "フィルタリングするサービス名の配列（例: ['ec2', 'lambda']）",
+          required: false
+        },
+        {
+          name: "eventNames",
+          type: "string[]",
+          description: "フィルタリングするイベント名の配列（例: ['CreateFunction', 'RunInstances']）",
+          required: false
+        },
+      ],
+      execute: async (params: {
+        services?: string[];
+        eventNames?: string[];
+        users?: string[];
+        region?: string;
+      }) => {
+        return await athenaLogToolExecutor({
+          ...params,
+          startDate: globalParams.startDate,
+          endDate: globalParams.endDate,
+          logType: LogType.CLOUDTRAIL,
+          i18n: i18nInstance // Pass i18n instance
+        });
       }
-    ],
-    execute: async (params: {
-      filterExpression?: string;
-    }) => {
-      return await xrayToolExecutor({
-        ...params,
-        startDate: globalParams.startDate,
-        endDate: globalParams.endDate,
-        i18n: i18nInstance // Pass i18n instance
-      });
-    }
-  });
+    });
+  }
   
-  // Knowledge Base tool
-  toolRegistry.registerTool({
-    name: "kb_tool",
-    description: "Knowledge Baseからドキュメントを検索します。障害対応のナレッジや過去の事例を参照できます。Knowledge Baseが有効な場合のみ使用できます。",
-    parameters: [
-      {
-        name: "query",
-        type: "string",
-        description: "検索クエリ",
-        required: true
-      },
-      {
-        name: "maxResults",
-        type: "number",
-        description: "取得する結果の最大数。デフォルトは3。",
-        required: false
+  // ALB log tool - ALBアクセスログテーブルが存在する場合のみ登録
+  if (config.albAccessLogTable) {
+    toolRegistry.registerTool({
+      name: "alb_log_tool",
+      description: "ALBアクセスログを取得して分析します。ステータスコード、クライアントIP、パスなどでフィルタリングできます。",
+      parameters: [
+        {
+          name: "targetGroups",
+          type: "string[]",
+          description: "フィルタリングするターゲットグループARNの配列",
+          required: false
+        },
+        {
+          name: "statusCodes",
+          type: "string[]",
+          description: "フィルタリングするステータスコードの配列（例: ['200', '404', '500']）",
+          required: false
+        },
+        {
+          name: "clientIps",
+          type: "string[]",
+          description: "フィルタリングするクライアントIPの配列",
+          required: false
+        },
+        {
+          name: "paths",
+          type: "string[]",
+          description: "フィルタリングするリクエストパスの配列（例: ['/api', '/login']）",
+          required: false
+        },
+      ],
+      execute: async (params: {
+        targetGroups?: string[];
+        statusCodes?: string[];
+        clientIps?: string[];
+        paths?: string[];
+        userAgents?: string[];
+        region?: string;
+      }) => {
+        return await athenaLogToolExecutor({
+          ...params,
+          startDate: globalParams.startDate,
+          endDate: globalParams.endDate,
+          logType: LogType.ALB,
+          i18n: i18nInstance // Pass i18n instance
+        });
       }
-    ],
-    execute: async (params: Record<string, unknown>) => {
-      // Type assertion
-      const typedParams = params as {
-        query: string;
-        maxResults?: number;
-      };
-      return await kbToolExecutor({
-        ...typedParams,
-        i18n: i18nInstance // Pass i18n instance
-      });
-    }
-  });
+    });
+  }
   
-  // Final answer tool
+  // X-Ray tool - X-Rayトレースが有効な場合のみ登録
+  if (config.xrayTraceEnabled) {
+    toolRegistry.registerTool({
+      name: "xray_tool",
+      description: "X-Rayからトレース情報を取得して分析します。エラーのあるトレースや遅いトレースを特定します。X-Rayトレースが有効な場合のみ使用できます。",
+      parameters: [
+        {
+          name: "filterExpression",
+          type: "string",
+          description: "X-Rayのフィルター式",
+          required: false
+        }
+      ],
+      execute: async (params: {
+        filterExpression?: string;
+      }) => {
+        return await xrayToolExecutor({
+          ...params,
+          startDate: globalParams.startDate,
+          endDate: globalParams.endDate,
+          i18n: i18nInstance // Pass i18n instance
+        });
+      }
+    });
+  }
+  
+  // Knowledge Base tool - Knowledge Baseが有効な場合のみ登録
+  if (config.knowledgeBaseEnabled) {
+    toolRegistry.registerTool({
+      name: "kb_tool",
+      description: "Knowledge Baseからドキュメントを検索します。障害対応のナレッジや過去の事例を参照できます。Knowledge Baseが有効な場合のみ使用できます。",
+      parameters: [
+        {
+          name: "query",
+          type: "string",
+          description: "検索クエリ",
+          required: true
+        },
+        {
+          name: "maxResults",
+          type: "number",
+          description: "取得する結果の最大数。デフォルトは3。",
+          required: false
+        }
+      ],
+      execute: async (params: Record<string, unknown>) => {
+        // Type assertion
+        const typedParams = params as {
+          query: string;
+          maxResults?: number;
+        };
+        return await kbToolExecutor({
+          ...typedParams,
+          i18n: i18nInstance // Pass i18n instance
+        });
+      }
+    });
+  }
+  
+  // Final answer tool - 常に登録（エージェントの最終回答に必要）
   toolRegistry.registerTool({
     name: "final_answer",
     description: "障害分析の最終回答を生成します。十分な情報が集まり、根本原因と解決策が特定できた場合のみ使用してください。",
@@ -278,5 +303,10 @@ export function registerAllTools(
       };
       return `最終回答を生成します: ${typedParams.content.substring(0, 50)}...`;
     }
+  });
+  
+  // 登録されたツールの一覧をログに出力
+  logger.info("Registered tools", { 
+    registeredTools: toolRegistry.getAllToolNames().join(", ")
   });
 }

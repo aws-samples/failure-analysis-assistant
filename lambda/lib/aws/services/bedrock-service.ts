@@ -13,6 +13,7 @@ import {
 import { logger } from "../../logger.js";
 import { AWSError, BedrockThrottlingError } from '../errors/aws-error.js';
 import { retryWithExponentialBackoff, isThrottlingError } from '../common/retry-utils.js';
+import { ConfigurationService } from "../../configuration-service.js";
 
 /**
  * Type for Knowledge Base search results
@@ -30,6 +31,7 @@ export interface KBResult {
 export class BedrockService {
   private runtimeClient: BedrockRuntimeClient;
   private agentRuntimeClient: BedrockAgentRuntimeClient;
+  private configService: ConfigurationService;
   
   // Fixed value settings
   private readonly DEFAULT_MAX_TOKENS = 8192;
@@ -41,36 +43,42 @@ export class BedrockService {
    * Constructor
    * @param runtimeClient BedrockRuntimeClient 
    * @param agentRuntimeClient BedrockAgentRuntimeClient 
+   * @param configService ConfigurationService
    */
   constructor(
     runtimeClient?: BedrockRuntimeClient,
-    agentRuntimeClient?: BedrockAgentRuntimeClient
+    agentRuntimeClient?: BedrockAgentRuntimeClient,
+    configService?: ConfigurationService
   ) {
     this.runtimeClient = runtimeClient || new BedrockRuntimeClient();
     this.agentRuntimeClient = agentRuntimeClient || new BedrockAgentRuntimeClient();
+    this.configService = configService || ConfigurationService.getInstance();
   }
   
   /**
    * Converse with Bedrock model
    * @param prompt Prompt
-   * @param modelId Model ID (uses environment variable if omitted)
+   * @param modelId Model ID (uses configuration service if omitted)
    * @param inferenceConfig Inference configuration
    * @returns Response text from the model
    */
   async converse(
     prompt: string, 
-    modelId: string = process.env.MODEL_ID!,
+    modelId?: string,
     inferenceConfig: InferenceConfiguration = {
       maxTokens: this.DEFAULT_MAX_TOKENS,
       temperature: this.DEFAULT_TEMPERATURE,
       topP: this.DEFAULT_TOP_P
     }
   ): Promise<string> {
-    logger.info("Start", {function: "converse", input: {prompt, modelId, inferenceConfig}});
+    // Use provided model ID or get from configuration service
+    const modelToUse = modelId || this.configService.getModelId();
+    
+    logger.info("Start", {function: "converse", input: {prompt, modelId: modelToUse, inferenceConfig}});
     
     try {
       const converseCommandInput: ConverseCommandInput = {
-        modelId,
+        modelId: modelToUse,
         messages: [
           {
             "role": "user",
@@ -123,6 +131,9 @@ export class BedrockService {
     logger.info("Start", {function: "retrieve", input: {knowledgeBaseId, retrieveQuery, rerankModelId}});
     
     try {
+      // Get region from configuration service
+      const region = this.configService.getRegion();
+      
       const retrieveCommand = rerankModelId ? 
         new RetrieveCommand({
           knowledgeBaseId: knowledgeBaseId,
@@ -137,7 +148,7 @@ export class BedrockService {
                 type: 'BEDROCK_RERANKING_MODEL',
                 bedrockRerankingConfiguration: {
                   modelConfiguration: {
-                    modelArn: `arn:aws:bedrock:${process.env.AWS_REGION}::foundation-model/${rerankModelId}`,
+                    modelArn: `arn:aws:bedrock:${region}::foundation-model/${rerankModelId}`,
                   },
                   numberOfRerankedResults: this.DEFAULT_KB_RESULTS,
                 }

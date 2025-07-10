@@ -9,6 +9,7 @@ import { ConfigProvider } from "../../lib/messaging/providers/config-provider.js
 import { AWSServiceFactory } from "../../lib/aws/aws-service-factory.js";
 import { MetricDataQuery } from "@aws-sdk/client-cloudwatch";
 import { Prompt } from "../../lib/prompt.js";
+import { ConfigurationService } from "../../lib/configuration-service.js";
 
 /**
  * Function to infer AWS namespaces from a query
@@ -66,13 +67,12 @@ export const handler: Handler = async (event: {
     channelId
   } = event;
 
-  // Environment variables
-  const modelId = process.env.MODEL_ID;
-  const lang: Language = process.env.LANG
-    ? (process.env.LANG as Language)
-    : "en";
-  const slackAppTokenKey = process.env.SLACK_APP_TOKEN_KEY!;
-  const region = process.env.AWS_REGION;
+  // Get configuration from ConfigurationService
+  const configService = ConfigurationService.getInstance();
+  const modelId = configService.getModelId();
+  const lang: Language = configService.getLanguage() as Language;
+  const slackAppTokenKey = configService.getSlackAppTokenKey();
+  const region = configService.getRegion();
   const token = await getSecret(slackAppTokenKey);
   const i18n = new I18nProvider(lang);
   const config = new ConfigProvider();

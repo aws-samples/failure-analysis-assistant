@@ -2,6 +2,7 @@ import { AWSServiceFactory } from "../../lib/aws/index.js";
 import { logger } from "../logger.js";
 import { I18nProvider } from "../messaging/providers/i18n-provider.js";
 import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
+import { ConfigurationService } from "../configuration-service.js";
 
 // Log type enumeration
 export enum LogType {
@@ -15,6 +16,7 @@ export interface BaseLogQueryParams {
   endDate: string;
   region?: string;
   i18n?: I18nProvider;
+  configService?: ConfigurationService;
   logType: LogType;
 }
 
@@ -42,10 +44,13 @@ export type LogQueryParams = CloudTrailLogQueryParams | AlbLogQueryParams;
 // Base abstract class for Athena log tools
 export abstract class BaseAthenaLogTool {
   protected i18n: I18nProvider;
+  protected configService: ConfigurationService;
   
-  constructor(i18n?: I18nProvider) {
+  constructor(i18n?: I18nProvider, configService?: ConfigurationService) {
     // Use provided i18n instance or get from factory
     this.i18n = i18n || getI18nProvider();
+    // Use provided configuration service or get from singleton
+    this.configService = configService || ConfigurationService.getInstance();
   }
   
   // Common execution method
@@ -55,21 +60,29 @@ export abstract class BaseAthenaLogTool {
       this.i18n = params.i18n;
     }
     
+    // Update configuration service if provided in params
+    if (params.configService) {
+      this.configService = params.configService;
+    }
+    
     logger.info(`Executing ${this.getLogTypeName()} log tool`, { params });
     
     try {
-      // Get common environment variables
-      const databaseName = process.env.ATHENA_DATABASE_NAME;
-      const athenaQueryOutputLocation = `s3://${process.env.ATHENA_QUERY_BUCKET}/`;
+      // Get configuration from configuration service
+      const config = this.configService.getConfig();
+      const databaseName = config.athenaDatabase;
+      const athenaQueryBucket = config.athenaQueryBucket;
       const logTableName = this.getLogTableName();
       
-      if (!databaseName || !logTableName) {
+      if (!databaseName || !athenaQueryBucket || !logTableName) {
         // Use specific translation key based on log type
         const configErrorKey = this.getLogTypeName() === 'CloudTrail' 
           ? "auditLogTableNotConfigured" 
           : "albLogTableNotConfigured";
         return this.i18n.translate(configErrorKey);
       }
+      
+      const athenaQueryOutputLocation = `s3://${athenaQueryBucket}/`;
       
       // Build query using log type specific implementation
       const { query, queryParams } = this.buildQuery(params);
@@ -114,7 +127,7 @@ export class CloudTrailLogTool extends BaseAthenaLogTool {
   }
   
   protected getLogTableName(): string | undefined {
-    return process.env.CLOUD_TRAIL_LOG_TABLE_NAME;
+    return this.configService.getCloudTrailLogTable() || undefined;
   }
   
   protected getI18nPrefix(): string {
@@ -126,15 +139,7 @@ export class CloudTrailLogTool extends BaseAthenaLogTool {
     
     // Build CloudTrail specific query based on CloudTrail log entry format
     // https://docs.aws.amazon.com/ja_jp/AmazonS3/latest/userguide/cloudtrail-logging-understanding-s3-entries.html
-    let query = `SELECT
-                  eventtime,
-                  eventsource,
-                  eventname,
-                  awsregion,
-                  sourceipaddress,
-                  errorcode,
-                  errormessage,
-                FROM ${this.getLogTableName()}`;
+    let query = `SELECT * FROM ${this.getLogTableName()}`;
     
     // Build WHERE clause
     const whereConditions: string[] = [];
@@ -316,7 +321,7 @@ export class AlbLogTool extends BaseAthenaLogTool {
   }
   
   protected getLogTableName(): string | undefined {
-    return process.env.ALB_ACCESS_LOG_TABLE_NAME;
+    return this.configService.getAlbAccessLogTable() || undefined;
   }
   
   protected getI18nPrefix(): string {
@@ -328,21 +333,7 @@ export class AlbLogTool extends BaseAthenaLogTool {
 
     // Build ALB specific query based on ALB access log entry format
     // https://docs.aws.amazon.com/ja_jp/elasticloadbalancing/latest/application/load-balancer-access-logs.html#access-log-entry-format
-    let query = `SELECT
-                  time,
-                  client_ip,
-                  client_port,
-                  target_ip,
-                  target_port,
-                  request_processing_time,
-                  target_processing_time,
-                  response_processing_time,
-                  elb_status_code,
-                  target_status_code,
-                  request_url,
-                  target_group_arn,
-                  trace_id
-                FROM ${this.getLogTableName()}`;
+    let query = `SELECT * FROM ${this.getLogTableName()}`;
     
     // Build WHERE clause
     const whereConditions: string[] = [];
@@ -551,12 +542,12 @@ export class AlbLogTool extends BaseAthenaLogTool {
 
 // Factory class to create appropriate log tool instance
 export class AthenaLogToolFactory {
-  static createLogTool(logType: LogType, i18n?: I18nProvider): BaseAthenaLogTool {
+  static createLogTool(logType: LogType, i18n?: I18nProvider, configService?: ConfigurationService): BaseAthenaLogTool {
     switch (logType) {
       case LogType.CLOUDTRAIL:
-        return new CloudTrailLogTool(i18n);
+        return new CloudTrailLogTool(i18n, configService);
       case LogType.ALB:
-        return new AlbLogTool(i18n);
+        return new AlbLogTool(i18n, configService);
       default:
         throw new Error(`Unsupported log type: ${logType}`);
     }
@@ -565,6 +556,6 @@ export class AthenaLogToolFactory {
 
 // Function that can be called externally
 export const athenaLogToolExecutor = async (params: LogQueryParams): Promise<string> => {
-  const logTool = AthenaLogToolFactory.createLogTool(params.logType, params.i18n);
+  const logTool = AthenaLogToolFactory.createLogTool(params.logType, params.i18n, params.configService);
   return await logTool.execute(params);
 };

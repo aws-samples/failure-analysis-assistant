@@ -8,19 +8,23 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { SessionState } from "./react-agent.js";
 import { logger } from "./logger.js";
+import { ConfigurationService } from "./configuration-service.js";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client, { 
   marshallOptions: { removeUndefinedValues: true } 
 });
 
-export async function getSessionState(sessionId: string): Promise<SessionState | null> {
+export async function getSessionState(sessionId: string, configService?: ConfigurationService): Promise<SessionState | null> {
   logger.info("Getting session state", { sessionId });
   
   try {
-    const tableName = process.env.SESSION_TABLE_NAME;
+    // Use provided configuration service or get from singleton
+    const config = configService?.getConfig() || ConfigurationService.getInstance().getConfig();
+    const tableName = config.sessionTableName;
+    
     if (!tableName) {
-      throw new Error("SESSION_TABLE_NAME environment variable is not set");
+      throw new Error("Session table name is not configured");
     }
     
     // セッションIDをpkの形式に変換
@@ -90,13 +94,16 @@ export async function getSessionState(sessionId: string): Promise<SessionState |
   }
 }
 
-export async function saveSessionState(sessionId: string, state: SessionState): Promise<void> {
+export async function saveSessionState(sessionId: string, state: SessionState, configService?: ConfigurationService): Promise<void> {
   logger.info("Saving session state", { sessionId });
   
   try {
-    const tableName = process.env.SESSION_TABLE_NAME;
+    // Use provided configuration service or get from singleton
+    const config = configService?.getConfig() || ConfigurationService.getInstance().getConfig();
+    const tableName = config.sessionTableName;
+    
     if (!tableName) {
-      throw new Error("SESSION_TABLE_NAME environment variable is not set");
+      throw new Error("Session table name is not configured");
     }
     
     const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60 * 30; // Expires after 30 days
@@ -177,22 +184,25 @@ export async function saveSessionState(sessionId: string, state: SessionState): 
   }
 }
 
-export async function updateSessionState(sessionId: string, state: SessionState): Promise<void> {
+export async function updateSessionState(sessionId: string, state: SessionState, configService?: ConfigurationService): Promise<void> {
   // updateSessionStateは内部的にsaveSessionStateを呼び出す
-  await saveSessionState(sessionId, state);
+  await saveSessionState(sessionId, state, configService);
 }
 
-export async function completeSession(sessionId: string): Promise<void> {
+export async function completeSession(sessionId: string, configService?: ConfigurationService): Promise<void> {
   logger.info("Completing session", { sessionId });
   
   try {
-    const tableName = process.env.SESSION_TABLE_NAME;
+    // Use provided configuration service or get from singleton
+    const config = configService?.getConfig() || ConfigurationService.getInstance().getConfig();
+    const tableName = config.sessionTableName;
+    
     if (!tableName) {
-      throw new Error("SESSION_TABLE_NAME environment variable is not set");
+      throw new Error("Session table name is not configured");
     }
     
     // Get session state
-    const currentState = await getSessionState(sessionId);
+    const currentState = await getSessionState(sessionId, configService);
     if (currentState) {
       // Set final answer if it's not set
       if (!currentState.finalAnswer) {
@@ -204,7 +214,7 @@ export async function completeSession(sessionId: string): Promise<void> {
       currentState.state = ReactionState.COMPLETED;
       
       // Save updated session state
-      await saveSessionState(sessionId, currentState);
+      await saveSessionState(sessionId, currentState, configService);
     }
     
     logger.info("Session marked as completed", { sessionId });
@@ -214,13 +224,16 @@ export async function completeSession(sessionId: string): Promise<void> {
   }
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
+export async function deleteSession(sessionId: string, configService?: ConfigurationService): Promise<void> {
   logger.info("Deleting session", { sessionId });
   
   try {
-    const tableName = process.env.SESSION_TABLE_NAME;
+    // Use provided configuration service or get from singleton
+    const config = configService?.getConfig() || ConfigurationService.getInstance().getConfig();
+    const tableName = config.sessionTableName;
+    
     if (!tableName) {
-      throw new Error("SESSION_TABLE_NAME environment variable is not set");
+      throw new Error("Session table name is not configured");
     }
     
     // セッションIDをpkの形式に変換

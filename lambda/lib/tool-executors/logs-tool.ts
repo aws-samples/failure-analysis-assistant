@@ -3,13 +3,17 @@ import { LogField, LogResults } from "../../lib/aws/services/cloudwatch-logs-ser
 import { logger } from "../logger.js";
 import { I18nProvider } from "../messaging/providers/i18n-provider.js";
 import { getI18nProvider } from "../messaging/providers/i18n-factory.js";
+import { ConfigurationService } from "../configuration-service.js";
 
 export class LogsTool {
   private i18n: I18nProvider;
+  private configService: ConfigurationService;
   
-  constructor(i18n?: I18nProvider) {
+  constructor(i18n?: I18nProvider, configService?: ConfigurationService) {
     // Use provided i18n instance or get from factory
     this.i18n = i18n || getI18nProvider();
+    // Use provided configuration service or get from singleton
+    this.configService = configService || ConfigurationService.getInstance();
   }
   
   async execute(params: {
@@ -18,18 +22,23 @@ export class LogsTool {
     endDate: string;
     limit?: number;
     i18n?: I18nProvider;
+    configService?: ConfigurationService;
   }): Promise<string> {
     // Update i18n if provided in params
     if (params.i18n) {
       this.i18n = params.i18n;
     }
+    
+    // Update configuration service if provided in params
+    if (params.configService) {
+      this.configService = params.configService;
+    }
+    
     logger.info("Executing logs tool", { params });
     
     try {
-      // Use log groups specified in parameter.ts
-      const configuredLogGroups = process.env.CW_LOGS_LOGGROUPS ? 
-        JSON.parse(process.env.CW_LOGS_LOGGROUPS).loggroups || [] : 
-        [];
+      // Use log groups from configuration service
+      const configuredLogGroups = this.configService.getCwLogsLogGroups();
       
       if (configuredLogGroups.length === 0) {
         return this.i18n.translate("logsGroupsNotConfigured");
@@ -41,8 +50,8 @@ export class LogsTool {
       const filterPattern = params.filterPattern || "";
       const limit = params.limit || 100;
       
-      // Use default query from environment variables if available
-      const defaultQuery = process.env.CW_LOGS_INSIGHT_QUERY || "fields @timestamp, @message";
+      // Use default query from configuration service
+      const defaultQuery = this.configService.getCwLogsInsightQuery() || "fields @timestamp, @message";
       
       // Add filter and limit to the default query
       const queryString = `${defaultQuery}
@@ -313,9 +322,6 @@ Fixed filter pattern:
   }
 }
 
-// Create tool executor instance
-const logsTool = new LogsTool();
-
 // Function that can be called externally
 export const logsToolExecutor = async (params: {
   filterPattern?: string;
@@ -323,6 +329,8 @@ export const logsToolExecutor = async (params: {
   endDate: string;
   limit?: number;
   i18n?: I18nProvider;
+  configService?: ConfigurationService;
 }): Promise<string> => {
+  const logsTool = new LogsTool(params.i18n, params.configService);
   return await logsTool.execute(params);
 };

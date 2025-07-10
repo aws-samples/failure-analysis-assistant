@@ -21,7 +21,7 @@ interface FA2Props {
   slackAppTokenKey: string;
   slackSigningSecretKey: string;
   architectureDescription: string;
-  cwLogLogGroups: string[];
+  cwLogsLogGroups: string[];
   cwLogsInsightQuery: string;
   xrayTrace: boolean;
   databaseName?: string;
@@ -45,7 +45,7 @@ export class FA2 extends Construct {
 
     // Baseline. CloudWatch Logs parameters are required.
     if (
-      props.cwLogLogGroups.length < 1 ||
+      props.cwLogsLogGroups.length < 1 ||
       props.cwLogsInsightQuery.length < 1
     ) {
       throw new Error("Please configure CloudWatch Logs LogGroups and Query.");
@@ -107,7 +107,7 @@ export class FA2 extends Construct {
                 "logs:DescribeLogStreams",
               ],
               resources: [
-                ...props.cwLogLogGroups.map(
+                ...props.cwLogsLogGroups.map(
                   (loggroup) =>
                     `arn:aws:logs:${Stack.of(this).region}:${
                       Stack.of(this).account
@@ -149,7 +149,7 @@ export class FA2 extends Construct {
     });
     this.backendRole = fa2BackendRole;
     
-    const fa2Function = new lambdaNodejs.NodejsFunction(this, "FA2Backend", {
+    const fa2Function = new lambdaNodejs.NodejsFunction(this, "Agent", {
       runtime: lambda.Runtime.NODEJS_20_X,
       memorySize: 2048,
       timeout: Duration.seconds(600),
@@ -160,7 +160,7 @@ export class FA2 extends Construct {
         SLACK_APP_TOKEN_KEY: props.slackAppTokenKey,
         ARCHITECTURE_DESCRIPTION: props.architectureDescription,
         CW_LOGS_LOGGROUPS: JSON.stringify({
-          loggroups: props.cwLogLogGroups,
+          loggroups: props.cwLogsLogGroups,
         }),
         CW_LOGS_INSIGHT_QUERY: props.cwLogsInsightQuery,
         SESSION_TABLE_NAME: this.sessionTable.tableName,
