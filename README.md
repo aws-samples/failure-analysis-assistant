@@ -2,12 +2,7 @@
 
 [View this page in English](./README_en.md)
 
-> [!NOTE]
-> AIエージェントを利用した障害分析を実装中です。ご興味ある方は、以下のブランチをご参照ください。
-> https://github.com/aws-samples/failure-analysis-assistant/pull/21
-
-Amazon Q Developer in chat applications が Slack に送ったアラームに反応し、エラーの根本原因を分析を支援するサンプル実装です。
-参考： [AIOps で障害分析を効率化してみよう.pdf](https://pages.awscloud.com/rs/112-TZM-766/images/AIOps%E3%81%A6%E3%82%99%E9%9A%9C%E5%AE%B3%E5%88%86%E6%9E%90%E3%82%92%E5%8A%B9%E7%8E%87%E5%8C%96%E3%81%97%E3%81%A6%E3%81%BF%E3%82%88%E3%81%86.pdf)
+エラーの根本原因の分析を LLM を利用して支援するサンプル実装です。
 
 本サンプルで試せることは以下の通りです。
 
@@ -28,29 +23,8 @@ Security Hub と GuardDuty の Findings を生成 AI が解説するレポート
 
 ## Branches
 
-- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - 本ブランチです。Slack App を利用したバージョンです。AWS Summit Japan 2024 ではこちらを展示しました。
-- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Slack App の代わりに、Amazon Q Developer in chat applications の Custom Action という機能を利用して、入力フォームを実装したバージョンです。Slack App が利用できない環境や、Slack App を管理したくない場合は、こちらをご利用ください。
-
-## Background
-
-これまでチャットにアラームの通知を流すような ChatOps を実装されている方々は多いのではないでしょうか。
-しかし、アラームなどのイベントが発生した時、実際に時間がかかる作業は、イベント検知後に発生する、原因分析や分析結果特定後の修正です。
-このソリューションでは、原因分析をできるだけ効率化するための一つのアイデアとして、LLM を利用した障害分析を示します。
-
-通常、原因分析を行う場合は、アラームの発生時刻から、関連するログが出ているであろう一定時間の範囲を定義し、ログを取得します。
-ログも一箇所ではなく、多数に散らばっているものを同様の時間範囲で取得し、それらの関係性を整理し、原因の特定を行います。
-この情報処理はなかなかに根気と時間の必要な作業であり、ビジネス影響が出ているような状況ではプレッシャーもかかります。
-
-そこで、このログ収集を効率化することができるかを考えます。
-AWS の代表的なログの出力先である Amazon CloudWatch Logs は、Query を利用することで、時間範囲を指定し、ログを取得できます。Amazon S3 は Amazon Athena と組み合わせることで、同様のことが実現できます。
-加えて、AWS X-Ray も時間範囲を指定することで、該当時間の範囲でトレース情報を取得できます。
-ログやトレースはプログラムで取得を効率化できることがわかりました。
-
-それでは、これら取得した情報を大規模言語モデル(Large Language Model: LLM)にインプットすることで、情報抽出や要約についても、効率化を図れないでしょうか。
-LLM は、要約や情報抽出の処理が得意なことで知られています。人間よりも多くの入力情報を早い時間で処理することが可能です。
-LLM の回答結果にハルシネーションが含まれる可能性はあるので注意は必要ですが、最終的に人間が判断を行うような補助的な使い方はできると考えます。
-
-ぜひこのサンプルをご利用いただき、その効果をお試しください。
+- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - 本ブランチです。Slack App を利用したバージョンです。
+- [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Slack App の代わりに、Amazon Q Developer in chat applications の Custom Action という機能を利用して、入力フォームを実装したバージョンです。Slack App が利用できない環境や、Slack App を管理したくない場合は、こちらをご利用ください。(こちらはまだAgent対応できておりません)
 
 ## Architecture & Workflow
 
@@ -71,7 +45,7 @@ LLM の回答結果にハルシネーションが含まれる可能性はある�
 5. エージェントは以下のツールを使って情報を収集・分析します：
    - **metrics_tool**: CloudWatchメトリクスを取得・分析
    - **logs_tool**: CloudWatch Logsからログを取得・分析
-   - **audit_log_tool**: CloudTrailログから監査ログを取得・分析
+   - **athena_log_tool**: Athenaから監査ログやALBのアクセスログを取得・分析
    - **xray_tool**: X-Rayからトレース情報を取得・分析
    - **kb_tool**: Knowledge Baseからドキュメントを検索
 6. 分析が完了すると、エージェントは以下の情報を含む詳細な障害分析レポートを生成します：
@@ -118,8 +92,7 @@ FA2のコアとなるReACTエージェントは、以下のような詳細なプ
 - 分析したいログが含まれている、CloudWatch Logs のロググループがあること
   - 加えて、AWS CloudTrail、Application Load Balancer (ALB) のアクセスログを利用する場合、Amazon Athena のデータベースが作成されていること
   - AWS X-Ray のトレース情報も利用する場合、該当システムの AWS X-Ray トレースが取得できていること
-- Amazon Bedrock でモデルアクセスから、Claude 3 Sonnet, Claude 3.5 Sonnet のアクセス許可をしていること
-  - Claude 3.5 Sonnet は、Mermaid記法で画像による障害原因の仮説を図示するために利用します
+- Amazon Bedrock で必要なモデルへのモデルアクセスのアクセス許可をしていること
 - 既存ワークロードで設定した Amazon Q Developer in chat applications から Slack にアラームの通知が来ることを確認していること
   - FA2 のテスト利用のための既存ワークロードがない、もしくは利用できない場合、[FA２のお試し環境の作り方](./docs/HowToCreateTestEnvironment.md)を参考に、環境を作ることもできます
 - 利用したい Slack ワークスペースに Slack App を登録できる権限を持っていること
@@ -148,7 +121,7 @@ FA2のコアとなるReACTエージェントは、以下のような詳細なプ
 // 例: Slack App 版で、Claude 3.7 Sonnet を利用し、CloudWatch Logsを検索対象とした場合の設定
 export const devParameter: AppParameter = {
   env: {
-    account: "148991357402",
+    account: "123456789012",
     region: "us-west-2",
   },
   language: "ja",
@@ -179,7 +152,7 @@ export const devParameter: AppParameter = {
 
 | パラメータ               | 値の例                                                                    | 概要                                                                                                                                                                             |
 | ------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.account`            | `"148991357402"`                                                          | デプロイ先 AWS アカウントのアカウント ID                                                                                                                                         |
+| `env.account`            | `"1234566789012"`                                                          | デプロイ先 AWS アカウントのアカウント ID                                                                                                                                         |
 | `env.region`             | `"us-west-2"`                                                             | デプロイ先リージョン                                                                                                                                                             |
 | `language`               | `"ja"`                                                                    | プロンプトや UI の言語設定。`en` または `ja` のどちらかを指定します                                                                                                              |
 | `envName`                | `"Development"`                                                           | 環境名。`Development` や `Staging` など                                                                                                                                          |
@@ -189,7 +162,12 @@ export const devParameter: AppParameter = {
 | `architectureDescription`  | `"あなたが担当するワークロードは、ALB, EC2, Aurora で構成されています。また、EC2 上に Spring アプリケーションがデプロイされています。"`                                                     | 　障害分析の対象となるシステムを説明する文章です。プロンプトに組み込まれますので、AWSのサービス名や要素技術を含める、簡潔にする、などを心がけてください。                                                                            |
 | `cwLogsLogGroups`        | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]` | ログを取得したい Amazon CloudWatch Logs のロググループを指定します。最大 50 個まで指定可能です                                                                                   |
 | `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | CloudWatch Logs Insight で利用したいクエリを指定します。コンテキストウィンドウとの兼ね合いから、デフォルトでは、100 件に制限しています（実際のプロンプトに応じて、調整ください） |
-| `xrayTrace`              | `false`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
+| `databaseName`           | `"athenadatacatalog"`                                                     | Amazon Athena のデータベース名。Athena を使ってログ検索を行いたい場合は必須です                                                                                                  |
+| `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB のアクセスログのテーブル名。今回のサンプルでは、Athena で ALB のアクセスログのログ検索を実装したため、利用する場合 ALB のアクセスログテーブル名を指定します                  |
+| `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail のログのテーブル名。今回のサンプルでは、Athena で CloudTrail の監査ログのログ検索を実装したため、利用する場合 CloudTrail のログテーブル名を指定します             |
+| `xrayTrace`              | `true`                                                                    | 分析対象に AWS X-Ray のトレース情報を含めるかどうか決めるためのパラメータ                                                                                                        |
+| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | `insight` や `findings-report` コマンドに関連するリソースのデプロイを有効にします                                                                                                       |
+| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | `findings-report` を利用する場合には必須です。アカウントで定義されている `detectorId` を設定してください                                                                                                       |
 | `knowledgeBase`              | `true`                                                                    | ナレッジベースを利用する場合は `true` を設定ください。利用しない場合は、`false` です。                                                                                                      |
 | `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | ナレッジベースを利用する場合に任意で埋め込みモデルが設定できます。何も設定しない場合は、 `amazon.titan-embed-text-v2:0` が設定されます。変更する場合は、`lib/constructs/aurora-serverless.ts` の 120 行目の `VectorDimensions` も併せて変更してください                                                                                                      |
 | `maxAgentCycles`              | `5`                                                                    | ReACTエージェントが実行する最大サイクル数を指定します。デフォルトは5です。                                                                                                      |
