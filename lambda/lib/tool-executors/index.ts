@@ -36,7 +36,9 @@ export function registerAllTools(
   // Metrics tool
   toolRegistry.registerTool({
     name: "metrics_tool",
-    description: "CloudWatchメトリクスを取得して分析します。特定のメトリクス名や名前空間でフィルタリングできます。名前空間を指定しない場合は、一般的なAWSサービスの名前空間から自動的に取得します。",
+    description: `CloudWatchメトリクスを取得して分析します。特定のメトリクス名や名前空間でフィルタリングできます。
+    名前空間を指定しない場合は、一般的なAWSサービスの名前空間から自動的に取得します。
+    'ApplicationSignals'の名前空間でメトリクスが定義されている場合、ビジネスメトリクスも取得できます。`,
     parameters: [
       {
         name: "metricNames",
@@ -255,7 +257,7 @@ export function registerAllTools(
   if (config.knowledgeBaseEnabled) {
     toolRegistry.registerTool({
       name: "kb_tool",
-      description: "Knowledge Baseからドキュメントを検索します。障害対応のナレッジや過去の事例を参照できます。Knowledge Baseが有効な場合のみ使用できます。",
+      description: "Knowledge Baseからドキュメントを検索します。障害対応の過去の事例や利用しているAWSサービスのドキュメントなどを参照できます。Knowledge Baseが有効な場合のみ使用できます。",
       parameters: [
         {
           name: "query",
