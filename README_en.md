@@ -22,7 +22,7 @@ Please see [Findings Report Doc](./docs/FindingsReport_en.md)
 
 ## Branches
 
-- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App. 
+- [`main`](https://github.com/aws-samples/failure-analysis-assistant) - This branch. This version uses the Slack App.
 - [`chatbot-customaction`](https://github.com/aws-samples/failure-analysis-assistant/tree/chatbot-customaction) - Instead of the Slack App, this is a version that implements an input form using a `Custom Action` of Amazon Q Developer in chat applications. If you don't have an environment where you can't use the Slack App, or if you don't want to manage the Slack App, use this. This is not updated to Agent version.
 
 ## Architecture & Workflow
@@ -61,21 +61,25 @@ You can try this sample if the log is output to CloudWatch Logs. S3 and X-Ray ar
 The ReACT agent, which is the core of FA2, operates with the following detailed process:
 
 1. **Session Management**:
+
    - A unique session ID is generated for each analysis request
    - Session state is stored in DynamoDB and maintained between Lambda function executions
    - Session information includes thinking history, executed tools, collected data, etc.
 
 2. **Thinking Process**:
+
    - In the initial thinking, the agent develops an analysis strategy based on error content and available tools
    - In subsequent cycles, it decides the next action considering the information collected so far
    - The result of thinking is output in a structured format, and the next action is determined
 
 3. **Tool Execution**:
+
    - Selected tools are executed with appropriate parameters
    - Execution results are recorded in the session state, and data collection status is updated
    - The results of each tool execution are used as input for the next thinking cycle
 
 4. **Cycle Control**:
+
    - The maximum number of cycles can be controlled with the `maxAgentCycles` parameter (default: 5)
    - When sufficient information is gathered or the maximum number of cycles is reached, it transitions to the final answer generation phase
    - Appropriate error handling is performed when Bedrock rate limits are reached
@@ -92,7 +96,7 @@ The ReACT agent, which is the core of FA2, operates with the following detailed 
   - Amazon Athena and AWS X-Ray are optional
   - If you want to invlude AWS CloudTrail or Application Load Balancer (ALB) access logs, an Amazon Athena database must be created
   - If AWS X-Ray trace information is also used, an AWS X-Ray trace for the relevant system must have been obtained
-- Specific LLMs access has been granted from model access on Amazon Bedrock. (Ex. Claude 3.7 Sonnet, etc.)
+- Specific LLMs access has been granted from model access on Amazon Bedrock. (Ex. Claude Sonnet 4.6, etc.)
 - Confirm that an alarm notification will be sent to Slack from the Amazon Q Developer in chat applications set up in the existing workload
   - If you don't have the test envrionment for FA2 or you cannot use it for FA2. You can create test environment as follow [How to create a test environment for FA2](./docs/HowToCreateTestEnvironment_en.md).
 - You must have the permission to register the Slack App to the Slack workspace you want to use.
@@ -118,7 +122,7 @@ The ReACT agent, which is the core of FA2, operates with the following detailed 
 Refer to the following description, copy `parameter_template.ts`, create `parameter.ts`, and then change each value.
 
 ```
-// Example: Settings for the Slack App version when using Claude 3.7 Sonnet and using CloudWatch Logs as search targets
+// Example: Settings for the Slack App version when using Claude Sonnet 4.6 and using CloudWatch Logs as search targets
 export const devParameter: AppParameter = {
   env: {
     account: "123456789012",
@@ -126,7 +130,7 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+  modelId: "global.anthropic.claude-sonnet-4-6",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecret",
   architectureDescription: "The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2.",
@@ -149,27 +153,27 @@ export const devParameter: AppParameter = {
 
 #### Explanation of parameters
 
-| Parameters               | Example value                                                             | Description                                                                                                                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.account`            | `"123456789012"`                                                          | AWS Account ID to deploy this sample                                                                                                                                                        |
-| `env.region`             | `"us-west-2"`                                                             | AWS Region to deploy this sample                                                                                                                                                            |
-| `language`               | `"ja"`                                                                    | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                               |
-| `envName`                | `"Development"`                                                           | Environment name.                                                                                                                                                                           |
-| `modelId`                | `"us.anthropic.claude-3-7-sonnet-20250219-v1:0"`                               | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc.                                                                      |
-| `slackAppTokenKey`       | `"SlackAppToken"`                                                         | The key name is to get `SlackAppToken` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                               |
-| `slackSingingSecretKey`  | `"SlackSigningSecret"`                                                     | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                          |
-| `architectureDescription`  | `"The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2."`                                                     | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                           |
-| `cwLogsLogGroups`        | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]` | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                             |
-| `cwLogsInsightQuery`     | `"fields @message \| limit 100"`                                          | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment). |
-| `databaseName`           | `"athenadatacatalog"`                                                     | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                  |
-| `albAccessLogTableName`  | `"alb_access_logs"`                                                       | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                    |
-| `cloudTrailLogTableName` | `"cloud_trail_logs"`                                                      | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                          |
-| `xrayTrace`              | `true`                                                                    | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                     |
-| `slashCommands`              | `{"insight": true, "findingsReport": true}`                                                                    | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                     |
-| `detectorId`              | `"xxxxxxxxxxx"`                                                                    | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                      |
-| `knowledgeBase`              | `true`                                                                    | Set `true` when using Knowledge Base in failure analysis.                                                                                                      |
-| `embeddingModelId`              | `"amazon.titan-embed-text-v2:0"`                                                                    | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                                                                                                     |
-| `maxAgentCycles`              | `5`                                                                    | Specifies the maximum number of cycles the ReACT agent will execute. Default is 5.                                                                                                      |
+| Parameters                | Example value                                                                                                           | Description                                                                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env.account`             | `"123456789012"`                                                                                                        | AWS Account ID to deploy this sample                                                                                                                                                                                        |
+| `env.region`              | `"us-west-2"`                                                                                                           | AWS Region to deploy this sample                                                                                                                                                                                            |
+| `language`                | `"ja"`                                                                                                                  | Language setting for prompt and UI. Choose one, `en` or `ja`.                                                                                                                                                               |
+| `envName`                 | `"Development"`                                                                                                         | Environment name.                                                                                                                                                                                                           |
+| `modelId`                 | `"global.anthropic.claude-sonnet-4-6"`                                                                                  | Specify the model ID as defined in Amazon Bedrock. Please specify what you allow for model access. Please specify a model with a particular focus on output quality. It is used for inference of the cause of failure, etc. |
+| `slackAppTokenKey`        | `"SlackAppToken"`                                                                                                       | The key name is to get `SlackAppToken` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                                                               |
+| `slackSingingSecretKey`   | `"SlackSigningSecret"`                                                                                                  | The key name is to get `SlackSigningSecret` from AWS Secrets Manager. You should use the same key name in [Registration of Slack App](#registration-of-slack-app).                                                          |
+| `architectureDescription` | `"The workload you are responsible for consists of ALB, EC2, and Aurora, and Spring applications are deployed on EC2."` | This is a sentence explaining the system to failure analysis. It will be incorporated into the prompt, so please try to include AWS service names and element technology, and keep it simple.                               |
+| `cwLogsLogGroups`         | `["/ec2/demoapp", "/ec2/messages", "/aws/application-signals/data"]`                                                    | Specify the log group of Amazon CloudWatch Logs for which you want to retrieve logs. Up to 50 can be specified.                                                                                                             |
+| `cwLogsInsightQuery`      | `"fields @message \| limit 100"`                                                                                        | Specify the query you want to use with CloudWatch Logs Insight. Due to balance with the context window, the default limit is 100 (please modify the query according to actual environment).                                 |
+| `databaseName`            | `"athenadatacatalog"`                                                                                                   | The name of the Amazon Athena database. Required if you want to use Athena to search logs.                                                                                                                                  |
+| `albAccessLogTableName`   | `"alb_access_logs"`                                                                                                     | ALB access log table name. In this sample, ALB access log search was implemented in Athena, so the ALB access log table name is specified when using it.                                                                    |
+| `cloudTrailLogTableName`  | `"cloud_trail_logs"`                                                                                                    | AWS CloudTrail log table name. In this sample, we implemented a CloudTrail audit log log search in Athena, so specify the CloudTrail log table name when using it.                                                          |
+| `xrayTrace`               | `true`                                                                                                                  | A parameter for deciding whether to include AWS X-Ray trace information in the analysis                                                                                                                                     |
+| `slashCommands`           | `{"insight": true, "findingsReport": true}`                                                                             | Decide whether to enable deployment of resources associated with the `insight` and `findings-report` command                                                                                                                |
+| `detectorId`              | `"xxxxxxxxxxx"`                                                                                                         | It is requred if you want to use `findings-report` command. Please input `detectorId` that is defined in your account                                                                                                       |
+| `knowledgeBase`           | `true`                                                                                                                  | Set `true` when using Knowledge Base in failure analysis.                                                                                                                                                                   |
+| `embeddingModelId`        | `"amazon.titan-embed-text-v2:0"`                                                                                        | Optional. If you want to customize your knowledge base when using the Knowledge Base. Set up the Embedding Model. In same time, please modify `VectorDimenssion` in `lib/constructs/aurora-serverless.ts`.                  |
+| `maxAgentCycles`          | `5`                                                                                                                     | Specifies the maximum number of cycles the ReACT agent will execute. Default is 5.                                                                                                                                          |
 
 #### Modify prompts
 
@@ -220,12 +224,13 @@ However, operators may want to use it anytime.
 If this is the case, please make the following settings. The fault analysis assist form can now be used with slash commands.
 
 1. Click [Slash Commands] on the left menu, then click [Create New Command]
+
    1. Enter the values as shown in the table below, and then click Save when you have entered them all
 
-      | item name         | value                         |
-      | ----------------- | ----------------------------- |
-      | Command           | /fa2                      |
-      | Request URL       | same URL                      |
+      | item name         | value                    |
+      | ----------------- | ------------------------ |
+      | Command           | /fa2                     |
+      | Request URL       | same URL                 |
       | Short Description | Invoke FA2 interactively |
 
 2. Click [App Home] on the left menu, check [Allow users to send Slash commands and messages from the messages tab] in [Message tab].

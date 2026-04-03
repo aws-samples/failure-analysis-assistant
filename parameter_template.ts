@@ -36,7 +36,7 @@ export const devParameter: AppParameter = {
   },
   language: "ja",
   envName: "Development",
-  modelId: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+  modelId: "global.anthropic.claude-sonnet-4-6",
   slackAppTokenKey: "SlackAppToken",
   slackSigningSecretKey: "SlackSigningSecret",
   architectureDescription: `
@@ -55,5 +55,5 @@ export const devParameter: AppParameter = {
   detectorId: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   knowledgeBase: true,
   embeddingModelId: "amazon.titan-embed-text-v2:0",
-  maxAgentCycles: 5 // Maximum number of cycles for ReAct agent
+  maxAgentCycles: 5, // Maximum number of cycles for ReAct agent
 };
