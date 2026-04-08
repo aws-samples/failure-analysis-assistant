@@ -36,7 +36,6 @@ export class BedrockService {
   // Fixed value settings
   private readonly DEFAULT_MAX_TOKENS = 8192;
   private readonly DEFAULT_TEMPERATURE = 0.1;
-  private readonly DEFAULT_TOP_P = 0.97;
   private readonly DEFAULT_KB_RESULTS = 3;
   
   /**
@@ -68,7 +67,6 @@ export class BedrockService {
     inferenceConfig: InferenceConfiguration = {
       maxTokens: this.DEFAULT_MAX_TOKENS,
       temperature: this.DEFAULT_TEMPERATURE,
-      topP: this.DEFAULT_TOP_P
     }
   ): Promise<string> {
     // Use provided model ID or get from configuration service
